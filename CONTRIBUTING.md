@@ -1,23 +1,16 @@
-# Kaltsit Developer Docs
+# Документация разработчика KaltsitWebsite
 
-## Table of Contents
-- [Getting Started](#getting-started)
-  - [Environment Setup](#environment-setup)
-  - [Assets Pipeline](#assets-pipeline)
-  - [Running the Application](#running-the-application)
-- [Project Structure](#project-structure)
-- [Technology Stack](#technology-stack)
-- [Architecture](#architecture)
-- [Documentation](#documentation)
+Этот проект является форком [Myrtle.moe](https://github.com/Eltik/myrtle), адаптированным для русскоязычного сообщества.
 
-## Prerequisites
-*   [Docker engine](https://docs.docker.com/engine/install/)
-*   [Docker Compose](https://docs.docker.com/compose/install/)
-*   **~100GB of free space on disk** for assets downloading and extraction.
+## Требования
 
-> Note: Docker engine and compose are included in Docker Desktop.
+Перед началом работы убедитесь, что у вас установлены:
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) (включает в себя Docker Engine и Docker Compose).
+*   Около **100 ГБ** свободного места на диске (необходимо для скачивания и распаковки игровых ресурсов).
 
-Before getting started, be sure to clone the repository and initialize the submodules:
+## Первоначальная настройка
+
+Склонируйте репозиторий и инициализируйте сабмодули:
 
 ```bash
 git clone https://github.com/ArknightsRussian/KaltsitWebsite.git
