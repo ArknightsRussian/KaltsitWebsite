@@ -1,0 +1,114 @@
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { Link, useParams } from "@tanstack/react-router";
+import { RotateCwIcon } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "#/components/ui/alert";
+import { Button } from "#/components/ui/button";
+import { Skeleton } from "#/components/ui/skeleton";
+import { type ITierListDetail, recordTierListViewFn, snapshotToTiers, tierListDetailQueryOptions, tierListVersionsQueryOptions } from "#/lib/api/tier-lists";
+import { useGamedataServer, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { Route as DetailRoute } from "#/routes/tier-lists_.$id";
+import { TierListBoard } from "./TierListBoard";
+import type { messages } from "./TierListDetail.messages";
+import { TierListHero } from "./TierListHero";
+import { TierListStatsPanel } from "./TierListStatsPanel";
+import { VersionsBar } from "./VersionsBar";
+
+export function TierListDetail() {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    const { id } = useParams({ from: "/tier-lists_/$id" });
+    const { v: requestedVersion } = DetailRoute.useSearch();
+    const gamedataServer = useGamedataServer();
+    const { data: detail } = useSuspenseQuery(tierListDetailQueryOptions(id, gamedataServer));
+    const versionsQuery = useQuery(tierListVersionsQueryOptions(id, gamedataServer));
+    const versionsData = versionsQuery.data;
+    const queryClient = useQueryClient();
+
+    const versions = useMemo(() => versionsData ?? [], [versionsData]);
+    const selectedVersion = useMemo(() => (requestedVersion == null ? null : (versions.find((v) => v.version === requestedVersion) ?? null)), [versions, requestedVersion]);
+    const isLatestView = selectedVersion === null;
+
+    const snapshotTiers = useMemo(() => {
+        if (!selectedVersion) return null;
+        return snapshotToTiers(selectedVersion.snapshot);
+    }, [selectedVersion]);
+
+    const recordedRef = useRef<string | null>(null);
+    const slug = detail?.slug;
+
+    useEffect(() => {
+        if (!slug) return;
+        if (recordedRef.current === slug) return;
+        recordedRef.current = slug;
+        recordTierListViewFn({ data: slug })
+            .then(({ unique }) => {
+                if (!unique) return;
+                queryClient.setQueryData<ITierListDetail>(tierListDetailQueryOptions(id, gamedataServer).queryKey, (prev) => {
+                    if (!prev?.stats) return prev;
+                    return {
+                        ...prev,
+                        stats: {
+                            ...prev.stats,
+                            viewCount: prev.stats.viewCount + 1,
+                            uniqueViewCount: prev.stats.uniqueViewCount + 1,
+                        },
+                    };
+                });
+            })
+            .catch(() => {});
+    }, [slug, id, queryClient, gamedataServer]);
+
+    if (!detail) {
+        return (
+            <div className="mx-auto w-[min(720px,calc(100%-2rem))] py-20 text-center">
+                <h1 className="m-0 font-bold font-sans text-2xl text-foreground tracking-tight">{t("detail.notFound.title")}</h1>
+                <p className="mt-3 font-sans text-muted-foreground text-sm">{t("detail.notFound.body")}</p>
+                <Link to="/tier-lists" search={{ type: "all", sort: "recent", q: "", flair: [] }} className="mt-6 inline-flex items-center gap-1.5 rounded-lg border border-border bg-popover px-3.5 py-2 font-medium font-sans text-foreground text-sm leading-none no-underline transition-colors hover:bg-accent">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                        <path d="m12 19-7-7 7-7" />
+                        <path d="M19 12H5" />
+                    </svg>
+                    {t("detail.notFound.action")}
+                </Link>
+            </div>
+        );
+    }
+
+    const boardDetail: ITierListDetail = snapshotTiers ? { ...detail, tiers: snapshotTiers } : detail;
+    // R-27: a `?v=` link whose versions query failed or missed used to render the latest board as if it were that snapshot.
+    const snapshotState = requestedVersion == null ? "none" : versionsQuery.isError ? "failed" : versionsQuery.isPending ? "loading" : selectedVersion ? "ok" : "missing";
+
+    return (
+        <div className="min-h-dvh pb-20">
+            <TierListHero detail={detail} />
+
+            <VersionsBar slug={detail.slug} versions={versions} selectedVersion={selectedVersion} isLatestView={isLatestView} />
+
+            <div className="page-gutter mt-4 grid gap-4 [--page-max:1200px] sm:mt-6 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start lg:gap-8">
+                <div className="flex min-w-0 flex-col gap-4">
+                    {snapshotState === "failed" && (
+                        <Alert variant="error">
+                            <AlertTitle>{t("detail.snapshot.failedTitle", { version: requestedVersion ?? 0 })}</AlertTitle>
+                            <AlertDescription>{t("detail.snapshot.failedBody")}</AlertDescription>
+                            <AlertAction>
+                                <Button variant="outline" size="sm" onClick={() => versionsQuery.refetch()} disabled={versionsQuery.isFetching}>
+                                    <RotateCwIcon aria-hidden="true" />
+                                    {t("detail.snapshot.retry")}
+                                </Button>
+                            </AlertAction>
+                        </Alert>
+                    )}
+                    {snapshotState === "missing" && (
+                        <Alert variant="warning">
+                            <AlertTitle>{t("detail.snapshot.missingTitle", { version: requestedVersion ?? 0 })}</AlertTitle>
+                            <AlertDescription>{t("detail.snapshot.missingBody")}</AlertDescription>
+                        </Alert>
+                    )}
+                    {snapshotState === "loading" ? <Skeleton className="h-96 rounded-2xl" /> : <TierListBoard detail={boardDetail} />}
+                </div>
+                <TierListStatsPanel detail={detail} />
+            </div>
+        </div>
+    );
+}

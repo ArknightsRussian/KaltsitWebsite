@@ -1,0 +1,35 @@
+/* Pieces every home section shares: the section width and the "see all" link. */
+
+.container {
+    width: min(1080px, calc(100% - 2rem));
+    margin: 0 auto;
+}
+
+.moreLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    /* A 44px tap target that takes the text's own height in the layout. */
+    min-height: 44px;
+    margin-block: -12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.moreLink:hover {
+    color: var(--foreground);
+}
+.moreLink:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+/* The arrow is drawn here, not in the label, with empty alt text so a screen reader
+   does not read it out as "right arrow". */
+.moreLink::after {
+    content: "→" / "";
+}
+.moreLink:dir(rtl)::after {
+    content: "←" / "";
+}

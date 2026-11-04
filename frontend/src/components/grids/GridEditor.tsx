@@ -1,0 +1,431 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link, useBlocker, useNavigate } from "@tanstack/react-router";
+import { CheckIcon, ExternalLinkIcon, LockIcon, RotateCcwIcon } from "lucide-react";
+import { type RefObject, useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "#/components/ui/breadcrumb";
+import { Button } from "#/components/ui/button";
+import { Field, FieldLabel } from "#/components/ui/field";
+import { Input } from "#/components/ui/input";
+import { Kicker } from "#/components/ui/kicker";
+import { NumberField, NumberFieldDecrement, NumberFieldGroup, NumberFieldIncrement, NumberFieldInput } from "#/components/ui/number-field";
+import { Switch } from "#/components/ui/switch";
+import { Textarea } from "#/components/ui/textarea";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { useAuth } from "#/hooks/use-auth";
+import { useMediaQuery } from "#/hooks/use-media-query";
+import { gridQueryOptions, type IGrid } from "#/lib/api/grids";
+import type { ITierEntity, TierEntityKind } from "#/lib/api/tier-entities";
+import { useGamedataServer, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { truncateCodePoints } from "#/lib/markdown/sanitize-input";
+import { AllowedKindsDialog, KindChips } from "./AllowedKinds";
+import type { messages as kindsMessages } from "./AllowedKinds.messages";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { DeleteGridButton } from "./DeleteGrid";
+import { EntityPickerDialog } from "./EntityPickerDialog";
+import { GridBoard, type IGridBoardEditor } from "./GridBoard";
+import { GridCellSheet } from "./GridCellSheet";
+import type { messages } from "./GridEditor.messages";
+import { GridNotice } from "./GridNotice";
+import { useGridSave } from "./save";
+import { GRID_DESCRIPTION_MAX, GRID_MAX_SIZE, GRID_MIN_SIZE, GRID_TITLE_MAX } from "./shared";
+import { contentLostByResize, gridReducer, gridToState, type IGridEditState, pickerTarget, picksByKind, picksLostByKinds } from "./state";
+
+type EditorT = TypedT<typeof messages>;
+type KindsT = TypedT<typeof kindsMessages>;
+
+export function GridEditor({ slug }: { slug: string }) {
+    const server = useGamedataServer();
+    const { user } = useAuth();
+    const { data: grid } = useSuspenseQuery(gridQueryOptions(slug, user?.id ?? null, server));
+    if (!grid) return <EditorNotice slug={null} kind="missing" />;
+    if (!grid.can_edit) return <EditorNotice slug={slug} kind="forbidden" />;
+    return <EditorContent grid={grid} viewerId={user?.id ?? null} />;
+}
+
+function EditorContent({ grid, viewerId }: { grid: IGrid; viewerId: string | null }) {
+    const t: EditorT = useT("grids");
+    const tk: KindsT = useT("grids");
+    const slug = grid.slug;
+    const navigate = useNavigate();
+
+    const initial = useMemo(() => gridToState(grid), [grid]);
+    const [state, dispatch] = useReducer(gridReducer, initial);
+    const { dirty, saving, saveError, save, discard } = useGridSave({ slug, viewerId, initial, state, dispatch });
+    const [pickIndex, setPickIndex] = useState<number | null>(null);
+    // Below `sm` a tap on a cell opens it full screen in a sheet; the picker then opens over the sheet.
+    const narrow = useMediaQuery("max-sm");
+    const [sheetIndex, setSheetIndex] = useState<number | null>(null);
+    const [pendingResize, setPendingResize] = useState<{ rows: number; cols: number; lost: number } | null>(null);
+    const [kindsOpen, setKindsOpen] = useState(false);
+    const [pendingKinds, setPendingKinds] = useState<{ kinds: TierEntityKind[]; lost: number } | null>(null);
+
+    const trimmedTitle = state.title.trim();
+    const titleValid = trimmedTitle.length > 0 && Array.from(trimmedTitle).length <= GRID_TITLE_MAX;
+
+    // Leaving with unsaved changes, or while a save is still in flight, asks in-app first. The ref keeps the check current without re-registering the blocker each render.
+    // A deleted grid has nothing left to keep, so the navigation after a delete is never blocked.
+    const deletedRef = useRef(false);
+    const blockRef = useRef(false);
+    blockRef.current = !deletedRef.current && (dirty || saving);
+    const blocker = useBlocker({ shouldBlockFn: () => blockRef.current, enableBeforeUnload: () => blockRef.current, withResolver: true });
+
+    const handleSave = useCallback(() => {
+        if (!dirty || !titleValid || saving) return;
+        save(state);
+    }, [dirty, titleValid, saving, save, state]);
+
+    // Shrinking the board past cells with content drops them, so it asks first.
+    const requestResize = useCallback(
+        (rows: number, cols: number) => {
+            const lost = contentLostByResize(state, rows, cols);
+            if (lost > 0) setPendingResize({ rows, cols, lost });
+            else dispatch({ type: "resize", rows, cols });
+        },
+        [state],
+    );
+
+    const placedByKind = useMemo(() => picksByKind(state.cells), [state.cells]);
+
+    // Removing a type some cells hold clears those picks, so it asks first.
+    const applyKinds = useCallback(
+        (kinds: TierEntityKind[]) => {
+            setKindsOpen(false);
+            const lost = picksLostByKinds(state, kinds);
+            if (lost > 0) setPendingKinds({ kinds, lost });
+            else dispatch({ type: "setKinds", kinds });
+        },
+        [state],
+    );
+
+    const boardEditor: IGridBoardEditor = useMemo(
+        () => ({
+            onPick: (index) => setPickIndex(index),
+            onClear: (index) => dispatch({ type: "clearEntity", index }),
+            onLabelChange: (index, label) => dispatch({ type: "setLabel", index, label }),
+            onSwap: (from, to) => dispatch({ type: "swap", from, to }),
+            onOpen: narrow ? setSheetIndex : undefined,
+        }),
+        [narrow],
+    );
+
+    const handlePick = (entity: ITierEntity, server: string | null) => {
+        if (pickIndex === null) return;
+        dispatch({ type: "setEntity", index: pickIndex, entity, server });
+        setPickIndex(null);
+    };
+
+    const handleClear = () => {
+        if (pickIndex === null) return;
+        dispatch({ type: "clearEntity", index: pickIndex });
+        setPickIndex(null);
+    };
+
+    const picker = <EntityPickerDialog target={pickerTarget(state, pickIndex)} kinds={state.entityKinds} onClose={() => setPickIndex(null)} onPick={handlePick} onClear={handleClear} />;
+
+    return (
+        <div className="min-h-dvh pb-24">
+            <EditorHeader
+                slug={slug}
+                state={state}
+                dirty={dirty}
+                titleValid={titleValid}
+                saving={saving}
+                saveError={saveError}
+                onTitleChange={(title) => dispatch({ type: "setTitle", title })}
+                onDescriptionChange={(description) => dispatch({ type: "setDescription", description })}
+                onListedChange={(isListed) => dispatch({ type: "setListed", isListed })}
+                onResize={requestResize}
+                kindsLocked={grid.kinds_locked}
+                onChangeKinds={() => setKindsOpen(true)}
+                onSave={handleSave}
+                onDiscard={discard}
+                savedTitle={grid.title}
+                onDeleted={async () => {
+                    deletedRef.current = true;
+                    blockRef.current = false;
+                    await navigate({ to: "/grids/my", replace: true });
+                }}
+            />
+
+            <div className="page-gutter mt-6 [--page-max:1180px]">
+                <GridBoard title={state.title} rows={state.rows} cols={state.cols} cells={state.cells} editor={boardEditor} />
+                <p className="mt-3 text-center font-sans text-muted-foreground text-xs">{t("edit.hint")}</p>
+            </div>
+
+            {sheetIndex === null && picker}
+            <GridCellSheet cells={state.cells} cols={state.cols} index={sheetIndex} onIndexChange={setSheetIndex} onClose={() => setSheetIndex(null)} onPick={setPickIndex} onClear={boardEditor.onClear} onLabelChange={boardEditor.onLabelChange}>
+                {sheetIndex !== null && picker}
+            </GridCellSheet>
+
+            <ConfirmDialog
+                open={pendingResize !== null}
+                title={t("edit.shrink.title")}
+                body={t("edit.shrink.body", { count: pendingResize?.lost ?? 0, rows: pendingResize?.rows ?? state.rows, cols: pendingResize?.cols ?? state.cols })}
+                confirmLabel={t("edit.shrink.confirm")}
+                cancelLabel={t("edit.shrink.cancel")}
+                destructive
+                onCancel={() => setPendingResize(null)}
+                onConfirm={() => {
+                    if (pendingResize) dispatch({ type: "resize", rows: pendingResize.rows, cols: pendingResize.cols });
+                    setPendingResize(null);
+                }}
+            />
+
+            <AllowedKindsDialog open={kindsOpen} kinds={state.entityKinds} placedByKind={placedByKind} onClose={() => setKindsOpen(false)} onApply={applyKinds} />
+
+            <ConfirmDialog
+                open={pendingKinds !== null}
+                title={tk("kinds.clear.title")}
+                body={tk("kinds.clear.body", { count: pendingKinds?.lost ?? 0 })}
+                confirmLabel={tk("kinds.clear.confirm")}
+                cancelLabel={tk("kinds.clear.cancel")}
+                destructive
+                onCancel={() => setPendingKinds(null)}
+                onConfirm={() => {
+                    if (pendingKinds) dispatch({ type: "setKinds", kinds: pendingKinds.kinds });
+                    setPendingKinds(null);
+                }}
+            />
+
+            <ConfirmDialog open={blocker.status === "blocked"} title={t("edit.leave.title")} body={t("edit.leave.body")} confirmLabel={t("edit.leave.confirm")} cancelLabel={t("edit.leave.cancel")} destructive onCancel={() => blocker.reset?.()} onConfirm={() => blocker.proceed?.()} />
+        </div>
+    );
+}
+
+interface IEditorHeaderProps {
+    slug: string;
+    state: IGridEditState;
+    dirty: boolean;
+    titleValid: boolean;
+    saving: boolean;
+    saveError: string | null;
+    onTitleChange: (title: string) => void;
+    onDescriptionChange: (description: string) => void;
+    onListedChange: (isListed: boolean) => void;
+    onResize: (rows: number, cols: number) => void;
+    /** The grid is a fork: its allowed types are its template's. */
+    kindsLocked: boolean;
+    onChangeKinds: () => void;
+    onSave: () => void;
+    onDiscard: () => void;
+    /** The title as last saved: what the delete confirmation names. */
+    savedTitle: string;
+    onDeleted: () => Promise<void>;
+}
+
+function EditorHeader({ slug, state, dirty, titleValid, saving, saveError, onTitleChange, onDescriptionChange, onListedChange, onResize, kindsLocked, onChangeKinds, onSave, onDiscard, savedTitle, onDeleted }: IEditorHeaderProps) {
+    const t: EditorT = useT("grids");
+    const tk: KindsT = useT("grids");
+    const titleId = useId();
+    const descId = useId();
+    const listedId = useId();
+    const listedHintId = useId();
+    const actionsRef = useRef<HTMLDivElement>(null);
+
+    return (
+        <header className="border-border/60 border-b bg-card">
+            <div className="page-gutter pt-5 pb-6 [--page-max:1180px] sm:pt-8 sm:pb-7">
+                <Breadcrumb className="mb-3">
+                    <BreadcrumbList className="text-xs">
+                        <BreadcrumbItem>
+                            <BreadcrumbLink render={<Link to="/grids/my" />}>{t("edit.breadcrumbMine")}</BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <BreadcrumbLink render={<Link to="/grids/$slug" params={{ slug }} />}>{state.title.trim() || t("edit.breadcrumbUntitled")}</BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <BreadcrumbPage className="font-medium">{t("edit.breadcrumbEdit")}</BreadcrumbPage>
+                        </BreadcrumbItem>
+                    </BreadcrumbList>
+                </Breadcrumb>
+
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex min-w-0 flex-1 flex-col gap-3">
+                        <Kicker className="mb-2.5">{t("edit.kicker")}</Kicker>
+                        <Field>
+                            <FieldLabel htmlFor={titleId} className="sr-only">
+                                {t("edit.titleLabel")}
+                            </FieldLabel>
+                            <Input
+                                id={titleId}
+                                value={state.title}
+                                onChange={(e) => onTitleChange(truncateCodePoints((e.target as HTMLInputElement).value, GRID_TITLE_MAX))}
+                                placeholder={t("edit.titlePlaceholder")}
+                                size="lg"
+                                aria-invalid={!titleValid || undefined}
+                                className="font-bold text-2xl sm:text-3xl [&_input]:font-sans [&_input]:tracking-tight"
+                            />
+                        </Field>
+                        <Field>
+                            <FieldLabel htmlFor={descId} className="sr-only">
+                                {t("edit.descriptionLabel")}
+                            </FieldLabel>
+                            <Textarea id={descId} value={state.description} onChange={(e) => onDescriptionChange(truncateCodePoints(e.target.value, GRID_DESCRIPTION_MAX))} placeholder={t("edit.descriptionPlaceholder")} rows={2} />
+                        </Field>
+
+                        <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+                            <SizeStepper label={t("edit.rows")} value={state.rows} onChange={(rows) => onResize(rows, state.cols)} />
+                            <SizeStepper label={t("edit.cols")} value={state.cols} onChange={(cols) => onResize(state.rows, cols)} />
+                            <div className="flex items-center gap-2.5 pb-1">
+                                {/* The switch is 22 px tall; a coarse pointer gets a 44 px square around it, like the site's buttons. */}
+                                <Switch id={listedId} checked={state.isListed} onCheckedChange={onListedChange} aria-describedby={listedHintId} className="relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-[3px] pointer-coarse:after:-inset-y-[11px]" />
+                                <div className="flex flex-col">
+                                    <label htmlFor={listedId} className="cursor-pointer font-medium font-sans text-foreground text-sm">
+                                        {t("edit.listed")}
+                                    </label>
+                                    <span id={listedHintId} className="font-sans text-muted-foreground text-xs">
+                                        {state.isListed ? t("edit.listedOn") : t("edit.listedOff")}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                            <Kicker>{tk("kinds.label")}</Kicker>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <KindChips kinds={state.entityKinds} />
+                                {kindsLocked ? (
+                                    <span className="inline-flex items-center gap-1 font-sans text-muted-foreground text-xs">
+                                        <LockIcon className="h-3 w-3" aria-hidden="true" />
+                                        {tk("kinds.locked")}
+                                    </span>
+                                ) : (
+                                    <Button type="button" variant="outline" size="xs" onClick={onChangeKinds}>
+                                        {tk("kinds.change")}
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex w-full shrink-0 flex-col gap-3 lg:w-72">
+                        <div className="rounded-2xl border border-border bg-card p-3 shadow-[0_1px_2px_oklch(0_0_0/0.04)]">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold font-mono text-[10.5px] text-muted-foreground">{dirty ? t("edit.unsaved") : t("edit.allSaved")}</span>
+                                {!dirty && <CheckIcon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+                            </div>
+                            <p className="mt-1 font-sans text-[12px] text-muted-foreground">{dirty ? t("edit.unsavedBody") : t("edit.upToDate")}</p>
+                            {!titleValid && <p className="mt-1 font-sans text-[12px] text-destructive-foreground">{t("edit.titleRequired")}</p>}
+                            {saveError && (
+                                <div role="alert" className="mt-2 rounded-md border border-destructive/30 bg-destructive/8 px-2 py-1.5 font-sans text-[11.5px] text-destructive-foreground">
+                                    {saveError}
+                                </div>
+                            )}
+                        </div>
+                        <div ref={actionsRef} className="flex items-center gap-1.5">
+                            <SaveButton onSave={onSave} disabled={!dirty || saving || !titleValid} saving={saving} className="flex-1" />
+                            <DiscardButton onDiscard={onDiscard} disabled={!dirty || saving} />
+                            <Tooltip>
+                                <TooltipTrigger render={<Button type="button" variant="ghost" render={<Link to="/grids/$slug" params={{ slug }} target="_blank" rel="noreferrer" />} size="icon" aria-label={t("edit.openPublic")} />}>
+                                    <ExternalLinkIcon />
+                                </TooltipTrigger>
+                                <TooltipPopup>{t("edit.openPublic")}</TooltipPopup>
+                            </Tooltip>
+                            <DeleteGridButton grid={{ slug, title: savedTitle }} variant="labelled" collapse disabled={saving} onDeleted={onDeleted} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <MobileSaveBar actionsRef={actionsRef} dirty={dirty} titleValid={titleValid} saving={saving} onSave={onSave} onDiscard={onDiscard} />
+        </header>
+    );
+}
+
+interface IMobileSaveBarProps {
+    /** The header's own Save row: the bar shows only while it is off screen. */
+    actionsRef: RefObject<HTMLDivElement | null>;
+    dirty: boolean;
+    titleValid: boolean;
+    saving: boolean;
+    onSave: () => void;
+    onDiscard: () => void;
+}
+
+/**
+ * Below `lg` the board sits under the header, so editing its lower rows puts
+ * the Save row a long scroll away. While there are changes and that row is
+ * out of view, Save and Discard follow along at the bottom of the screen. At
+ * `lg` and up the bar never renders.
+ */
+function MobileSaveBar({ actionsRef, dirty, titleValid, saving, onSave, onDiscard }: IMobileSaveBarProps) {
+    const t: EditorT = useT("grids");
+    const [rowVisible, setRowVisible] = useState(true);
+    useEffect(() => {
+        const el = actionsRef.current;
+        if (!el || typeof IntersectionObserver === "undefined") return;
+        const observer = new IntersectionObserver(([entry]) => setRowVisible(entry?.isIntersecting ?? true));
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [actionsRef]);
+    if (!dirty || rowVisible) return null;
+    return (
+        <div data-claims-bottom="" className="fixed inset-x-0 bottom-0 z-40 border-border border-t bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] lg:hidden">
+            <div className="mx-auto flex max-w-[1180px] items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-bold font-mono text-[10.5px] text-muted-foreground">{t("edit.unsaved")}</span>
+                <DiscardButton onDiscard={onDiscard} disabled={saving} />
+                <SaveButton onSave={onSave} disabled={saving || !titleValid} saving={saving} className="min-w-28" />
+            </div>
+        </div>
+    );
+}
+
+/** Save, as the header's row and the mobile bar both draw it. */
+function SaveButton({ onSave, disabled, saving, className }: { onSave: () => void; disabled: boolean; saving: boolean; className: string }) {
+    const t: EditorT = useT("grids");
+    return (
+        <Button type="button" onClick={onSave} disabled={disabled} loading={saving} className={className}>
+            <CheckIcon />
+            {t("edit.save")}
+        </Button>
+    );
+}
+
+/** Discard, as the header's row and the mobile bar both draw it. */
+function DiscardButton({ onDiscard, disabled }: { onDiscard: () => void; disabled: boolean }) {
+    const t: EditorT = useT("grids");
+    return (
+        <Tooltip>
+            <TooltipTrigger render={<Button type="button" variant="outline" onClick={onDiscard} disabled={disabled} size="icon" aria-label={t("edit.discard")} />}>
+                <RotateCcwIcon />
+            </TooltipTrigger>
+            <TooltipPopup>{t("edit.discard")}</TooltipPopup>
+        </Tooltip>
+    );
+}
+
+function SizeStepper({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+    return (
+        <NumberField value={value} min={GRID_MIN_SIZE} max={GRID_MAX_SIZE} step={1} onValueChange={(v) => v !== null && onChange(v)} size="sm" className="w-32 gap-1">
+            <Kicker>{label}</Kicker>
+            <NumberFieldGroup>
+                <NumberFieldDecrement />
+                <NumberFieldInput aria-label={label} />
+                <NumberFieldIncrement />
+            </NumberFieldGroup>
+        </NumberField>
+    );
+}
+
+function EditorNotice({ slug, kind }: { slug: string | null; kind: "missing" | "forbidden" }) {
+    const t: EditorT = useT("grids");
+    return (
+        <GridNotice
+            title={kind === "missing" ? t("edit.missing.title") : t("edit.forbidden.title")}
+            body={kind === "missing" ? t("edit.missing.body") : t("edit.forbidden.body")}
+            action={
+                slug ? (
+                    <Button render={<Link to="/grids/$slug" params={{ slug }} />} variant="outline" className="mt-6">
+                        {t("edit.forbidden.action")}
+                    </Button>
+                ) : (
+                    <Button render={<Link to="/grids/my" />} variant="outline" className="mt-6">
+                        {t("edit.missing.action")}
+                    </Button>
+                )
+            }
+        />
+    );
+}

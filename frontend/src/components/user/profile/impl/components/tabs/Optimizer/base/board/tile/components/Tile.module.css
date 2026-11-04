@@ -1,0 +1,340 @@
+.riic-tile {
+    --tile-line: rgb(255 255 255 / 0.28);
+    --tile-edge: rgb(255 255 255 / 0.08);
+    --tile-bracket: 8px;
+    --tile-hairline: 0.5px;
+    --tile-icon: none;
+    --tile-plate: none;
+
+    --slab: #323232;
+    --slab-ink: #fff;
+    --slab-ink-dim: rgb(255 255 255 / 0.55);
+
+    --_b: var(--tile-bracket) var(--tile-bracket);
+    --_n: var(--tile-hairline);
+    --_f: calc(100% - var(--tile-hairline));
+
+    position: relative;
+    display: block;
+    overflow: hidden;
+    padding: 2px;
+    border: 1px solid var(--tile-edge);
+    border-radius: 0;
+    background-color: transparent;
+    color: var(--slab-ink);
+    font-family: inherit;
+    text-align: left;
+
+    background-image:
+        conic-gradient(from 90deg at var(--_n) var(--_n), transparent 25%, var(--tile-line) 0), conic-gradient(from 180deg at var(--_f) var(--_n), transparent 25%, var(--tile-line) 0), conic-gradient(from 0deg at var(--_n) var(--_f), transparent 25%, var(--tile-line) 0),
+        conic-gradient(from 270deg at var(--_f) var(--_f), transparent 25%, var(--tile-line) 0);
+    background-repeat: no-repeat;
+    background-size: var(--_b), var(--_b), var(--_b), var(--_b);
+    background-position:
+        0 0,
+        100% 0,
+        0 100%,
+        100% 100%;
+}
+
+button.riic-tile {
+    cursor: pointer;
+    transition:
+        border-color 0.12s ease,
+        background-color 0.12s ease;
+}
+button.riic-tile:hover {
+    --tile-edge: rgb(255 255 255 / 0.4);
+    background-color: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+button.riic-tile:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+}
+
+.riic-tile-empty,
+.riic-tile-unbuilt {
+    --slab: #262626;
+    --slab-ink: rgb(255 255 255 / 0.6);
+    /* 0.55 white on #262626 measures 5.60; the old 0.4 measured 3.67 under the "Not built" label. */
+    --slab-ink-dim: rgb(255 255 255 / 0.55);
+}
+.riic-tile-unbuilt {
+    border-style: dashed;
+}
+
+.riic-tile-room-clip {
+    position: absolute;
+    inset: 2px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.riic-tile-room-body,
+.riic-tile-room-grid,
+.riic-tile-room-accent,
+.riic-tile-room-icon {
+    position: absolute;
+    inset: 0;
+}
+
+.riic-tile-room-body {
+    background: var(--slab);
+}
+
+.riic-tile-room-grid {
+    background-image: repeating-linear-gradient(0deg, transparent 0 15px, rgb(255 255 255 / 0.05) 15px 16px), repeating-linear-gradient(90deg, transparent 0 15px, rgb(255 255 255 / 0.05) 15px 16px);
+}
+
+.riic-tile-room-accent {
+    inset: 0 auto 0 0;
+    width: 5px;
+}
+
+.riic-tile-flexible .riic-tile-room-accent {
+    background: var(--tile-accent, transparent);
+}
+.riic-tile[data-facility-type="TRADING"] {
+    --tile-accent: #38c9fe;
+}
+.riic-tile[data-facility-type="MANUFACTURE"] {
+    --tile-accent: #fec904;
+}
+.riic-tile[data-facility-type="POWER"] {
+    --tile-accent: #c3ff43;
+}
+
+.riic-tile-room-icon {
+    background-color: rgb(255 255 255 / 0.13);
+    mask-image: var(--tile-icon);
+    mask-repeat: no-repeat;
+    mask-position: left 10px bottom 6px;
+    mask-size: auto 34px;
+}
+
+.riic-tile-info {
+    position: absolute;
+    inset: 5px 6px auto 12px;
+    pointer-events: none;
+}
+.riic-tile-fixed .riic-tile-info {
+    left: 7px;
+}
+
+.riic-tile-name-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+
+.riic-tile-name {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1px;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.riic-tile-unbuilt-label {
+    margin-left: 4px;
+    color: var(--slab-ink-dim);
+    font-size: 0.68em;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.riic-tile-ops {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: flex;
+    gap: 1px;
+}
+
+.riic-tile-op-chip {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 2px;
+}
+
+.riic-tile-op-chip {
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 0.65);
+    background: var(--slab);
+    font-size: 7px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+}
+.riic-tile-op-chip img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 15%;
+}
+
+.riic-tile-op-chip[data-change="added"] {
+    border-color: var(--tile-accent, #c3ff43);
+    box-shadow: 0 0 0 1px var(--tile-accent, #c3ff43);
+}
+.riic-tile-op-chip[data-change="removed"] {
+    border-style: dashed;
+    border-color: rgb(255 255 255 / 0.3);
+    filter: grayscale(1);
+    opacity: 0.4;
+}
+
+.riic-tile-op-seats {
+    width: calc(var(--seats) * 17px - 1px);
+    height: 16px;
+    flex-shrink: 0;
+    background-image: repeating-linear-gradient(to right, rgb(255 255 255 / 0.28) 0 16px, transparent 16px 17px);
+    mask-image: repeating-linear-gradient(to right, #000 0 1px, transparent 1px 15px, #000 15px 16px, transparent 16px 17px), repeating-linear-gradient(to bottom, #000 0 1px, transparent 1px 15px, #000 15px 16px);
+    mask-composite: add;
+}
+
+.riic-tile-level-pips {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+}
+
+.riic-tile-level-pip {
+    width: 4px;
+    height: 10px;
+    flex-shrink: 0;
+    background: rgb(255 255 255 / 0.2);
+    mask-size: 100% 100%;
+    border-radius: var(--radius-md);
+}
+.riic-tile-level-pip[data-on="true"] {
+    background: var(--tile-accent, rgb(255 255 255 / 0.85));
+}
+
+.riic-tile-elevator,
+.riic-tile-path {
+    --tile-line: rgb(255 255 255 / 0.16);
+    border-color: transparent;
+}
+
+.riic-tile-elevator::after {
+    position: absolute;
+    background:
+        linear-gradient(to right, var(--tile-line) 0 100%) center / 100% 1px no-repeat,
+        linear-gradient(to bottom, var(--tile-line) 0 100%) center / 1px 100% no-repeat;
+    content: "";
+    inset: calc(50% - 7px) calc(50% - 7px);
+}
+
+.riic-tile-path {
+    background-color: var(--slab);
+}
+
+.riic-tile-path::after {
+    position: absolute;
+    background-image: var(--tile-plate);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    content: "";
+    inset: 2px;
+    opacity: 0.75;
+}
+
+.riic-cc-badge {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    inset: 2px;
+    pointer-events: none;
+}
+
+.riic-cc-bracket {
+    color: var(--slab-ink-dim);
+    font-size: 32px;
+    font-weight: 300;
+    line-height: 1;
+}
+
+.riic-cc-badge-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.riic-cc-title {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    line-height: 1.1;
+    text-transform: none;
+}
+
+.riic-cc-subtitle {
+    /* 0.55 white on the #323232 slab measures 5.07; 0.45 measured 3.93. */
+    color: var(--slab-ink-dim);
+    font-size: 7px;
+    letter-spacing: 1.6px;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.riic-cc-ver-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.riic-cc-ver-icon-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding-bottom: 6px;
+}
+
+.riic-cc-stripe-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    background: repeating-linear-gradient(-45deg, var(--slab-ink) 0 2px, transparent 2px 4px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 2px 2px 0 0 #ffb300;
+    opacity: 0.85;
+}
+
+.riic-cc-ver-label {
+    font-family: var(--font-techno);
+    color: var(--slab-ink-dim);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.riic-cc-ver-num {
+    font-family: var(--font-techno);
+    font-size: 56px;
+    font-weight: 400;
+    line-height: 0.85;
+    color: #fff;
+}
+
+.riic-cc-ver-dec {
+    font-family: var(--font-techno);
+    font-weight: 400;
+    font-size: 56px;
+    line-height: 0.85;
+    color: #fff;
+}

@@ -1,0 +1,76 @@
+import { TriangleAlertIcon } from "lucide-react";
+import { useState } from "react";
+import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "#/components/ui/alert-dialog";
+import { Button } from "#/components/ui/button";
+import { type TypedRichT, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import type { messages } from "./DeletePlansDialog.messages";
+
+type DeleteT = TypedT<typeof messages>;
+
+export interface IDeletePlansTarget {
+    ids: string[];
+    names: string[];
+}
+
+interface IDeletePlansDialogProps {
+    target: IDeletePlansTarget | null;
+    onOpenChange: (open: boolean) => void;
+    onConfirm: (ids: string[]) => void;
+    isSubmitting: boolean;
+    errorMessage: string | null;
+}
+
+function formatNames(names: string[], t: DeleteT): string {
+    if (names.length <= 3) return names.join(", ");
+    return t("planner.delete.names", { names: names.slice(0, 3).join(", "), count: names.length - 3 });
+}
+
+export function DeletePlansDialog({ target, onOpenChange, onConfirm, isSubmitting, errorMessage }: IDeletePlansDialogProps) {
+    const t: DeleteT = useT("tools");
+    const rt: TypedRichT<typeof messages> = useRichT("tools");
+    const open = target !== null;
+
+    // The target goes null the moment the dialog starts closing, while the close
+    // animation still shows it for a few frames, so the last real target keeps
+    // rendering and the copy doesn't collapse to "Delete 0 plans" mid-fade.
+    const [lastTarget, setLastTarget] = useState<IDeletePlansTarget | null>(null);
+    if (target !== null && target !== lastTarget) setLastTarget(target);
+    const shown = target ?? lastTarget;
+    const count = shown?.ids.length ?? 0;
+
+    const handleConfirm = () => {
+        if (target) onConfirm(target.ids);
+    };
+
+    return (
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogPopup>
+                <AlertDialogHeader>
+                    <div className="flex items-center gap-3">
+                        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/12 text-destructive-foreground">
+                            <TriangleAlertIcon className="h-4.5 w-4.5" aria-hidden="true" />
+                        </span>
+                        <div className="flex min-w-0 flex-col gap-1">
+                            <AlertDialogTitle>{t("planner.delete.title", { count })}</AlertDialogTitle>
+                            <AlertDialogDescription>{rt("planner.delete.desc", { names: <span className="font-medium text-foreground">{shown ? formatNames(shown.names, t) : t("planner.delete.fallbackName")}</span>, count })}</AlertDialogDescription>
+                        </div>
+                    </div>
+                </AlertDialogHeader>
+
+                {errorMessage && (
+                    <div role="alert" className="mx-6 mb-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2 font-sans text-destructive-foreground text-xs">
+                        {errorMessage}
+                    </div>
+                )}
+
+                <AlertDialogFooter>
+                    <AlertDialogClose render={<Button type="button" variant="outline" disabled={isSubmitting} />}>{t("planner.delete.cancel")}</AlertDialogClose>
+                    <Button type="button" variant="destructive" loading={isSubmitting} onClick={handleConfirm}>
+                        {t("planner.delete.confirm", { count })}
+                    </Button>
+                </AlertDialogFooter>
+            </AlertDialogPopup>
+        </AlertDialog>
+    );
+}

@@ -1,0 +1,49 @@
+import { DEFAULT_LOCALE } from "#/lib/i18n";
+import type { IMetaSource } from "#/lib/meta";
+import { OG_CONFIG } from "./config";
+import { type OgData, type OgKind, ogHashers } from "./hashers";
+import { DEFAULT_OG_PRESETS, type DefaultOgPresetSlug, resolveDefaultOgPreset } from "./presets";
+
+const MAX_WARMED_URLS = 5_000;
+const warmedOgURLs = new Set<string>();
+
+export function ogURL<K extends OgKind>(kind: K, id: string, data: OgData<K>): string {
+    const hash = ogHashers[kind].hash(data);
+    return `${OG_CONFIG.siteURL}/api/og/${kind}/${encodeURIComponent(id)}?v=${hash}`;
+}
+
+/**
+ * {@link ogURL} for a card whose text depends on the page's locale: the locale
+ * rides along as `&locale=` so the handler, which has no router context,
+ * resolves the same catalog the page hashed. The source locale adds nothing,
+ * so an English URL is exactly `ogURL`'s.
+ */
+export function localizedOgURL<K extends OgKind>(kind: K, id: string, data: OgData<K>, locale?: string | null): string {
+    const url = ogURL(kind, id, data);
+    return !locale || locale === DEFAULT_LOCALE ? url : `${url}&locale=${encodeURIComponent(locale)}`;
+}
+
+export function warmOg<K extends OgKind>(kind: K, id: string, data: OgData<K>, locale?: string | null): void {
+    if (typeof window !== "undefined") return;
+    const url = localizedOgURL(kind, id, data, locale);
+    if (warmedOgURLs.has(url)) return;
+    if (warmedOgURLs.size > MAX_WARMED_URLS) warmedOgURLs.clear();
+    warmedOgURLs.add(url);
+    fetch(url).catch(() => {});
+}
+
+// `image: defaultOgURL("gacha-community", match.context.i18n)` for a preset in
+// DEFAULT_OG_PRESETS.
+//
+// `source` is the locale + catalog a route's `head()` already has in
+// `match.context.i18n`. The card's text is resolved here, so the `?v=` hash
+// covers the TRANSLATED words and a translator's edit invalidates the image
+// like a data change does; and the locale is carried to the handler, which has
+// no router context and cannot infer it.
+//
+// The source locale gets no `&locale=`, and its resolved English matches the
+// literals this table used to hold, so every English `og:image` URL, and every
+// PNG already cached behind it, is byte-for-byte what it was.
+export function defaultOgURL(slug: DefaultOgPresetSlug, source?: IMetaSource | null): string {
+    return localizedOgURL("default", slug, resolveDefaultOgPreset(DEFAULT_OG_PRESETS[slug], source), source?.locale);
+}

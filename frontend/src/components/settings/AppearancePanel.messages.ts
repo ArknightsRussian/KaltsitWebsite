@@ -1,0 +1,180 @@
+import { defineMessages, type MessageMap } from "#/lib/i18n/messages";
+
+export const namespace = "settings";
+
+export const messages = {
+    "appearance.theme.title": {
+        text: "Theme",
+        description: "Card title over the light/dark/auto choice.",
+    },
+    "appearance.theme.desc": {
+        text: "Pick light, dark, or follow your system. The mobile picker in the header controls the same setting.",
+        description: "Card description under the Theme title.",
+    },
+    "appearance.mode.light": {
+        text: "Light",
+        description: "Theme option: the light colour scheme.",
+    },
+    "appearance.mode.dark": {
+        text: "Dark",
+        description: "Theme option: the dark colour scheme.",
+    },
+    "appearance.mode.auto": {
+        text: "Auto",
+        description: "Theme option: follow the operating system's setting.",
+    },
+    "appearance.accent.title": {
+        text: "Accent color",
+        description: "Card title over the accent-colour picker.",
+    },
+    "appearance.accent.desc": {
+        text: "Tints buttons, links, focus rings, and the active state across the whole app.",
+        description: "Card description under the Accent color title.",
+    },
+    "appearance.accent.presetHue": {
+        text: "Preset hue",
+        description: "Small uppercase label over the row of ready-made accent swatches.",
+    },
+    "appearance.accent.setTo": {
+        text: "Set accent color to {name}",
+        description: "Accessible name of one accent swatch. {name} is the preset's colour name.",
+    },
+    "appearance.accent.customColor": {
+        text: "Custom color",
+        description: "Small uppercase label over the free colour picker.",
+    },
+    "appearance.accent.pickCustomHex": {
+        text: "Pick custom hex",
+        description: "Label on the custom-colour button before a custom colour has been chosen. 'Hex' is a hexadecimal colour code.",
+    },
+    "appearance.accent.customActive": {
+        text: "Custom",
+        description: "Label on the custom-colour button once a custom colour is the accent. The colour's hex code shows beside it, so the label does not repeat it.",
+    },
+    "appearance.accent.chooseCustom": {
+        text: "Choose custom accent color",
+        description: "Accessible name of the hidden colour input behind the custom-colour button.",
+    },
+    "appearance.accent.reset": {
+        text: "Reset to default",
+        description: "Button that restores the site's original accent colour.",
+    },
+    "appearance.language.desc": {
+        text: "Sets the language of the site's own text. Choosing one reloads the page so the new language is there from the first paint.",
+        description: "Card description under the Language title in appearance settings. The reload is deliberate and worth naming, so the reload does not look like a fault.",
+    },
+    "appearance.language.displayLanguage": {
+        text: "Display language",
+        description: "Small uppercase label over the language picker. 'Display' distinguishes the site's own text from the game data, which follows the language's own region.",
+    },
+    "appearance.language.choose": {
+        text: "Choose a language",
+        description: "Accessible name of the language picker in appearance settings.",
+    },
+    "appearance.language.onlyOne": {
+        text: "{language} is the only language this site is available in right now.",
+        description: "Shown in place of the language picker when just one language is enabled. {language} is that language's own name for itself, e.g. 'English'.",
+    },
+    "appearance.language.gameTextDesc": {
+        text: "Operator names, skills and story come from one game client. By default it is the one your display language reads; pick another to read, say, Japanese names under English menus.",
+        description: "Explains the game-text picker in appearance settings. 'Game client' is a regional release of Arknights (Global, Japan, Korea, China). The example pairs two concrete choices so the independence of the two pickers is obvious.",
+    },
+    "appearance.dynamicArt.title": {
+        text: "Dynamic art",
+        description: "Card title over the animated-artwork option.",
+    },
+    "appearance.dynamicArt.desc": {
+        text: "Animate L2D (dynamic) operator illustrations across operator and profile pages.",
+        description: "Card description under the Dynamic art title. 'L2D' is Live2D, the animation format, and stays as-is.",
+    },
+    "appearance.dynamicArt.rowTitle": {
+        text: "Animate dynamic art",
+        description: "Label of the switch that turns animated artwork on, and the switch's accessible name.",
+    },
+    "appearance.dynamicArt.rowDesc": {
+        text: "Plays multi-megabyte Spine animations in place of static art. On by default; turn it off to save bandwidth.",
+        description: "Caption under the animated-artwork switch. 'Spine' is the animation runtime's name and stays as-is.",
+    },
+    "appearance.latinNames.title": {
+        text: "CN-only names",
+        description: "Card title over the option that shows CN-only operators, outfits and events under their Latin-script name. 'CN' is the Chinese game server's short name and stays as-is.",
+    },
+    "appearance.latinNames.desc": {
+        text: "Operators, outfits and events that have not reached the global server yet only have a Chinese name. Most of them also have a Latin-script name, from the game itself or from an earlier global release, and it is usually the name they release under.",
+        description: "Card description under the CN-only names title. 'Global server' is the English-language game server; 'an earlier global release' means a previous edition of the same outfit series or event that already ran there.",
+    },
+    "appearance.latinNames.rowTitle": {
+        text: "Show Latin names for CN-only content",
+        description: "Label of the switch that shows CN-only operators, outfits and events under their Latin-script name, and the switch's accessible name. 'CN' is the Chinese game server's short name and stays as-is.",
+    },
+    "appearance.latinNames.rowDesc": {
+        text: "予愿安洁莉娜 becomes Angelina the Mellow Wish, and 斗争血脉/XI becomes Bloodline of Combat/XI. Search matches either name whichever one is shown. A name with no Latin form yet stays in Chinese. On by default.",
+        description: "Caption under the Latin-names switch. Both Chinese examples and their Latin names are game data and stay as-is.",
+    },
+    "appearance.spoilers.title": {
+        text: "Spoilers",
+        description: "Card title over the option that shows story-spoiling details on operator pages.",
+    },
+    "appearance.spoilers.desc": {
+        text: "Some operators belong to more factions than their card lets on, and a few of those give away story twists.",
+        description: "Card description under the Spoilers title. 'Card' is the operator's in-game info card, which shows one faction logo.",
+    },
+    "appearance.spoilers.rowTitle": {
+        text: "Enable spoilers",
+        description: "Label of the switch that turns spoiler details on, and the switch's accessible name.",
+    },
+    "appearance.spoilers.rowDesc": {
+        text: "Shows the hidden factions the game never puts on an operator's card. Off by default.",
+        description: "Caption under the spoilers switch. 'Faction' is the game's word for a nation, group or team an operator belongs to.",
+    },
+    "appearance.cnUpdates.title": {
+        text: "CN updates",
+        description: "Card title over the option that shows CN-server changes on operator pages. 'CN' is the Chinese game server, which receives content months before the others.",
+    },
+    "appearance.cnUpdates.desc": {
+        text: "The CN server runs months ahead, and operators you already have can gain new modules or changed values there before they arrive here.",
+        description: "Card description under the CN Updates title. 'Modules' is the game's word for an operator's equipment upgrades.",
+    },
+    "appearance.cnUpdates.rowTitle": {
+        text: "Show CN updates",
+        description: "Label of the switch that shows CN-server changes on operator pages, and the switch's accessible name.",
+    },
+    "appearance.cnUpdates.rowDesc": {
+        text: "Marks CN's values on an operator's page, adds CN-only modules to its module choices in CN's own text, and lists updated operators under Upcoming. On by default.",
+        description: "Caption under the CN updates switch. 'Modules' is the game's word for an operator's equipment upgrades. 'CN's own text' means Chinese game text, untranslated. 'Upcoming' is the name of the operator list's view of CN-server operators.",
+    },
+    "appearance.topBar.title": {
+        text: "Top bar",
+        description: "Card title over the options for what shows up in the bar at the top of every page.",
+    },
+    "appearance.topBar.desc": {
+        text: "What shows up in the bar at the top of every page.",
+        description: "Card description under the Top Bar title.",
+    },
+    "appearance.topBar.maintenance.rowTitle": {
+        text: "Maintenance countdown",
+        description: "Label of the switch that shows a game maintenance countdown in the top bar, and the switch's accessible name.",
+    },
+    "appearance.topBar.maintenance.rowDesc": {
+        text: "Shows when the game is about to go down for maintenance, or is down right now, straight from Yostar's notices. Home still shows it either way. On by default.",
+        description: "Caption under the maintenance countdown switch. 'Yostar' is the game's publisher; 'Home' is the site's landing page.",
+    },
+    "appearance.dataSaver.title": {
+        text: "Data saver",
+        description: "Card title over the option that cuts how much artwork the site downloads.",
+    },
+    "appearance.dataSaver.desc": {
+        text: "Operator art is the heaviest thing the site loads. Turn this on for a slow or metered connection.",
+        description: "Card description under the Data Saver title.",
+    },
+    "appearance.dataSaver.rowTitle": {
+        text: "Data saver mode",
+        description: "Label of the switch that turns data saver on, and the switch's accessible name.",
+    },
+    "appearance.dataSaver.rowDesc": {
+        text: "Operator lists and rosters show small avatars, and splash art and animated art wait until you tap Load artwork or open the Skins tab. Off by default.",
+        description: "Caption under the data saver switch. 'Load artwork' is the button shown in place of the art; 'Skins' is the operator page tab with the outfits.",
+    },
+} satisfies MessageMap;
+
+export const { keys } = defineMessages({ namespace, messages });

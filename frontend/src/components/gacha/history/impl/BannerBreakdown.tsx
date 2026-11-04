@@ -1,0 +1,536 @@
+import { Link } from "@tanstack/react-router";
+import { ChevronDown } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { Button } from "#/components/ui/button";
+import { Kicker } from "#/components/ui/kicker";
+import { OperatorAvatar } from "#/components/ui/operator-avatar";
+import { Popover, PopoverPopup, PopoverTrigger } from "#/components/ui/popover";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "#/components/ui/preview-card";
+import { Skeleton } from "#/components/ui/skeleton";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import type { ClientGachaGroup, IBanner, IClientGachaRecords, IGachaItem } from "#/lib/api/gacha";
+import { type IFormatters, useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { rarityInk, rarityStarColor } from "#/lib/utils";
+import type { IOperatorIndexEntry } from "#/types/operators";
+import { BANNER_GROUP_COLOR, BANNER_GROUP_LABEL_KEYS, BANNER_RULE_TYPE_LABEL_KEYS, BANNER_STATUS_INK, BANNER_STATUS_LABEL_KEYS, bannerStatus, type GachaMessageKey } from "../../constants";
+import type { messages as gachaConstantsMessages } from "../../constants.messages";
+import type { messages } from "./BannerBreakdown.messages";
+import { type ISixStarPity, type ISixStarPullDetail, sixStarPullDetails } from "./pity";
+
+/** Own chrome plus the shared banner bucket, status and rule-type labels. */
+type BreakdownT = TypedT<typeof messages & typeof gachaConstantsMessages>;
+
+interface IBannerBreakdownProps {
+    records: IClientGachaRecords | null;
+    bannersById: Map<string, IBanner>;
+    operatorsById: Map<string, IOperatorIndexEntry>;
+    isLoading: boolean;
+}
+
+const FEATURED_AVATAR_CAP = 6;
+
+/** Every counter here runs the 50/99 curve; the colors are PityPanel's soft-pity and near-guaranteed tones. */
+const SOFT_PITY_AT = 50;
+const NEAR_HARD_PITY_AT = 94;
+
+function pityColorClass({ count, exact }: ISixStarPity): string {
+    if (!exact) return "text-muted-foreground";
+    // Status tokens (destructive 6.42 / 6.61, warning 5.05 / 11.14 on the card, light / dark),
+    // not the oklch(0.78) literals with no light variant (2.40 / 2.03 light).
+    if (count >= NEAR_HARD_PITY_AT) return "text-destructive-foreground";
+    if (count >= SOFT_PITY_AT) return "text-warning-foreground";
+    return "text-foreground";
+}
+
+interface IBannerStat {
+    poolId: string;
+    poolName: string;
+    gachaType: ClientGachaGroup;
+    typeLabelKey: GachaMessageKey;
+    total: number;
+    sixStars: number;
+    fiveStars: number;
+    lastPullAt: number;
+    /** This banner's 6★ pulls, newest first. */
+    sixStarPulls: IGachaItem[];
+}
+
+/**
+ * Prefer the static-data banner name: the Yostar API often echoes a blank
+ * `pool_name`, and rows persisted before the lookup carry the raw pool_id,
+ * which is no name to show.
+ */
+function poolDisplayName(item: IGachaItem, bannersById: Map<string, IBanner>): string {
+    return bannersById.get(item.poolId)?.gachaPoolName || item.poolName || item.poolId;
+}
+
+function groupByPool(items: IGachaItem[], gachaType: ClientGachaGroup, bannersById: Map<string, IBanner>): IBannerStat[] {
+    const map = new Map<string, IBannerStat>();
+    for (const item of items) {
+        const key = item.poolId || item.poolName;
+        const existing = map.get(key);
+        if (existing) {
+            existing.total++;
+            if (item.star === "6") {
+                existing.sixStars++;
+                existing.sixStarPulls.push(item);
+            }
+            if (item.star === "5") existing.fiveStars++;
+            if (item.at > existing.lastPullAt) existing.lastPullAt = item.at;
+        } else {
+            map.set(key, {
+                poolId: item.poolId,
+                poolName: poolDisplayName(item, bannersById),
+                gachaType,
+                typeLabelKey: BANNER_GROUP_LABEL_KEYS[gachaType],
+                total: 1,
+                sixStars: item.star === "6" ? 1 : 0,
+                fiveStars: item.star === "5" ? 1 : 0,
+                lastPullAt: item.at,
+                sixStarPulls: item.star === "6" ? [item] : [],
+            });
+        }
+    }
+    for (const stat of map.values()) stat.sixStarPulls.sort((a, b) => b.at - a.at);
+    return Array.from(map.values()).sort((a, b) => b.lastPullAt - a.lastPullAt);
+}
+
+function fmtDate(ts: number, f: IFormatters): string {
+    if (!ts) return "-";
+    return f.date(new Date(ts), { month: "short", day: "numeric", year: "numeric" });
+}
+
+function fmtDateTime(ts: number, f: IFormatters): string {
+    if (!ts) return "-";
+    return f.date(new Date(ts), { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** The banner table (static data) uses unix seconds; pull records use ms. */
+function fmtDateFromSeconds(secs: number, f: IFormatters): string {
+    if (!secs) return "-";
+    return f.date(new Date(secs * 1000), { month: "short", day: "numeric", year: "numeric" });
+}
+
+function FeaturedRow({ ids, star, operatorsById }: { ids: string[]; star: number; operatorsById: Map<string, IOperatorIndexEntry> }) {
+    const t: BreakdownT = useT("gacha");
+    if (ids.length === 0) return null;
+    const visible = ids.slice(0, FEATURED_AVATAR_CAP);
+    const extra = ids.length - visible.length;
+    const ringColor = rarityStarColor(star);
+    const inkColor = rarityInk(star);
+
+    return (
+        <div className="flex flex-col gap-1.5">
+            <span className="kicker" style={{ color: inkColor }}>
+                {t("history.breakdown.featured", { rarity: star })}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+                {visible.map((charId) => {
+                    const op = operatorsById.get(charId);
+                    const opName = op?.name ?? charId;
+                    return (
+                        <Tooltip key={charId}>
+                            <TooltipTrigger render={<button type="button" aria-label={opName} className="flex cursor-default flex-col items-center gap-0.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" />}>
+                                <span className="relative inline-flex h-8 w-8 shrink-0 overflow-hidden rounded-md ring-1" style={{ background: "var(--muted)", boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${ringColor} 60%, transparent)` }}>
+                                    <OperatorAvatar charId={charId} name={opName} className="block h-full w-full object-cover" />
+                                </span>
+                                <span className="max-w-12 truncate text-center font-mono text-[9px] text-muted-foreground leading-none">{opName.split(" ")[0]}</span>
+                            </TooltipTrigger>
+                            <TooltipPopup>{opName}</TooltipPopup>
+                        </Tooltip>
+                    );
+                })}
+                {extra > 0 ? (
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <button
+                                    type="button"
+                                    aria-label={t("history.breakdown.moreOperators", { count: extra })}
+                                    className="flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md bg-muted font-mono text-[10px] text-muted-foreground tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                />
+                            }
+                        >
+                            +{extra}
+                        </TooltipTrigger>
+                        <TooltipPopup>{t("history.breakdown.moreOperators", { count: extra })}</TooltipPopup>
+                    </Tooltip>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
+function BannerNameCell({ banner, name, typeInkClass, typeLabelKey, sixStars, fiveStars, total, operatorsById }: { banner: IBanner | undefined; name: string; typeInkClass: string; typeLabelKey: GachaMessageKey; sixStars: number; fiveStars: number; total: number; operatorsById: Map<string, IOperatorIndexEntry> }) {
+    const t: BreakdownT = useT("gacha");
+    const f = useFormatters();
+    const trigger = (
+        <button type="button" className="flex cursor-pointer flex-col items-start gap-0.5 rounded-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="font-medium font-sans text-[13px] text-foreground leading-snug">{name}</span>
+            <span className={`kicker ${typeInkClass}`}>{t(typeLabelKey)}</span>
+        </button>
+    );
+
+    if (!banner) {
+        // Older retired pools fall outside the current gamedata snapshot: the
+        // name shows without a hover.
+        return trigger;
+    }
+
+    const ruleMessageKey = BANNER_RULE_TYPE_LABEL_KEYS[banner.gachaRuleType];
+    const ruleLabel = ruleMessageKey ? t(ruleMessageKey) : banner.gachaRuleType;
+    const status = bannerStatus(banner, Date.now() / 1000);
+
+    return (
+        <HoverCard>
+            <HoverCardTrigger render={trigger} />
+            <HoverCardContent className="w-80 p-4">
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                        <span className={`kicker ${typeInkClass}`}>
+                            {t(typeLabelKey)} · {ruleLabel}
+                        </span>
+                        <span className="font-sans font-semibold text-[14px] text-foreground leading-snug">{banner.gachaPoolName}</span>
+                        {/* A returning pool's summary is the runtime template "Ends at {0}", filled in per player by the client. */}
+                        {banner.gachaPoolSummary && banner.gachaPoolSummary !== "-" && !banner.returning ? <span className="font-sans text-[12px] text-muted-foreground leading-snug">{banner.gachaPoolSummary}</span> : null}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <span className="font-sans text-[12px] text-foreground tabular-nums leading-none">{banner.returning ? t("banner.window.returning") : t("history.breakdown.dateRange", { open: fmtDateFromSeconds(banner.openTime, f), close: fmtDateFromSeconds(banner.endTime, f) })}</span>
+                        <span className="kicker inline-flex items-center gap-1.5 leading-none" style={{ color: BANNER_STATUS_INK[status] }}>
+                            <span className="block h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                            {t(BANNER_STATUS_LABEL_KEYS[status])}
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                        <div className="flex flex-col gap-0.5">
+                            <span className="kicker">{t("history.breakdown.stat.pulls")}</span>
+                            <span className="font-sans font-semibold text-[14px] text-foreground tabular-nums">{f.number(total)}</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="kicker">{t("history.breakdown.stat.sixStars")}</span>
+                            <span className="font-sans font-semibold text-[14px] text-rarity-6-ink tabular-nums">{f.number(sixStars)}</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="kicker">{t("history.breakdown.stat.fiveStars")}</span>
+                            <span className="font-sans font-semibold text-[14px] text-rarity-5-ink tabular-nums">{f.number(fiveStars)}</span>
+                        </div>
+                    </div>
+
+                    {banner.guarantee5Avail ? <div className="font-mono text-[10.5px] text-muted-foreground">{t("history.breakdown.guarantee", { name: banner.guaranteeName ?? t("history.breakdown.guaranteeDefault"), count: banner.guarantee5Count })}</div> : null}
+
+                    {banner.featured6.length > 0 || banner.featured5.length > 0 ? (
+                        <div className="flex flex-col gap-2.5 border-border/60 border-t pt-3">
+                            <FeaturedRow ids={banner.featured6} star={6} operatorsById={operatorsById} />
+                            <FeaturedRow ids={banner.featured5} star={5} operatorsById={operatorsById} />
+                        </div>
+                    ) : null}
+
+                    <div className="break-all font-mono text-[10px] text-subtle-foreground tabular-nums">{banner.gachaPoolId}</div>
+                </div>
+            </HoverCardContent>
+        </HoverCard>
+    );
+}
+
+const KICKER = "kicker";
+
+/** The pity counter a 6★ pull rolled on, as the popover names it. */
+const COUNTER_LABEL_KEYS = {
+    standard: "history.breakdown.pull.counter.standard",
+    kernel: "history.breakdown.pull.counter.kernel",
+    isolated: "history.breakdown.pull.counter.isolated",
+} as const;
+
+const STRETCH_FIELD = { 5: "five", 4: "four", 3: "three" } as const;
+
+function operatorName(item: IGachaItem, operatorsById: Map<string, IOperatorIndexEntry>): string {
+    return item.charName || operatorsById.get(item.charId)?.name || item.charId;
+}
+
+/** Everything the history says about one 6★ pull, opened from its card. */
+function SixStarPullDetails({ item, detail, isFeatured, bannersById, operatorsById }: { item: IGachaItem; detail: ISixStarPullDetail | undefined; isFeatured: boolean | null; bannersById: Map<string, IBanner>; operatorsById: Map<string, IOperatorIndexEntry> }) {
+    const t: BreakdownT = useT("gacha");
+    const f = useFormatters();
+    const inkColor = rarityInk(6);
+    const name = operatorName(item, operatorsById);
+    const previous = detail?.previous ?? null;
+
+    return (
+        <div className="flex flex-col gap-3 text-left">
+            <div className="flex flex-col gap-1">
+                <span className="kicker" style={{ color: inkColor }}>
+                    6★
+                    {isFeatured === null ? null : <span style={{ color: isFeatured ? undefined : "var(--muted-foreground)" }}> · {t(isFeatured ? "history.breakdown.rateUp" : "history.breakdown.offBanner")}</span>}
+                </span>
+                {operatorsById.has(item.charId) ? (
+                    <Link to="/operators/$id" params={{ id: item.charId }} className="w-fit rounded-sm font-sans font-semibold text-[14px] text-foreground leading-snug underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {name}
+                    </Link>
+                ) : (
+                    <span className="font-sans font-semibold text-[14px] text-foreground leading-snug">{name}</span>
+                )}
+            </div>
+
+            <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+                <dt className={KICKER}>{t("history.breakdown.pull.pulled")}</dt>
+                <dd className="m-0 font-sans text-[12px] text-foreground tabular-nums">{fmtDateTime(item.at, f)}</dd>
+                <dt className={KICKER}>{t("history.breakdown.pull.banner")}</dt>
+                <dd className="m-0 font-sans text-[12px] text-foreground leading-snug">{poolDisplayName(item, bannersById)}</dd>
+                {detail ? (
+                    <>
+                        <dt className={KICKER}>{t("history.breakdown.pull.pity")}</dt>
+                        <dd className="m-0 flex flex-col gap-0.5">
+                            <span className="font-sans text-[12px] text-muted-foreground leading-snug">
+                                <span className={`font-mono font-semibold tabular-nums ${pityColorClass(detail)}`}>{detail.exact ? f.number(detail.count) : t("history.breakdown.pityLowerBound", { count: f.number(detail.count) })}</span> · {t(COUNTER_LABEL_KEYS[detail.scope])}
+                            </span>
+                            {detail.exact ? null : <span className="font-sans text-[11px] text-muted-foreground leading-snug">{t("history.breakdown.pull.lowerBound")}</span>}
+                        </dd>
+                    </>
+                ) : null}
+            </dl>
+
+            {detail ? (
+                <div className="flex flex-col gap-2.5 border-border/60 border-t pt-3">
+                    <div className="flex flex-col gap-0.5">
+                        <span className={KICKER}>{t("history.breakdown.pull.previous")}</span>
+                        {previous ? (
+                            <span className="font-sans text-[12px] text-muted-foreground leading-snug">
+                                <span className="font-semibold text-foreground">{operatorName(previous, operatorsById)}</span> · <span className="tabular-nums">{fmtDate(previous.at, f)}</span> · {poolDisplayName(previous, bannersById)}
+                            </span>
+                        ) : (
+                            <span className="font-sans text-[12px] text-muted-foreground">{t("history.breakdown.pull.previousNone")}</span>
+                        )}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <span className={KICKER}>{t("history.breakdown.pull.stretch", { count: detail.count })}</span>
+                        <span className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] tabular-nums">
+                            {([5, 4, 3] as const).map((rarity) => (
+                                <span key={rarity} style={{ color: rarityInk(rarity) }}>
+                                    {t("history.breakdown.pull.stretchStar", { count: f.number(detail.stretch[STRETCH_FIELD[rarity]]), rarity })}
+                                </span>
+                            ))}
+                        </span>
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+/**
+ * The 6★ operators one banner gave the player, revealed under its row, each with
+ * its pity count: pulls since the previous 6★ on the same counter, which for
+ * Standard and Kernel carries across banners (see `sixStarPullDetails`). Each card
+ * opens a popover with the rest of what the history says about that pull.
+ */
+function SixStarPulls({ pulls, detailByPull, banner, bannersById, operatorsById }: { pulls: IGachaItem[]; detailByPull: Map<IGachaItem, ISixStarPullDetail>; banner: IBanner | undefined; bannersById: Map<string, IBanner>; operatorsById: Map<string, IOperatorIndexEntry> }) {
+    const t: BreakdownT = useT("gacha");
+    const f = useFormatters();
+    const ringColor = rarityStarColor(6);
+    const inkColor = rarityInk(6);
+    // Only mark rate-up vs off-banner when the static data names the featured pool.
+    const featured = banner && banner.featured6.length > 0 ? new Set(banner.featured6) : null;
+    const rateUpCount = featured ? pulls.filter((item) => featured.has(item.charId)).length : 0;
+
+    return (
+        <div className="motion-safe:fade-in motion-safe:slide-in-from-top-1 flex flex-col gap-2 motion-safe:animate-in motion-safe:duration-200">
+            {featured ? (
+                <p className="m-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                    <span style={{ color: inkColor }}>{t("history.breakdown.rateUpCount", { count: rateUpCount })}</span> · {t("history.breakdown.offBannerCount", { count: pulls.length - rateUpCount })}
+                </p>
+            ) : null}
+            {/* Equal-width cells instead of a ragged wrap, so names line up and truncate at one width. */}
+            <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-1.5 p-0">
+                {pulls.map((item, i) => {
+                    const name = operatorName(item, operatorsById);
+                    const isFeatured = featured?.has(item.charId) ?? null;
+                    const pity = detailByPull.get(item);
+                    return (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: the same operator can land twice in one ten-pull
+                        <li key={`${item.charId}-${item.at}-${i}`} className="flex min-w-0">
+                            <Popover>
+                                <PopoverTrigger
+                                    render={
+                                        <button
+                                            type="button"
+                                            className="flex w-full min-w-0 cursor-pointer touch-manipulation items-center gap-2 rounded-lg border border-border/60 bg-card py-1.5 pr-2.5 pl-1.5 text-left transition-colors hover:border-border hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring data-popup-open:border-border data-popup-open:bg-muted/60"
+                                        />
+                                    }
+                                >
+                                    <span className="relative inline-flex h-8 w-8 shrink-0 overflow-hidden rounded-md" style={{ background: "var(--muted)", boxShadow: `inset 0 0 0 1px color-mix(in oklch, ${ringColor} 60%, transparent)` }}>
+                                        <OperatorAvatar charId={item.charId} name={name} className="block h-full w-full object-cover" />
+                                    </span>
+                                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                        <span className="truncate font-sans font-semibold text-[12.5px] text-foreground leading-snug" title={name}>
+                                            {name}
+                                        </span>
+                                        <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-[10px] text-muted-foreground tabular-nums leading-none">
+                                            <span className="shrink-0">{fmtDate(item.at, f)}</span>
+                                            {isFeatured === null ? null : (
+                                                <span className="truncate" style={{ color: isFeatured ? inkColor : undefined }}>
+                                                    · {t(isFeatured ? "history.breakdown.rateUp" : "history.breakdown.offBanner")}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </span>
+                                    {pity ? (
+                                        <span className="ml-auto flex shrink-0 flex-col items-end gap-0.5 pl-1">
+                                            <span className={`font-mono font-semibold text-[13px] tabular-nums leading-none ${pityColorClass(pity)}`} aria-hidden>
+                                                {pity.exact ? f.number(pity.count) : t("history.breakdown.pityLowerBound", { count: f.number(pity.count) })}
+                                            </span>
+                                            <span className="kicker mb-0 leading-none" aria-hidden>
+                                                {t("history.breakdown.pityCaption")}
+                                            </span>
+                                            <span className="sr-only">{t(pity.exact ? "history.breakdown.pityAt" : "history.breakdown.pityAtLeast", { count: pity.count })}</span>
+                                        </span>
+                                    ) : null}
+                                </PopoverTrigger>
+                                <PopoverPopup className="w-[min(20rem,calc(100vw-2rem))]">
+                                    <SixStarPullDetails item={item} detail={pity} isFeatured={isFeatured} bannersById={bannersById} operatorsById={operatorsById} />
+                                </PopoverPopup>
+                            </Popover>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+export function BannerBreakdown({ records, bannersById, operatorsById, isLoading }: IBannerBreakdownProps) {
+    const t: BreakdownT = useT("gacha");
+    const f = useFormatters();
+    const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+    const toggle = (key: string) =>
+        setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    const banners = useMemo<IBannerStat[]>(() => {
+        if (!records) return [];
+        return [
+            ...groupByPool(records.limited.records, "limited", bannersById),
+            ...groupByPool(records.linkage.records, "linkage", bannersById),
+            ...groupByPool(records.regular.records, "regular", bannersById),
+            ...groupByPool(records.special.records, "special", bannersById),
+            ...groupByPool(records.boot.records, "boot", bannersById),
+        ].sort((a, b) => b.lastPullAt - a.lastPullAt);
+    }, [records, bannersById]);
+    const detailByPull = useMemo(() => {
+        if (!records) return new Map<IGachaItem, ISixStarPullDetail>();
+        return sixStarPullDetails([...records.limited.records, ...records.linkage.records, ...records.regular.records, ...records.special.records, ...records.boot.records], bannersById);
+    }, [records, bannersById]);
+
+    if (isLoading) {
+        return (
+            <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4.5 sm:p-[22px_24px]">
+                <Skeleton className="h-4 w-32 rounded" />
+                <div className="flex flex-col gap-2">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+                        <div key={i} className="flex items-center gap-4 not-last:border-border/60 not-last:border-b py-2">
+                            <Skeleton className="h-3 flex-1 rounded" />
+                            <Skeleton className="h-3 w-14 rounded" />
+                            <Skeleton className="h-3 w-10 rounded" />
+                        </div>
+                    ))}
+                </div>
+            </section>
+        );
+    }
+
+    if (!records) return null;
+
+    if (banners.length === 0) {
+        return (
+            <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4.5 sm:p-[22px_24px]">
+                <Kicker className="mb-2.5">{t("history.breakdown.kicker")}</Kicker>
+                <div className="py-6 text-center font-sans text-muted-foreground text-sm">{t("history.breakdown.empty")}</div>
+            </section>
+        );
+    }
+
+    const maxTotal = Math.max(...banners.map((b) => b.total));
+
+    return (
+        <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4.5 sm:p-[22px_24px]">
+            <header>
+                <Kicker className="mb-1.5">{t("history.breakdown.kicker")}</Kicker>
+                <h2 className="m-0 font-sans font-semibold text-[20px] text-foreground leading-[1.15] tracking-[-0.02em] sm:text-[22px]">{t("history.breakdown.title")}</h2>
+            </header>
+
+            <div className="-mx-1 max-h-120 overflow-y-auto px-1 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+                <table className="w-full border-collapse">
+                    <thead className="sticky top-0 z-10 bg-card">
+                        <tr>
+                            <th className="kicker whitespace-nowrap border-border border-b bg-card px-2 py-2 text-left">{t("history.breakdown.col.banner")}</th>
+                            <th className="kicker hidden whitespace-nowrap border-border border-b bg-card px-2 py-2 text-left sm:table-cell">{t("history.breakdown.col.lastPull")}</th>
+                            <th className="kicker whitespace-nowrap border-border border-b bg-card px-2 py-2 text-right">{t("history.breakdown.col.pulls")}</th>
+                            <th className="kicker whitespace-nowrap border-border border-b bg-card px-2 py-2 text-right">{t("history.breakdown.col.sixStars")}</th>
+                            <th className="kicker hidden w-36 whitespace-nowrap border-border border-b bg-card px-2 py-2 text-left lg:table-cell">{t("history.breakdown.col.distribution")}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {banners.map((banner) => {
+                            const barPct = (banner.total / maxTotal) * 100;
+                            const groupColor = BANNER_GROUP_COLOR[banner.gachaType];
+                            const meta = bannersById.get(banner.poolId);
+                            const rowKey = `${banner.gachaType}-${banner.poolId}`;
+                            const isOpen = expanded.has(rowKey);
+                            const panelId = `six-star-pulls-${rowKey}`;
+                            return (
+                                <Fragment key={rowKey}>
+                                    {/*
+                                     * The whole row toggles for pointer users; the 6★ button is the
+                                     * keyboard and screen-reader control, and its click bubbles up here.
+                                     */}
+                                    <tr onClick={banner.sixStars > 0 ? () => toggle(rowKey) : undefined} className={`${isOpen ? "bg-muted/40" : "not-last:border-border/50 not-last:border-b"} ${banner.sixStars > 0 ? "cursor-pointer transition-colors hover:bg-muted/40" : ""}`}>
+                                        <td className="px-2 py-2.5 align-middle">
+                                            <BannerNameCell banner={meta} name={banner.poolName} typeInkClass={groupColor.inkClass} typeLabelKey={banner.typeLabelKey} sixStars={banner.sixStars} fiveStars={banner.fiveStars} total={banner.total} operatorsById={operatorsById} />
+                                        </td>
+                                        <td className="hidden whitespace-nowrap px-2 py-2.5 align-middle font-mono text-[11px] text-muted-foreground tabular-nums sm:table-cell">{fmtDate(banner.lastPullAt, f)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2.5 text-right align-middle font-mono font-semibold text-[12px] text-foreground tabular-nums">{f.number(banner.total)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2.5 text-right align-middle font-mono text-[11px] tabular-nums">
+                                            {banner.sixStars > 0 ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="xs"
+                                                    aria-expanded={isOpen}
+                                                    aria-controls={panelId}
+                                                    aria-label={t(isOpen ? "history.breakdown.hideSixStars" : "history.breakdown.showSixStars", { count: banner.sixStars, banner: banner.poolName })}
+                                                    className="-my-1 -mr-1.5 h-8 touch-manipulation px-1.5 font-mono text-[11px] text-rarity-6-ink sm:h-8 sm:text-[11px]"
+                                                >
+                                                    {banner.sixStars}×6★
+                                                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none ${isOpen ? "rotate-180" : ""}`} aria-hidden />
+                                                </Button>
+                                            ) : (
+                                                <span className="text-muted-foreground">-</span>
+                                            )}
+                                        </td>
+                                        <td className="hidden w-36 px-2 py-2.5 align-middle lg:table-cell">
+                                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                                <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: groupColor.fill }} />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {isOpen ? (
+                                        <tr id={panelId} className="not-last:border-border/50 not-last:border-b bg-muted/40">
+                                            <td colSpan={5} className="px-2 pt-0.5 pb-3">
+                                                <SixStarPulls pulls={banner.sixStarPulls} detailByPull={detailByPull} banner={meta} bannersById={bannersById} operatorsById={operatorsById} />
+                                            </td>
+                                        </tr>
+                                    ) : null}
+                                </Fragment>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    );
+}

@@ -1,0 +1,96 @@
+import { defineMessages, type MessageMap } from "#/lib/i18n/messages";
+
+export const namespace = "user";
+
+export const messages = {
+    "search.breadcrumb.label": {
+        text: "Breadcrumb",
+        description: "Accessible name of the breadcrumb <nav> above the user-search heading.",
+    },
+    "search.breadcrumb.doctors": {
+        text: "Players",
+        description: "First breadcrumb crumb, the section that lists players. 'Player' is the site's term; the game itself says 'Doctor'.",
+    },
+    "search.breadcrumb.current": {
+        text: "Search",
+        description: "Last breadcrumb crumb, naming the current page.",
+    },
+    "search.title": {
+        text: "Search Players",
+        description: "Page heading of the user-search page.",
+    },
+    "search.subtitle": {
+        text: "Find player profiles by nickname or browse public profiles ranked by score.",
+        description: "Paragraph under the user-search page heading.",
+    },
+    "search.input.placeholder": {
+        text: "Search by nickname or UID…",
+        description: "Placeholder in the search box. Keep the single-character ellipsis.",
+    },
+    "search.uid.open": {
+        text: "Open this UID's profile",
+        description: "Label of the link shown under the search box when the typed text looks like a player UID (a plain number). The UID itself is shown beneath it.",
+    },
+    "search.input.label": {
+        text: "Search players",
+        description: "Accessible name of the search box, which shows only a magnifier icon.",
+    },
+    "search.clearSearch": {
+        text: "Clear search",
+        description: "Empties the search box: accessible name of the small x button inside it, and the visible label of the button in the no-results state.",
+    },
+    "search.resultsFor": {
+        text: "Results for",
+        description: "Sits directly before the quoted search term in the status line over the results. The term follows in bold, so this fragment ends without punctuation.",
+    },
+    "search.quotedQuery": {
+        text: '"{query}"',
+        description: "The search term shown in quotation marks. Use the quotation marks your language writes.",
+    },
+    "search.browsing": {
+        text: "Browsing public profiles by total score",
+        description: "Status line over the results when the search box is empty and profiles are listed by score.",
+    },
+    "search.browsingBy": {
+        text: "Browsing public profiles by {sort}",
+        description: "Status line over the results when the search box is empty and profiles are ranked by something other than score. {sort} is the rank-by option's name as the toolbar shows it, e.g. 'Masteries (M3)', 'Guard operators'.",
+    },
+    "search.count.unit": {
+        text: "{count, plural, one {player} other {players}}",
+        description: "Unit after the result count, which is rendered in bold just before it: '1,234 players'. The number itself is not part of this string.",
+    },
+    "search.empty.noResults.title": {
+        text: "No players found",
+        description: "Empty-state title when a search matches no public profile.",
+    },
+    "search.empty.noResults.desc": {
+        text: "No public profiles match {query}. Try a different nickname.",
+        description: "Empty-state body when a search matches no public profile. {query} is the search term in quotes, rendered in bold by search.quotedQuery, and may move wherever the sentence needs it.",
+    },
+    "search.empty.filtered.title": {
+        text: "No player matches these filters",
+        description: "Empty-state title when the roster filters (owns operators, support unit, complete class) match no public profile.",
+    },
+    "search.empty.filtered.desc": {
+        text: "Loosen a filter, or clear them all to browse every public profile.",
+        description: "Empty-state body under search.empty.filtered.title. A 'Clear filters' button follows.",
+    },
+    "search.error.title": {
+        text: "Couldn't search players",
+        description: "Shown in place of the results when the player search request fails.",
+    },
+    "search.error.retry": {
+        text: "Try again",
+        description: "Button under the search failure line that runs the same search again.",
+    },
+    "search.empty.none.title": {
+        text: "No public profiles yet",
+        description: "Empty-state title when nobody has made a profile public.",
+    },
+    "search.empty.none.desc": {
+        text: "Public profiles will appear here as players opt in.",
+        description: "Empty-state description when nobody has made a profile public.",
+    },
+} satisfies MessageMap;
+
+export const { keys } = defineMessages({ namespace, messages });

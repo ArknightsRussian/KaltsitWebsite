@@ -1,0 +1,192 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { Pencil, Plus, Trash } from "lucide-react";
+import * as React from "react";
+
+import { Button } from "#/components/ui/button";
+import { Combobox, ComboboxEmpty, ComboboxInput, ComboboxList, ComboboxPopup, ComboboxPrimitive } from "#/components/ui/combobox";
+import { Input } from "#/components/ui/input";
+import { deleteGroupFn, PLANS_QUERY_PREFIX, upsertGroupFn } from "#/lib/api/planner";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { compactForSearch } from "#/lib/search/fuzzy";
+import { CheckMark } from "./CheckMark";
+import { DeleteGroupDialog, RenameGroupDialog } from "./GroupDialogs";
+import type { messages as plannerMessages } from "./OperatorPlanner.messages";
+import type { messages } from "./OperatorPlannerDialog.messages";
+
+interface IPlanGroupsFieldProps {
+    /** Every group the player has, in the API's order. */
+    groupNames: string[];
+    selectedGroups: string[];
+    onSelectedGroupsChange: React.Dispatch<React.SetStateAction<string[]>>;
+}
+
+/**
+ * The plan's group multi-select. Groups are created, renamed and deleted from
+ * inside the popup; each is saved straight away (independent of the plan's
+ * Save button) and the plan's own selection follows the new name.
+ *
+ * The search, open and create-row state is all transient popup state: closing
+ * the popup clears it, and the field unmounts with the rest of the target form
+ * when the dialog closes.
+ */
+export function PlanGroupsField({ groupNames, selectedGroups, onSelectedGroupsChange }: IPlanGroupsFieldProps): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("tools");
+    const tg: TypedT<typeof plannerMessages> = useT("tools");
+    const queryClient = useQueryClient();
+    const [searchQuery, setSearchQuery] = React.useState<string>("");
+    const [isOpen, setIsOpen] = React.useState<boolean>(false);
+    const [isCreating, setIsCreating] = React.useState<boolean>(false);
+    const [newGroupName, setNewGroupName] = React.useState<string>("");
+
+    const filteredGroupNames = React.useMemo(() => {
+        if (!searchQuery.trim()) return groupNames;
+        const query = compactForSearch(searchQuery);
+        return groupNames.filter((name) => compactForSearch(name).includes(query));
+    }, [groupNames, searchQuery]);
+
+    const cancelCreate = () => {
+        setIsCreating(false);
+        setNewGroupName("");
+    };
+
+    const invalidatePlans = () => queryClient.invalidateQueries({ queryKey: PLANS_QUERY_PREFIX });
+
+    const handleCreate = async () => {
+        const name = newGroupName.trim();
+        if (!name) return;
+        try {
+            await upsertGroupFn({ data: { name } });
+            onSelectedGroupsChange((prev) => (prev.includes(name) ? prev : [...prev, name]));
+            cancelCreate();
+            invalidatePlans();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const [renamingGroup, setRenamingGroup] = React.useState<string | null>(null);
+    const [deletingGroup, setDeletingGroup] = React.useState<string | null>(null);
+
+    /** The popup closes first so the dialog takes focus instead of fighting the combobox for it. */
+    const openGroupDialog = (open: (name: string) => void, name: string) => {
+        setIsOpen(false);
+        setSearchQuery("");
+        cancelCreate();
+        open(name);
+    };
+
+    const renameGroup = async (oldName: string, name: string) => {
+        await upsertGroupFn({ data: { oldName, name } });
+        onSelectedGroupsChange((prev) => prev.map((g) => (g === oldName ? name : g)));
+        invalidatePlans();
+    };
+
+    const deleteGroup = async (name: string) => {
+        await deleteGroupFn({ data: { name } });
+        onSelectedGroupsChange((prev) => prev.filter((g) => g !== name));
+        invalidatePlans();
+    };
+
+    /** The row's own buttons act on the group; they must not also toggle it in the selection. */
+    const rowAction = (action: () => void) => (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        action();
+    };
+
+    return (
+        <div className="space-y-2">
+            <label className="block font-medium text-[13px] text-muted-foreground leading-none" htmlFor="group-selector">
+                {t("planner.dialog.groups")}
+            </label>
+            <Combobox<string, true>
+                multiple
+                items={filteredGroupNames}
+                value={selectedGroups}
+                onValueChange={onSelectedGroupsChange}
+                filter={null}
+                open={isOpen}
+                onOpenChange={(open) => {
+                    setIsOpen(open);
+                    if (!open) {
+                        setSearchQuery("");
+                        cancelCreate();
+                    }
+                }}
+                // Closed, the input shows the selection; open, it is the search box.
+                inputValue={isOpen ? searchQuery : selectedGroups.join(", ")}
+                onInputValueChange={(value) => {
+                    if (isOpen) setSearchQuery(value);
+                }}
+                itemToStringLabel={(g) => g ?? ""}
+                itemToStringValue={(g) => g ?? ""}
+            >
+                <ComboboxInput id="group-selector" placeholder={t("planner.dialog.groups.placeholder")} className="truncate text-ellipsis" />
+                <ComboboxPopup className="max-w-100">
+                    {isCreating ? (
+                        <div className="flex items-center gap-2 border-border border-b p-2">
+                            <Input
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                placeholder={t("planner.dialog.groups.newName")}
+                                className="h-8 flex-1 text-xs"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleCreate();
+                                    } else if (e.key === "Escape") {
+                                        e.preventDefault();
+                                        cancelCreate();
+                                    }
+                                }}
+                            />
+                            <Button size="sm" className="h-8 px-2 text-xs" onClick={handleCreate}>
+                                {t("planner.dialog.groups.create")}
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-8 px-2 text-xs" onClick={cancelCreate}>
+                                {t("planner.dialog.groups.cancel")}
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="border-border border-b p-1">
+                            <button type="button" onClick={() => setIsCreating(true)} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left font-medium text-primary text-xs hover:bg-primary/10 hover:text-foreground">
+                                <Plus className="h-3.5 w-3.5" />
+                                {t("planner.dialog.groups.createNew")}
+                            </button>
+                        </div>
+                    )}
+                    <ComboboxEmpty>{t("planner.dialog.groups.none")}</ComboboxEmpty>
+                    <ComboboxList>
+                        {(name: string) => {
+                            const isSelected = selectedGroups.includes(name);
+                            return (
+                                <ComboboxPrimitive.Item
+                                    key={name}
+                                    value={name}
+                                    className="flex min-h-8 cursor-default items-center justify-between gap-2 rounded-sm px-2 py-1 text-sm outline-none data-disabled:pointer-events-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:opacity-64 sm:min-h-7"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <CheckMark checked={isSelected} />
+                                        <span>{name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 pointer-coarse:gap-4">
+                                        <Button type="button" variant="ghost" size="icon-xs" onClick={rowAction(() => openGroupDialog(setRenamingGroup, name))} aria-label={tg("planner.group.rename", { name })} className="text-muted-foreground hover:text-foreground">
+                                            <Pencil aria-hidden />
+                                        </Button>
+                                        <Button type="button" variant="ghost" size="icon-xs" onClick={rowAction(() => openGroupDialog(setDeletingGroup, name))} aria-label={tg("planner.group.delete", { name })} className="text-muted-foreground hover:text-destructive-foreground">
+                                            <Trash aria-hidden />
+                                        </Button>
+                                    </div>
+                                </ComboboxPrimitive.Item>
+                            );
+                        }}
+                    </ComboboxList>
+                </ComboboxPopup>
+            </Combobox>
+            <RenameGroupDialog name={renamingGroup} onClose={() => setRenamingGroup(null)} onRename={renameGroup} />
+            <DeleteGroupDialog name={deletingGroup} onClose={() => setDeletingGroup(null)} onDelete={deleteGroup} />
+        </div>
+    );
+}

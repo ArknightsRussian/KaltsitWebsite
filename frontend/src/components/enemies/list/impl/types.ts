@@ -1,0 +1,90 @@
+import type { IEnemy, IEnemyDamageType, IEnemyLevel } from "#/lib/api/enemies";
+
+export type ViewMode = "grid" | "list";
+export type SortOption = "index" | "name" | "level" | "hp" | "atk" | "def" | "res" | "weight";
+export type SortOrder = "asc" | "desc";
+export type ApplyWay = "MELEE" | "RANGED" | "NONE";
+
+export interface IEnemyFlatStats {
+    maxHp: number;
+    atk: number;
+    def: number;
+    res: number;
+    aspd: number;
+    ms: number;
+    weight: number;
+    baseAttackTime: number;
+    hpRecoveryPerSec: number;
+}
+
+export interface IEnemyImmunities {
+    stun: boolean;
+    silence: boolean;
+    sleep: boolean;
+    frozen: boolean;
+    levitate: boolean;
+    fear: boolean;
+    paralysis: boolean;
+    /** The game's "Frighten" (ba.tremble): no normal attacks while blocked. */
+    tremble: boolean;
+    lure: boolean;
+}
+
+export interface IEnemyView extends IEnemy {
+    stats: IEnemy["stats"];
+    flatStats: IEnemyFlatStats;
+    immunities: IEnemyImmunities;
+    applyWay: ApplyWay | null;
+    race: string | null;
+}
+
+export interface IEnemyStatMax {
+    hp: number;
+    atk: number;
+    def: number;
+}
+
+export type IEnemyStatMaxByLevel = Record<IEnemyLevel, IEnemyStatMax>;
+
+export interface IFilterState {
+    q: string;
+    levels: IEnemyLevel[];
+    damageTypes: IEnemyDamageType[];
+    attackTypes: ApplyWay[];
+    races: string[];
+    /** Location filter: zone ids ("rogue_4") and/or stage ids
+     *  ("level_main_10-06") an enemy must appear in (OR semantics). */
+    appearsIn: string[];
+    /** Statuses an enemy must be immune to. AND semantics, unlike the other
+     *  filters: every selected status must be immune. */
+    immunities: (keyof IEnemyImmunities)[];
+    sortBy: SortOption;
+    sortOrder: SortOrder;
+}
+
+/** Membership maps for the "Appears In" filter, built from the stage index.
+ *  A selected token (zone id or stage id) matches an enemy when it's in either
+ *  set, so the filter supports both whole-zone and single-stage selections. */
+export interface IEnemyLocationIndex {
+    /** enemyId -> set of zone ids it appears in. */
+    zonesByEnemy: Map<string, Set<string>>;
+    /** enemyId -> set of stage ids it appears in. */
+    stagesByEnemy: Map<string, Set<string>>;
+}
+
+export interface IUseEnemyFiltersReturn {
+    filters: IFilterState;
+    filteredEnemies: IEnemyView[];
+    setSearchQuery: (q: string) => void;
+    setLevels: (v: IEnemyLevel[]) => void;
+    setDamageTypes: (v: IEnemyDamageType[]) => void;
+    setAttackTypes: (v: ApplyWay[]) => void;
+    setRaces: (v: string[]) => void;
+    setAppearsIn: (v: string[]) => void;
+    setImmunities: (v: (keyof IEnemyImmunities)[]) => void;
+    setSortBy: (v: SortOption) => void;
+    setSortOrder: (v: SortOrder) => void;
+    clearFilters: () => void;
+    activeFilterCount: number;
+    hasActiveFilters: boolean;
+}

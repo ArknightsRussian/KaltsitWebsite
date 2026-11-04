@@ -1,0 +1,174 @@
+import { useQuery } from "@tanstack/react-query";
+import { Calculator } from "lucide-react";
+import { useState } from "react";
+import { Button } from "#/components/ui/button";
+import { LoadFailed } from "#/components/ui/load-failed";
+import { OperatorAvatar } from "#/components/ui/operator-avatar";
+import { Switch } from "#/components/ui/switch";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { useLocalStorageState } from "#/hooks/use-local-storage-state";
+import { type MaxLevelTarget, maxLevelCostQueryOptions } from "#/lib/api/user";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { Headline } from "../base/controls/Headline";
+import type { IOptimizerProps } from "../optimizers";
+import type { messages } from "./AccountOptimizer.messages";
+
+/** Rows shown before the list is expanded. */
+const PREVIEW_ROWS = 12;
+
+/** Whether the walk stops at the module level; a viewing preference, so one key for every profile. */
+const MODULE_TARGET_STORAGE_KEY = "account-optimizer-module-target";
+const MODULE_TARGET_FIELD_ID = "account-module-target";
+
+/**
+ * The Account Optimizer's first card: what it takes to bring every owned
+ * operator to its level cap, or to the level its module unlocks at (a switch:
+ * the last thirty levels of a 6-star are 43% of its LMD and 47% of its EXP for
+ * a few points of stat). The figure is computed on demand (a button), not on
+ * tab open, so browsing a profile never pays for it.
+ */
+export function AccountOptimizer({ uid }: IOptimizerProps) {
+    const t: TypedT<typeof messages> = useT("user");
+    const f = useFormatters();
+    const [requested, setRequested] = useState(false);
+    const [showAll, setShowAll] = useState(false);
+    const [moduleTarget, setModuleTarget] = useLocalStorageState<boolean>(MODULE_TARGET_STORAGE_KEY, false);
+    const target: MaxLevelTarget = moduleTarget ? "module" : "max";
+    // Flipping the switch changes the query key; keeping the previous figure
+    // on screen makes it read as a re-price, not a fresh run.
+    const query = useQuery({ ...maxLevelCostQueryOptions(uid, target), enabled: requested, placeholderData: (prev) => prev });
+    const data = query.data;
+    const rows = data ? (showAll ? data.operators : data.operators.slice(0, PREVIEW_ROWS)) : [];
+
+    const run = () => {
+        if (requested) {
+            void query.refetch();
+        } else {
+            setRequested(true);
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+                <div className="flex max-w-xl flex-col gap-0.5">
+                    <p className="font-medium text-[13px] text-foreground">{t("profile.account.maxLevel.title")}</p>
+                    <p className="text-[12px] text-muted-foreground">{moduleTarget ? t("profile.account.maxLevel.blurbModule") : t("profile.account.maxLevel.blurb")}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={(props) => (
+                                <div {...props} className="flex items-center gap-2">
+                                    <Switch checked={moduleTarget} id={MODULE_TARGET_FIELD_ID} onCheckedChange={setModuleTarget} />
+                                    <label className="cursor-pointer text-[12px] text-muted-foreground" htmlFor={MODULE_TARGET_FIELD_ID}>
+                                        {t("profile.account.maxLevel.moduleTarget")}
+                                    </label>
+                                </div>
+                            )}
+                        />
+                        <TooltipPopup className="max-w-72">{t("profile.account.maxLevel.moduleTarget.tooltip")}</TooltipPopup>
+                    </Tooltip>
+                    <Button disabled={query.isFetching} onClick={run} size="sm">
+                        <Calculator />
+                        {query.isFetching ? t("profile.account.maxLevel.calculating") : data ? t("profile.account.maxLevel.recalculate") : t("profile.account.maxLevel.calculate")}
+                    </Button>
+                </div>
+            </div>
+
+            {query.isError && <LoadFailed layout="inline" message={t("profile.account.maxLevel.error")} onRetry={() => void query.refetch()} />}
+
+            {data && (
+                <div className="flex flex-wrap gap-6 rounded-2xl border border-border bg-card px-4 py-3">
+                    <Headline label={t("profile.account.maxLevel.remaining")} value={`${data.operators_remaining} / ${data.operators_total}`} />
+                    {/* Each currency reads needed, then short with the owned note,
+                        in the same order; interleaved, neither the pairs nor the
+                        notes lined up. */}
+                    <Headline label={t("profile.account.maxLevel.expNeeded")} value={f.number(data.exp_needed)} />
+                    <Headline hint={t("profile.account.maxLevel.owned", { owned: f.number(data.exp_owned) })} label={t("profile.account.maxLevel.expMissing")} value={f.number(data.exp_missing)} />
+                    <Headline hint={t("profile.account.maxLevel.lmdSplit", { levels: f.number(data.level_lmd_needed), promotions: f.number(data.promotion_lmd_needed) })} label={t("profile.account.maxLevel.lmdNeeded")} value={f.number(data.lmd_needed)} />
+                    {/* `null` when the owner hid their LMD from visitors: the shortfall would give the balance back. */}
+                    {data.lmd_owned !== null && data.lmd_missing !== null && <Headline hint={t("profile.account.maxLevel.owned", { owned: f.number(data.lmd_owned) })} label={t("profile.account.maxLevel.lmdMissing")} value={f.number(data.lmd_missing)} />}
+                </div>
+            )}
+
+            {data && data.lmd_missing !== null && data.lmd_missing > 0 && (
+                <div className="flex flex-wrap gap-6 rounded-2xl border border-border bg-card px-4 py-3">
+                    {/* What the account earns and how long the shortfall takes:
+                        the base as stationed now plus the mission chests, then
+                        the same count with a day's natural sanity spent on the
+                        LMD stage. */}
+                    <Headline
+                        hint={
+                            data.income.base_per_day === null
+                                ? t("profile.account.maxLevel.incomeNoBase", { dailies: f.number(Math.round(data.income.dailies_per_day)) })
+                                : t("profile.account.maxLevel.incomeSplit", { base: f.number(Math.round(data.income.base_per_day)), dailies: f.number(Math.round(data.income.dailies_per_day)) })
+                        }
+                        label={t("profile.account.maxLevel.incomePerDay")}
+                        value={f.number(Math.round((data.income.base_per_day ?? 0) + data.income.dailies_per_day))}
+                    />
+                    <Headline
+                        hint={
+                            data.income.days_with_farming === null
+                                ? undefined
+                                : t("profile.account.maxLevel.daysWithFarming", {
+                                      days: t("profile.account.maxLevel.days", { count: data.income.days_with_farming }),
+                                      stage: data.income.farming_stage,
+                                      perDay: f.number(Math.round(data.income.farming_per_day)),
+                                  })
+                        }
+                        label={t("profile.account.maxLevel.daysToAfford")}
+                        value={data.income.days_without_farming === null ? t("profile.account.maxLevel.noIncome") : t("profile.account.maxLevel.days", { count: data.income.days_without_farming })}
+                    />
+                </div>
+            )}
+
+            {data && data.operators_remaining === 0 && <p className="text-[12.5px] text-muted-foreground">{t("profile.account.maxLevel.allMaxed")}</p>}
+
+            {data && data.operators_remaining > 0 && (
+                <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+                    <table className="w-full text-[12.5px]">
+                        <thead>
+                            <tr className="kicker">
+                                <th className="px-3 py-2 text-left font-medium">{t("profile.account.maxLevel.col.operator")}</th>
+                                <th className="px-3 py-2 text-left font-medium">{t("profile.account.maxLevel.col.now")}</th>
+                                <th className="px-3 py-2 text-left font-medium">{moduleTarget ? t("profile.account.maxLevel.col.moduleTarget") : t("profile.account.maxLevel.col.target")}</th>
+                                <th className="px-3 py-2 text-right font-medium">{t("profile.account.maxLevel.col.exp")}</th>
+                                <th className="px-3 py-2 text-right font-medium">{t("profile.account.maxLevel.col.lmd")}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((op) => (
+                                <tr className="border-border border-t" key={op.operator_id}>
+                                    <td className="px-3 py-1.5">
+                                        <span className="flex items-center gap-2">
+                                            <OperatorAvatar charId={op.operator_id} className="size-7 shrink-0 overflow-hidden rounded-md" name={op.name} />
+                                            <span className="truncate">{op.name}</span>
+                                            <span className="text-[11px] text-muted-foreground">{"★".repeat(op.rarity)}</span>
+                                        </span>
+                                    </td>
+                                    <td className="px-3 py-1.5 font-mono tabular-nums">{t("profile.account.maxLevel.elite", { elite: op.elite, level: op.level })}</td>
+                                    <td className="px-3 py-1.5 font-mono tabular-nums">{t("profile.account.maxLevel.elite", { elite: op.target_elite, level: op.target_level })}</td>
+                                    <td className="px-3 py-1.5 text-right font-mono tabular-nums">{f.number(op.exp)}</td>
+                                    <td className="px-3 py-1.5 text-right font-mono tabular-nums">{f.number(op.level_lmd + op.promotion_lmd)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {data.operators.length > PREVIEW_ROWS && (
+                        <div className="border-border border-t px-3 py-2">
+                            <Button onClick={() => setShowAll((v) => !v)} size="sm" variant="ghost">
+                                {showAll ? t("profile.account.maxLevel.showFewer") : t("profile.account.maxLevel.showAll", { count: data.operators.length })}
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div className="rounded-2xl border border-border border-dashed p-6 text-center">
+                <p className="text-[12.5px] text-muted-foreground">{t("profile.account.rest")}</p>
+            </div>
+        </div>
+    );
+}

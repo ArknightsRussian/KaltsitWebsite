@@ -1,0 +1,586 @@
+/**
+ * Hand-written release notes. This is the CURATED tier: the `/changelog` commit
+ * feed answers "what did you touch", these answer "what should I go look at".
+ *
+ * Adding an entry with `announce: true` is what lights the bell in the header.
+ * Nothing auto-opens; the visitor chooses when to read it. There is no build id
+ * and no deploy hook: the newest announced `id` IS the cache key, so a lint
+ * commit or an asset repack changes nothing.
+ *
+ * Ids are date-prefixed so they sort lexically. Add a `-2` suffix for a second
+ * entry on the same day. Never reuse an id unless you want it re-shown.
+ *
+ * The prose itself lives in `entries.messages.ts`: an entry carries message
+ * KEYS and whichever component renders it resolves them with `t()`. A new entry
+ * therefore needs its keys added there too.
+ */
+
+import type { messages as entryMessages } from "./entries.messages";
+
+export type ReleaseNoteKind = "new" | "improved" | "fixed";
+
+/** A key declared in `entries.messages.ts`. */
+export type ReleaseNoteMessageKey = keyof typeof entryMessages & string;
+
+export interface IReleaseNoteItem {
+    kind: ReleaseNoteKind;
+    textKey: ReleaseNoteMessageKey;
+}
+
+export interface IReleaseNote {
+    /** Sortable, date-prefixed. Stored verbatim in localStorage as the seen marker. */
+    id: string;
+    /** ISO date, rendered in the dialog eyebrow. */
+    date: string;
+    titleKey: ReleaseNoteMessageKey;
+    /** `false` files the entry in the archive without interrupting anyone. */
+    announce: boolean;
+    /** Markdown. One to three sentences: this is the marquee, not a bullet list. */
+    leadKey: ReleaseNoteMessageKey;
+    media?: { src: string; altKey: ReleaseNoteMessageKey };
+    /** Secondary changes, one line each. Deliberately subordinate to `lead`. */
+    items?: IReleaseNoteItem[];
+    /** Deep link to the thing that changed. Becomes the dialog's primary action. */
+    href?: string;
+    hrefLabelKey?: ReleaseNoteMessageKey;
+}
+
+const ENTRIES: IReleaseNote[] = [
+    {
+        id: "2026-11-04",
+        date: "2026-11-04",
+        titleKey: "note.2026-11-04.title",
+        announce: true,
+        leadKey: "note.2026-11-04.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-11-04.item.1" },
+            { kind: "improved", textKey: "note.2026-11-04.item.2" },
+            { kind: "improved", textKey: "note.2026-11-04.item.3" },
+            { kind: "improved", textKey: "note.2026-11-04.item.4" },
+            { kind: "fixed", textKey: "note.2026-11-04.item.5" },
+            { kind: "fixed", textKey: "note.2026-11-04.item.6" },
+            { kind: "fixed", textKey: "note.2026-11-04.item.7" },
+            { kind: "fixed", textKey: "note.2026-11-04.item.8" },
+        ],
+    },
+    {
+        id: "2026-11-02",
+        date: "2026-11-02",
+        titleKey: "note.2026-11-02.title",
+        announce: true,
+        leadKey: "note.2026-11-02.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-11-02.item.1" },
+            { kind: "new", textKey: "note.2026-11-02.item.2" },
+            { kind: "new", textKey: "note.2026-11-02.item.3" },
+            { kind: "improved", textKey: "note.2026-11-02.item.4" },
+            { kind: "fixed", textKey: "note.2026-11-02.item.5" },
+            { kind: "fixed", textKey: "note.2026-11-02.item.6" },
+        ],
+        href: "/operators",
+        hrefLabelKey: "note.2026-11-02.hrefLabel",
+    },
+    {
+        id: "2026-10-28",
+        date: "2026-10-28",
+        titleKey: "note.2026-10-28.title",
+        announce: true,
+        leadKey: "note.2026-10-28.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-28.item.1" },
+            { kind: "new", textKey: "note.2026-10-28.item.2" },
+            { kind: "new", textKey: "note.2026-10-28.item.3" },
+            { kind: "new", textKey: "note.2026-10-28.item.4" },
+            { kind: "improved", textKey: "note.2026-10-28.item.5" },
+            { kind: "improved", textKey: "note.2026-10-28.item.6" },
+            { kind: "improved", textKey: "note.2026-10-28.item.7" },
+            { kind: "fixed", textKey: "note.2026-10-28.item.8" },
+        ],
+        href: "/gacha/history",
+        hrefLabelKey: "note.2026-10-28.hrefLabel",
+    },
+    {
+        id: "2026-10-25",
+        date: "2026-10-25",
+        titleKey: "note.2026-10-25.title",
+        announce: true,
+        leadKey: "note.2026-10-25.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-25.item.1" },
+            { kind: "new", textKey: "note.2026-10-25.item.2" },
+            { kind: "new", textKey: "note.2026-10-25.item.3" },
+            { kind: "new", textKey: "note.2026-10-25.item.4" },
+            { kind: "improved", textKey: "note.2026-10-25.item.5" },
+            { kind: "fixed", textKey: "note.2026-10-25.item.6" },
+            { kind: "fixed", textKey: "note.2026-10-25.item.7" },
+            { kind: "fixed", textKey: "note.2026-10-25.item.8" },
+            { kind: "fixed", textKey: "note.2026-10-25.item.9" },
+            { kind: "fixed", textKey: "note.2026-10-25.item.10" },
+        ],
+        href: "/tools/dps",
+        hrefLabelKey: "note.2026-10-25.hrefLabel",
+    },
+    {
+        id: "2026-10-23",
+        date: "2026-10-23",
+        titleKey: "note.2026-10-23.title",
+        announce: true,
+        leadKey: "note.2026-10-23.lead",
+        items: [
+            { kind: "improved", textKey: "note.2026-10-23.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-23.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-23.item.3" },
+        ],
+        href: "/tools/squad-builder",
+        hrefLabelKey: "note.2026-10-23.hrefLabel",
+    },
+    {
+        id: "2026-10-15",
+        date: "2026-10-15",
+        titleKey: "note.2026-10-15.title",
+        announce: true,
+        leadKey: "note.2026-10-15.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-15.item.1" },
+            { kind: "new", textKey: "note.2026-10-15.item.2" },
+            { kind: "improved", textKey: "note.2026-10-15.item.3" },
+            { kind: "improved", textKey: "note.2026-10-15.item.4" },
+            { kind: "fixed", textKey: "note.2026-10-15.item.5" },
+            { kind: "fixed", textKey: "note.2026-10-15.item.6" },
+            { kind: "fixed", textKey: "note.2026-10-15.item.7" },
+            { kind: "fixed", textKey: "note.2026-10-15.item.8" },
+        ],
+        href: "/gacha/history",
+        hrefLabelKey: "note.2026-10-15.hrefLabel",
+    },
+    {
+        id: "2026-10-13-2",
+        date: "2026-10-13",
+        titleKey: "note.2026-10-13-2.title",
+        announce: true,
+        leadKey: "note.2026-10-13-2.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-13-2.item.1" },
+            { kind: "new", textKey: "note.2026-10-13-2.item.2" },
+            { kind: "new", textKey: "note.2026-10-13-2.item.3" },
+            { kind: "improved", textKey: "note.2026-10-13-2.item.4" },
+        ],
+    },
+    {
+        id: "2026-10-13",
+        date: "2026-10-13",
+        titleKey: "note.2026-10-13.title",
+        announce: true,
+        leadKey: "note.2026-10-13.lead",
+        items: [
+            { kind: "improved", textKey: "note.2026-10-13.item.1" },
+            { kind: "improved", textKey: "note.2026-10-13.item.2" },
+            { kind: "improved", textKey: "note.2026-10-13.item.3" },
+            { kind: "improved", textKey: "note.2026-10-13.item.4" },
+            { kind: "fixed", textKey: "note.2026-10-13.item.5" },
+        ],
+    },
+    {
+        id: "2026-10-12",
+        date: "2026-10-12",
+        titleKey: "note.2026-10-12.title",
+        announce: true,
+        leadKey: "note.2026-10-12.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-12.item.1" },
+            { kind: "new", textKey: "note.2026-10-12.item.2" },
+            { kind: "new", textKey: "note.2026-10-12.item.3" },
+            { kind: "new", textKey: "note.2026-10-12.item.4" },
+            { kind: "new", textKey: "note.2026-10-12.item.5" },
+            { kind: "improved", textKey: "note.2026-10-12.item.6" },
+            { kind: "fixed", textKey: "note.2026-10-12.item.7" },
+            { kind: "fixed", textKey: "note.2026-10-12.item.8" },
+        ],
+        href: "/gallery/music",
+        hrefLabelKey: "note.2026-10-12.hrefLabel",
+    },
+    {
+        id: "2026-10-11",
+        date: "2026-10-11",
+        titleKey: "note.2026-10-11.title",
+        announce: true,
+        leadKey: "note.2026-10-11.lead",
+        items: [
+            { kind: "improved", textKey: "note.2026-10-11.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-11.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-11.item.3" },
+            { kind: "fixed", textKey: "note.2026-10-11.item.4" },
+            { kind: "fixed", textKey: "note.2026-10-11.item.5" },
+        ],
+    },
+    {
+        id: "2026-10-09",
+        date: "2026-10-09",
+        titleKey: "note.2026-10-09.title",
+        announce: true,
+        leadKey: "note.2026-10-09.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-09.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-09.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-09.item.3" },
+            { kind: "fixed", textKey: "note.2026-10-09.item.4" },
+            { kind: "fixed", textKey: "note.2026-10-09.item.5" },
+        ],
+    },
+    {
+        id: "2026-10-07",
+        date: "2026-10-07",
+        titleKey: "note.2026-10-07.title",
+        announce: true,
+        leadKey: "note.2026-10-07.lead",
+        href: "/gacha/history",
+        hrefLabelKey: "note.2026-10-07.hrefLabel",
+        items: [
+            { kind: "fixed", textKey: "note.2026-10-07.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-07.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-07.item.3" },
+        ],
+    },
+    {
+        id: "2026-10-06-2",
+        date: "2026-10-06",
+        titleKey: "note.2026-10-06-2.title",
+        announce: true,
+        leadKey: "note.2026-10-06-2.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-06-2.item.1" },
+            { kind: "improved", textKey: "note.2026-10-06-2.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-06-2.item.3" },
+            { kind: "fixed", textKey: "note.2026-10-06-2.item.4" },
+        ],
+    },
+    {
+        id: "2026-10-06",
+        date: "2026-10-06",
+        titleKey: "note.2026-10-06.title",
+        announce: true,
+        leadKey: "note.2026-10-06.lead",
+        href: "/grids",
+        hrefLabelKey: "note.2026-10-06.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-10-06.item.1" },
+            { kind: "improved", textKey: "note.2026-10-06.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-06.item.3" },
+            { kind: "fixed", textKey: "note.2026-10-06.item.4" },
+        ],
+    },
+    {
+        id: "2026-10-05",
+        date: "2026-10-05",
+        titleKey: "note.2026-10-05.title",
+        announce: true,
+        leadKey: "note.2026-10-05.lead",
+        href: "/tools/release",
+        hrefLabelKey: "note.2026-10-05.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-10-05.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-05.item.2" },
+        ],
+    },
+    {
+        id: "2026-10-04",
+        date: "2026-10-04",
+        titleKey: "note.2026-10-04.title",
+        announce: false,
+        leadKey: "note.2026-10-04.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-10-04.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-04.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-04.item.3" },
+            { kind: "fixed", textKey: "note.2026-10-04.item.4" },
+            { kind: "fixed", textKey: "note.2026-10-04.item.5" },
+        ],
+    },
+    {
+        id: "2026-10-02",
+        date: "2026-10-02",
+        titleKey: "note.2026-10-02.title",
+        announce: false,
+        leadKey: "note.2026-10-02.lead",
+        href: "/operators",
+        hrefLabelKey: "note.2026-10-02.hrefLabel",
+        items: [
+            { kind: "fixed", textKey: "note.2026-10-02.item.1" },
+            { kind: "fixed", textKey: "note.2026-10-02.item.2" },
+        ],
+    },
+    {
+        id: "2026-10-01",
+        date: "2026-10-01",
+        titleKey: "note.2026-10-01.title",
+        announce: true,
+        leadKey: "note.2026-10-01.lead",
+        href: "/tier-lists",
+        hrefLabelKey: "note.2026-10-01.hrefLabel",
+        items: [
+            { kind: "improved", textKey: "note.2026-10-01.item.1" },
+            { kind: "improved", textKey: "note.2026-10-01.item.2" },
+            { kind: "fixed", textKey: "note.2026-10-01.item.3" },
+            { kind: "fixed", textKey: "note.2026-10-01.item.4" },
+            { kind: "fixed", textKey: "note.2026-10-01.item.5" },
+            { kind: "fixed", textKey: "note.2026-10-01.item.6" },
+        ],
+    },
+    {
+        id: "2026-09-30",
+        date: "2026-09-30",
+        titleKey: "note.2026-09-30.title",
+        announce: true,
+        leadKey: "note.2026-09-30.lead",
+        href: "/tools/release",
+        hrefLabelKey: "note.2026-09-30.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-30.item.1" },
+            { kind: "improved", textKey: "note.2026-09-30.item.2" },
+            { kind: "fixed", textKey: "note.2026-09-30.item.3" },
+            { kind: "fixed", textKey: "note.2026-09-30.item.4" },
+            { kind: "fixed", textKey: "note.2026-09-30.item.5" },
+            { kind: "fixed", textKey: "note.2026-09-30.item.6" },
+        ],
+    },
+    {
+        id: "2026-09-25-2",
+        date: "2026-09-25",
+        titleKey: "note.2026-09-25-2.title",
+        announce: true,
+        leadKey: "note.2026-09-25-2.lead",
+        href: "/stories",
+        hrefLabelKey: "note.2026-09-25-2.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-25-2.item.1" },
+            { kind: "improved", textKey: "note.2026-09-25-2.item.2" },
+            { kind: "improved", textKey: "note.2026-09-25-2.item.3" },
+            { kind: "fixed", textKey: "note.2026-09-25-2.item.4" },
+        ],
+    },
+    {
+        id: "2026-09-25",
+        date: "2026-09-25",
+        titleKey: "note.2026-09-25.title",
+        announce: true,
+        leadKey: "note.2026-09-25.lead",
+        href: "/stories",
+        hrefLabelKey: "note.2026-09-25.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-25.item.1" },
+            { kind: "new", textKey: "note.2026-09-25.item.2" },
+            { kind: "improved", textKey: "note.2026-09-25.item.3" },
+            { kind: "improved", textKey: "note.2026-09-25.item.4" },
+            { kind: "fixed", textKey: "note.2026-09-25.item.5" },
+            { kind: "fixed", textKey: "note.2026-09-25.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-25.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-25.item.8" },
+        ],
+    },
+    {
+        id: "2026-09-21",
+        date: "2026-09-21",
+        titleKey: "note.2026-09-21.title",
+        announce: true,
+        leadKey: "note.2026-09-21.lead",
+        href: "/tools/recruitment",
+        hrefLabelKey: "note.2026-09-21.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-21.item.1" },
+            { kind: "new", textKey: "note.2026-09-21.item.2" },
+            { kind: "new", textKey: "note.2026-09-21.item.3" },
+            { kind: "new", textKey: "note.2026-09-21.item.4" },
+            { kind: "improved", textKey: "note.2026-09-21.item.5" },
+            { kind: "improved", textKey: "note.2026-09-21.item.6" },
+            { kind: "improved", textKey: "note.2026-09-21.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-21.item.8" },
+            { kind: "fixed", textKey: "note.2026-09-21.item.9" },
+            { kind: "fixed", textKey: "note.2026-09-21.item.10" },
+            { kind: "fixed", textKey: "note.2026-09-21.item.11" },
+            { kind: "fixed", textKey: "note.2026-09-21.item.12" },
+        ],
+    },
+    {
+        id: "2026-09-20",
+        date: "2026-09-20",
+        titleKey: "note.2026-09-20.title",
+        announce: true,
+        leadKey: "note.2026-09-20.lead",
+        href: "/user/leaderboard",
+        hrefLabelKey: "note.2026-09-20.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-20.item.1" },
+            { kind: "new", textKey: "note.2026-09-20.item.2" },
+            { kind: "improved", textKey: "note.2026-09-20.item.3" },
+            { kind: "improved", textKey: "note.2026-09-20.item.4" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.5" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.8" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.9" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.10" },
+            { kind: "fixed", textKey: "note.2026-09-20.item.11" },
+        ],
+    },
+    {
+        id: "2026-09-19-2",
+        date: "2026-09-19",
+        titleKey: "note.2026-09-19-2.title",
+        announce: true,
+        leadKey: "note.2026-09-19-2.lead",
+        items: [
+            { kind: "new", textKey: "note.2026-09-19-2.item.1" },
+            { kind: "improved", textKey: "note.2026-09-19-2.item.2" },
+            { kind: "improved", textKey: "note.2026-09-19-2.item.3" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.4" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.5" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.8" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.9" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.10" },
+            { kind: "fixed", textKey: "note.2026-09-19-2.item.11" },
+        ],
+    },
+    {
+        id: "2026-09-19",
+        date: "2026-09-19",
+        titleKey: "note.2026-09-19.title",
+        announce: true,
+        leadKey: "note.2026-09-19.lead",
+        items: [
+            { kind: "improved", textKey: "note.2026-09-19.item.1" },
+            { kind: "improved", textKey: "note.2026-09-19.item.2" },
+            { kind: "improved", textKey: "note.2026-09-19.item.3" },
+            { kind: "improved", textKey: "note.2026-09-19.item.4" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.5" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.8" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.9" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.10" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.11" },
+            { kind: "fixed", textKey: "note.2026-09-19.item.12" },
+        ],
+    },
+    {
+        id: "2026-09-18",
+        date: "2026-09-18",
+        titleKey: "note.2026-09-18.title",
+        announce: true,
+        leadKey: "note.2026-09-18.lead",
+        href: "/tools/release",
+        hrefLabelKey: "note.2026-09-18.hrefLabel",
+        items: [
+            { kind: "improved", textKey: "note.2026-09-18.item.1" },
+            { kind: "improved", textKey: "note.2026-09-18.item.2" },
+            { kind: "improved", textKey: "note.2026-09-18.item.3" },
+            { kind: "improved", textKey: "note.2026-09-18.item.4" },
+            { kind: "improved", textKey: "note.2026-09-18.item.5" },
+            { kind: "improved", textKey: "note.2026-09-18.item.10" },
+            { kind: "improved", textKey: "note.2026-09-18.item.11" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.8" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.9" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.12" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.13" },
+            { kind: "fixed", textKey: "note.2026-09-18.item.14" },
+        ],
+    },
+    {
+        id: "2026-09-17-3",
+        date: "2026-09-17",
+        titleKey: "note.2026-09-17-3.title",
+        announce: true,
+        leadKey: "note.2026-09-17-3.lead",
+        href: "/settings",
+        hrefLabelKey: "note.2026-09-17-3.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-17-3.item.1" },
+            { kind: "improved", textKey: "note.2026-09-17-3.item.2" },
+        ],
+    },
+    {
+        id: "2026-09-17-2",
+        date: "2026-09-17",
+        titleKey: "note.2026-09-17-2.title",
+        announce: true,
+        leadKey: "note.2026-09-17-2.lead",
+        href: "/user/leaderboard",
+        hrefLabelKey: "note.2026-09-17-2.hrefLabel",
+        items: [
+            { kind: "fixed", textKey: "note.2026-09-17-2.item.1" },
+            { kind: "fixed", textKey: "note.2026-09-17-2.item.2" },
+        ],
+    },
+    {
+        id: "2026-09-17",
+        date: "2026-09-17",
+        titleKey: "note.2026-09-17.title",
+        announce: true,
+        leadKey: "note.2026-09-17.lead",
+        href: "/tools/release",
+        hrefLabelKey: "note.2026-09-17.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-17.item.1" },
+            { kind: "new", textKey: "note.2026-09-17.item.2" },
+            { kind: "new", textKey: "note.2026-09-17.item.3" },
+            { kind: "new", textKey: "note.2026-09-17.item.4" },
+            { kind: "improved", textKey: "note.2026-09-17.item.5" },
+            { kind: "improved", textKey: "note.2026-09-17.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-17.item.7" },
+            { kind: "fixed", textKey: "note.2026-09-17.item.8" },
+            { kind: "fixed", textKey: "note.2026-09-17.item.9" },
+        ],
+    },
+    {
+        id: "2026-09-16",
+        date: "2026-09-16",
+        titleKey: "note.2026-09-16.title",
+        announce: true,
+        leadKey: "note.2026-09-16.lead",
+        href: "/tools/release",
+        hrefLabelKey: "note.2026-09-16.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-16.item.1" },
+            { kind: "new", textKey: "note.2026-09-16.item.2" },
+            { kind: "improved", textKey: "note.2026-09-16.item.3" },
+            { kind: "improved", textKey: "note.2026-09-16.item.4" },
+            { kind: "fixed", textKey: "note.2026-09-16.item.5" },
+        ],
+    },
+    {
+        id: "2026-09-10",
+        date: "2026-09-10",
+        titleKey: "note.2026-09-10.title",
+        announce: true,
+        leadKey: "note.2026-09-10.lead",
+        href: "/operators",
+        hrefLabelKey: "note.2026-09-10.hrefLabel",
+        items: [
+            { kind: "new", textKey: "note.2026-09-10.item.1" },
+            { kind: "new", textKey: "note.2026-09-10.item.2" },
+            { kind: "new", textKey: "note.2026-09-10.item.3" },
+            { kind: "improved", textKey: "note.2026-09-10.item.4" },
+            { kind: "improved", textKey: "note.2026-09-10.item.5" },
+            { kind: "fixed", textKey: "note.2026-09-10.item.6" },
+            { kind: "fixed", textKey: "note.2026-09-10.item.7" },
+        ],
+    },
+];
+
+/** Newest first. Sorted here so authoring order in `ENTRIES` never matters. */
+export const RELEASE_NOTES: readonly IReleaseNote[] = [...ENTRIES].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+
+/** The entry the dialog shows, or `null` when nothing is announceable. */
+export const LATEST_ANNOUNCED_NOTE: IReleaseNote | null = RELEASE_NOTES.find((note) => note.announce) ?? null;
+
+/**
+ * Announced entries strictly newer than `seenId`, excluding the marquee itself.
+ * Drives the "N earlier updates" footer line so we never stack dialogs.
+ */
+export function countMissedNotes(seenId: string | null): number {
+    if (seenId === null || LATEST_ANNOUNCED_NOTE === null) return 0;
+    return RELEASE_NOTES.filter((note) => note.announce && note.id > seenId && note.id !== LATEST_ANNOUNCED_NOTE.id).length;
+}

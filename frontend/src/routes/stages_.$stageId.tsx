@@ -1,0 +1,55 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { StageDetail } from "#/components/stages/detail/StageDetail";
+import { RouteError } from "#/components/ui/route-error";
+import { stageDetailQueryOptions } from "#/lib/api/stages";
+import { metaT } from "#/lib/meta";
+import { defaultOgURL } from "#/lib/og";
+import { buildStageOgData } from "#/lib/og/impl/templates/Stage";
+import { ogURL, warmOg } from "#/lib/og/impl/url";
+import { seo } from "#/lib/seo";
+import type { IStage, IZone } from "#/types/stages";
+
+export const Route = createFileRoute("/stages_/$stageId")({
+    component: RouteComponent,
+    errorComponent: RouteError,
+    loader: async ({ context, params }) => {
+        // One slim endpoint returns the stage + zone + level + only the
+        // enemies/materials this stage references. Procedural IS/RA/CC nodes
+        // included: the backend builds their stage from the stage index.
+        const detail = await context.queryClient.ensureQueryData(stageDetailQueryOptions(params.stageId, context.i18n.gamedataServer));
+        if (!detail) return { stage: null as IStage | null, zone: null as IZone | null, level: null, enemyData: {}, materials: {}, hasOg: false };
+        const zone = detail.zone ?? null;
+        // A procedural node has no sanity, EXP or LMD to put on the stage card.
+        const hasOg = !detail.synthetic;
+        if (hasOg) warmOg("stage", params.stageId, buildStageOgData(detail.stage, zone ?? undefined));
+        return { stage: detail.stage as IStage | null, zone, level: detail.levelData ?? null, enemyData: detail.enemies, materials: detail.materials, hasOg };
+    },
+    head: ({ loaderData, match, params }) => {
+        const t = metaT(match.context.i18n);
+        const stage = loaderData?.stage ?? null;
+        const zone = loaderData?.zone ?? null;
+        const code = stage?.code ?? params.stageId;
+        // Stage code and name are game data; only the frame around them is a
+        // message, so `name` is passed in as a placeholder rather than built
+        // into either string.
+        const name = stage?.name ? `${code} · ${stage.name}` : code;
+        const hasOg = loaderData?.hasOg ?? false;
+        const image = stage && hasOg ? ogURL("stage", params.stageId, buildStageOgData(stage, zone ?? undefined)) : defaultOgURL("stages", match.context.i18n);
+        const { meta, links } = seo({
+            title: t("stage.title", { name }),
+            description: t("stage.description", { name }),
+            path: `/stages/${params.stageId}`,
+            image,
+            locale: match.context.i18n?.locale,
+        });
+        return {
+            meta: [{ charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" }, ...meta],
+            links,
+        };
+    },
+});
+
+function RouteComponent() {
+    const { stage, zone, level, enemyData, materials } = Route.useLoaderData();
+    return <StageDetail stage={stage} zone={zone} level={level} enemyData={enemyData} materials={materials} />;
+}

@@ -1,0 +1,129 @@
+import { CheckIcon, StarIcon } from "lucide-react";
+import type React from "react";
+import { memo, useId, useMemo, useState } from "react";
+import { asset } from "#/components/operators/detail/impl/assets";
+import { SearchField } from "#/components/SearchField";
+import { Button } from "#/components/ui/button";
+import { Checkbox } from "#/components/ui/checkbox";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import type { StoryProgress } from "#/lib/story/progress";
+import { cn, getAvatarById, professionLabel, RARITY_HEX, rarityInk, rarityToNumber } from "#/lib/utils";
+import { filterRecords, type LibRecord, readFraction } from "./derive";
+import { OperatorDialog } from "./OperatorDialog";
+import type { messages } from "./OperatorsTab.messages";
+import { nextPage, pageOf, RECORD_PAGE } from "./paging";
+
+export interface IOperatorsTabProps {
+    records: LibRecord[];
+    progress: StoryProgress;
+    /** The game's own read verdict, weighed beside the document. */
+    gameRead: ReadonlySet<string>;
+    /** False inside the browse page's records section, whose own search box and pills already filtered `records`. */
+    controls?: boolean;
+    /**
+     * Mount the grid {@link RECORD_PAGE} cards at a time behind a "Show more"
+     * button. The browse page sets it; `pageKey` is what a reader changed
+     * (query, category, read state), and a new key starts again from one page.
+     */
+    paged?: boolean;
+    pageKey?: string;
+}
+
+/** The operator's rarity as 1 to 6, or `null` while the backend sends no `rarity`; the wire's own "no such operator" sentinel is 0. */
+function rarityOf(record: LibRecord): number | null {
+    if (!record.rarity) return null;
+    return rarityToNumber(record.rarity);
+}
+
+export const OperatorsTab = memo(function OperatorsTab({ records, progress, gameRead, controls = true, paged = false, pageKey = "" }: IOperatorsTabProps): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("story");
+    const [query, setQuery] = useState("");
+    const [hideFinished, setHideFinished] = useState(false);
+    const [open, setOpen] = useState<LibRecord | null>(null);
+    const hideFinishedId = useId();
+
+    const visible = useMemo(() => {
+        const searched = filterRecords(query, records);
+        return hideFinished ? searched.filter((r) => !readFraction(r.stories, progress, gameRead).done) : searched;
+    }, [records, query, hideFinished, progress, gameRead]);
+
+    // The limit is remembered against the key it was raised under, so a new
+    // search starts from one page without an effect or a render-time setState.
+    const [raised, setRaised] = useState<{ key: string; limit: number }>({ key: pageKey, limit: RECORD_PAGE });
+    const limit = raised.key === pageKey ? raised.limit : RECORD_PAGE;
+    const { shown, hidden } = paged ? pageOf(visible, limit) : { shown: visible, hidden: 0 };
+
+    const done = useMemo(() => records.filter((r) => readFraction(r.stories, progress, gameRead).done).length, [records, progress, gameRead]);
+
+    return (
+        <div className={controls ? "pt-4" : undefined}>
+            {controls ? (
+                <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2.5">
+                    <SearchField className="h-11 min-w-0 flex-1 basis-full sm:h-9.5 sm:max-w-100 sm:basis-auto" value={query} onChange={setQuery} placeholder={t("operators.search.placeholder")} label={t("operators.search.aria")} />
+                    <label htmlFor={hideFinishedId} className="flex cursor-pointer select-none items-center gap-2 font-sans text-[12px] text-muted-foreground max-sm:min-h-11">
+                        <Checkbox id={hideFinishedId} checked={hideFinished} onCheckedChange={(checked) => setHideFinished(checked === true)} />
+                        {t("operators.hideFinished")}
+                    </label>
+                    <span className="font-mono text-[11px] text-muted-foreground tabular-nums">{t("operators.readCount", { done, total: records.length })}</span>
+                </div>
+            ) : null}
+
+            {visible.length === 0 ? (
+                <div className="rounded-2xl border border-border border-dashed p-14 text-center font-sans text-[14px] text-muted-foreground">{t("operators.empty")}</div>
+            ) : (
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                    {shown.map((record) => (
+                        <OperatorCard key={record.charId} record={record} progress={progress} gameRead={gameRead} onOpen={() => setOpen(record)} />
+                    ))}
+                </div>
+            )}
+
+            {hidden > 0 ? (
+                <div className="mt-3 flex justify-center">
+                    <Button variant="outline" className="max-sm:min-h-11" onClick={() => setRaised({ key: pageKey, limit: limit + nextPage(hidden) })}>
+                        {t("operators.showMore", { count: nextPage(hidden), remaining: hidden })}
+                    </Button>
+                </div>
+            ) : null}
+
+            <OperatorDialog key={open?.charId ?? "none"} record={open} progress={progress} gameRead={gameRead} onClose={() => setOpen(null)} />
+        </div>
+    );
+});
+
+function OperatorCard({ record, progress, gameRead, onOpen }: { record: LibRecord; progress: StoryProgress; gameRead: ReadonlySet<string>; onOpen: () => void }): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("story");
+    const fraction = readFraction(record.stories, progress, gameRead);
+    const rarity = rarityOf(record);
+    const tone = rarity !== null ? (RARITY_HEX[rarity] ?? "var(--border)") : "var(--border)";
+    const avatar = record.avatarUrl ? asset(record.avatarUrl) : getAvatarById(record.charId);
+
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            aria-haspopup="dialog"
+            aria-label={t("operators.card.open", { name: record.name })}
+            className="group flex cursor-pointer items-center gap-2.5 rounded-2xl border border-border bg-card p-2 text-left ring-inset transition-colors hover:border-primary/45 focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11"
+        >
+            <span className="relative block size-12 shrink-0 overflow-hidden rounded-[9px] bg-secondary/60 sm:size-13" style={{ borderBottom: `3px solid ${tone}` }}>
+                <img src={avatar} alt="" aria-hidden="true" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate font-sans font-semibold text-[12.5px] text-foreground sm:text-[13px]">{record.name}</span>
+                {rarity !== null ? (
+                    <span className="flex items-center gap-px" role="img" aria-label={t("operators.rarity", { count: rarity })}>
+                        {Array.from({ length: rarity }, (_, i) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: a rarity star has no identity beyond its position
+                            <StarIcon key={i} className="size-2.5 fill-current" style={{ color: rarityInk(rarity) }} aria-hidden="true" />
+                        ))}
+                    </span>
+                ) : null}
+                {record.profession ? <span className="truncate font-mono text-[10px] text-muted-foreground">{professionLabel(record)}</span> : null}
+                <span className={cn("font-mono text-[10px] tabular-nums", fraction.done ? "text-primary" : "text-muted-foreground")}>{t("operators.card.read", { read: fraction.read, total: fraction.total })}</span>
+            </span>
+            {fraction.done ? <CheckIcon className="size-4 shrink-0 text-primary" aria-hidden="true" /> : null}
+        </button>
+    );
+}

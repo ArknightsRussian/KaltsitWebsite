@@ -1,0 +1,93 @@
+.tabs {
+    position: sticky;
+    top: 56px;
+    z-index: 30;
+    border-bottom: 1px solid var(--border);
+    /* Opaque: at 95% the page text showed through the bar at 375px. Only the
+       colour is set, so `.scroll-shadows-x` can paint its edge shadows. */
+    background-color: var(--background);
+    /* Full bleed: pull out to the viewport edges so the sticky bar's border and
+       backdrop run edge to edge, then pad the tabs back in so they line up with
+       the page content underneath. The pull-out MUST equal the page gutter, so
+       it reads `--page-gutter` instead of restating it; a hard-coded 1rem here
+       outran a 0.75rem gutter by 4px a side and put a horizontal scrollbar on
+       the whole page. 1440px is this page's `--page-max`. */
+    margin: 0 calc(-1 * max(var(--page-gutter), (100vw - 1440px) / 2));
+    padding: 0 max(var(--page-gutter), (100vw - 1440px) / 2);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+    display: none;
+}
+@media (min-width: 640px) {
+    .tabs {
+        top: 64px;
+    }
+}
+.inner {
+    position: relative;
+    display: flex;
+    gap: 2px;
+    max-width: 1440px;
+    margin: 0 auto;
+    width: max-content;
+    min-width: 100%;
+}
+.tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 14px;
+    background: transparent;
+    border: 0;
+    font: 500 14px / 1 var(--font-sans);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: color 120ms;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+    flex-shrink: 0;
+}
+.list {
+    display: flex;
+    gap: 2px;
+}
+.end {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    padding-left: 12px;
+    flex-shrink: 0;
+}
+.tab:hover {
+    color: var(--foreground);
+}
+.tabActive {
+    color: var(--foreground);
+}
+.count {
+    font: 500 11px / 1 var(--font-mono);
+    color: var(--muted-foreground);
+    background: var(--muted);
+    padding: 2px 6px;
+    border-radius: 999px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: keep-all;
+}
+.tabActive .count {
+    color: var(--foreground);
+}
+.indicator {
+    position: absolute;
+    bottom: -1px;
+    height: 2px;
+    background: var(--primary);
+    border-radius: 999px;
+    transition:
+        transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+        width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}

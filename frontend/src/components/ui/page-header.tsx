@@ -1,0 +1,76 @@
+import { ChevronRight } from "lucide-react";
+import type * as React from "react";
+import { Fragment } from "react";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "#/components/ui/breadcrumb";
+import { cn } from "#/lib/utils";
+
+export interface IPageHeaderProps {
+    /** Crumbs above the title, outermost first; the last one is the current page and renders in the foreground colour. Omit for a page with no trail. */
+    breadcrumb?: readonly React.ReactNode[];
+    /** Accessible name of the breadcrumb nav. Required whenever `breadcrumb` is given. */
+    breadcrumbLabel?: string;
+    title: React.ReactNode;
+    /** Present selects the WITH-DESCRIPTION design; absent selects the base design. There is no third option. */
+    description?: React.ReactNode;
+    /** Sits inline after the title, baseline-aligned: a help popover trigger, a badge. */
+    titleAdornment?: React.ReactNode;
+    /** Trailing controls, bottom-aligned with the title block and wrapping under it when the bar is too narrow. */
+    actions?: React.ReactNode;
+    className?: string;
+}
+
+/**
+ * The page header, in the only two shapes a page may take: a title on its own,
+ * or a title with a description under it. Both carry the same breadcrumb, the
+ * same type scale and the same trailing-action slot.
+ *
+ * Replaces per-page headers: the tools family ran a `24px -> 30px` title, the collection and
+ * player lists a flat `30px`, Stages a `27px -> 34px` title behind a kicker rule. The three read
+ * as three different sites. A page chooses BETWEEN THE TWO shapes here and nothing else;
+ * anything that needs more goes in `actions`.
+ */
+export function PageHeader({ breadcrumb, breadcrumbLabel, title, description, titleAdornment, actions, className }: IPageHeaderProps): React.ReactElement {
+    return (
+        <div className={cn("flex flex-col", className)}>
+            {breadcrumb && breadcrumb.length > 0 ? (
+                // The kit's list, so a screen reader hears "list, 3 items" and the
+                // last crumb as the current page. The overrides hold the trail at
+                // its own 12 px size and 6 px rhythm, a size the kit list does not
+                // ship. The label is passed only when given, or the kit's own
+                // `breadcrumb` default would be overwritten with undefined.
+                <Breadcrumb className="mb-2.5" {...(breadcrumbLabel ? { "aria-label": breadcrumbLabel } : {})}>
+                    <BreadcrumbList className="flex-nowrap gap-1.5 font-medium font-sans text-[12px] leading-none sm:gap-1.5">
+                        {breadcrumb.map((crumb, i) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: crumbs are a fixed positional trail, not a reorderable list
+                            <Fragment key={i}>
+                                {i > 0 ? (
+                                    <BreadcrumbSeparator className="flex opacity-100 [&>svg]:size-2.5">
+                                        <ChevronRight />
+                                    </BreadcrumbSeparator>
+                                ) : null}
+                                <BreadcrumbItem>{i === breadcrumb.length - 1 ? <BreadcrumbPage className="font-medium">{crumb}</BreadcrumbPage> : crumb}</BreadcrumbItem>
+                            </Fragment>
+                        ))}
+                    </BreadcrumbList>
+                </Breadcrumb>
+            ) : null}
+            {/* `flex-1` is `flex: 1 1 0%`, and with `min-w-0` that lets the title
+                block shrink to nothing rather than pushing the actions onto the
+                next line: on a phone the Stages header collapsed to zero width
+                and set its title one character per line. A basis gives the row
+                something to fail against, so `flex-wrap` does its job and the
+                actions drop below instead. `wrap-break-word` is the floor under
+                that, for a single word longer than the column in any language. */}
+            <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0 flex-1 basis-64">
+                    <div className="flex items-center gap-2">
+                        <h1 className="wrap-break-word m-0 font-bold font-sans text-[24px] text-foreground leading-[1.1] tracking-tight sm:text-[30px]">{title}</h1>
+                        {titleAdornment}
+                    </div>
+                    {description ? <p className="mt-1.5 max-w-2xl font-sans text-[13px] text-muted-foreground leading-normal sm:text-[13.5px]">{description}</p> : null}
+                </div>
+                {actions ? <div className="min-w-0 shrink-0">{actions}</div> : null}
+            </div>
+        </div>
+    );
+}

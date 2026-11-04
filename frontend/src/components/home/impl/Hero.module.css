@@ -1,0 +1,280 @@
+.hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* The key art sits behind the hero copy and fades into the page background. */
+.art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* The small viewport height, so mobile Safari's collapsing toolbar never resizes the art. */
+    height: min(100%, max(78svh, 52vw));
+    overflow: hidden;
+    pointer-events: none;
+}
+.artLayer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Taller than the clip and raised 8%: this sets the crop the copy and Myrtle sit against. */
+    top: -8%;
+    height: 116%;
+}
+.artLayer img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 30%;
+}
+.artFade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--background) 10%, transparent) 0%,
+        transparent 18%,
+        color-mix(in oklab, var(--background) 18%, transparent) 42%,
+        color-mix(in oklab, var(--background) 55%, transparent) 62%,
+        color-mix(in oklab, var(--background) 85%, transparent) 80%,
+        var(--background) 100%
+    );
+}
+.spacer {
+    height: clamp(120px, min(34vw, 46svh), 440px);
+}
+
+.body {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    align-items: end;
+    gap: 4px 56px;
+}
+/* Two columns, Myrtle beside the copy, from where both fit at 300px plus the gap. */
+@media (min-width: 688px) {
+    .body {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.myrtle {
+    position: relative;
+    /* Above the copy's wash, which may reach into the gap. */
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+}
+.myrtleImg {
+    position: relative;
+    display: block;
+    /* Capped by height too, so a landscape phone keeps the copy near the first screen. */
+    width: clamp(120px, min(26vw, 40svh), 300px);
+    height: auto;
+    filter: drop-shadow(0 18px 22px oklch(0 0 0 / 0.18));
+}
+
+.copy {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 520px;
+    padding-bottom: 8px;
+}
+/* A wash of the page background behind the copy, so the text reads on any part of the
+   art: 86% holds every glyph at WCAG AA over the art's lightest and darkest pixels in
+   both themes. */
+.copy::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+}
+/* One column: a full-bleed scrim, like two columns below, but with a longer eased
+   ramp (smooth at both ends, so no band shows) that finishes at the copy's top edge,
+   so the headline already sits on the hold. */
+@media (max-width: 687.98px) {
+    .copy::before {
+        inset: -144px -100vw -50vh;
+        background: linear-gradient(
+            to bottom,
+            transparent 0,
+            color-mix(in oklab, var(--background) 6%, transparent) 24px,
+            color-mix(in oklab, var(--background) 24%, transparent) 48px,
+            color-mix(in oklab, var(--background) 48%, transparent) 72px,
+            color-mix(in oklab, var(--background) 68%, transparent) 96px,
+            color-mix(in oklab, var(--background) 80%, transparent) 120px,
+            color-mix(in oklab, var(--background) 86%, transparent) 144px
+        );
+    }
+}
+/* Two columns: the copy is one column, so a feathered patch would read as a panel.
+   Instead a full-bleed bottom scrim that ramps in over the 96px above the copy and
+   holds to the hero's bottom; the hero's overflow clips it, so it has no edges. */
+@media (min-width: 688px) {
+    .copy::before {
+        inset: -96px -100vw -50vh;
+        background: linear-gradient(to bottom, transparent, color-mix(in oklab, var(--background) 86%, transparent) 96px);
+    }
+}
+.intro {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.title {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: clamp(32px, 5.2vw, 52px);
+    line-height: 1.02;
+    letter-spacing: -0.04em;
+    color: var(--foreground);
+    text-wrap: balance;
+}
+.lead {
+    margin: 0;
+    font-size: clamp(15px, 2vw, 17px);
+    line-height: 1.6;
+    color: color-mix(in oklab, var(--muted-foreground) 60%, var(--foreground));
+    text-wrap: pretty;
+}
+
+/* The ⌘K hint is a real button: clicking it opens the palette it describes. */
+.hint {
+    all: unset;
+    cursor: pointer;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    width: max-content;
+    max-width: 100%;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--muted-foreground);
+    transition: color 0.15s;
+}
+.hint:hover {
+    color: var(--foreground);
+}
+.hint:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+}
+/* A coarse pointer means no physical keyboard, where a key hint is meaningless. `hover: none`
+   also catches touch devices that report a fine primary pointer (a stylus, some tablets). */
+@media (pointer: coarse), (hover: none) {
+    .hint {
+        display: none;
+    }
+}
+
+.cue {
+    /* Positioned so it paints above the absolutely placed art, which reaches this far down on narrow screens. */
+    position: relative;
+    cursor: pointer;
+    align-self: center;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: calc(100% - 2rem);
+    margin: clamp(24px, 5vw, 48px) 0 clamp(16px, 3vw, 28px);
+    padding: 4px;
+    border-radius: 8px;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.cue:hover {
+    color: var(--foreground);
+    text-decoration: none;
+}
+.cue:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+}
+.cueImg {
+    display: block;
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+}
+.cueText {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+.cueTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--foreground);
+    text-wrap: balance;
+}
+.cueSub {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+}
+
+/* One column: Myrtle tucks in beside the headline, off the art's subject and onto the
+   copy's wash where she reads; the copy starts higher, so the next section shows on
+   the first screen; the crop centres the art's subject in the space above the copy. */
+@media (max-width: 687.98px) {
+    .spacer {
+        height: clamp(136px, 26svh, 240px);
+    }
+    .body {
+        --chibi: clamp(88px, 26vw, 112px);
+    }
+    .myrtle {
+        position: absolute;
+        top: 0;
+        inset-inline-end: 0;
+        width: var(--chibi);
+    }
+    .myrtleImg {
+        width: var(--chibi);
+    }
+    /* Myrtle sits beside the headline; a one-line headline still leaves her room, and
+       sits at the foot of that room, right above the lead, as it does on desktop. */
+    .title {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding-inline-end: calc(var(--chibi) + 8px);
+        min-height: var(--chibi);
+    }
+    .artLayer img {
+        object-position: 42% 30%;
+    }
+}
+/* A landscape phone: the art stays behind the copy, but the headline makes the first screen. */
+@media (max-height: 480px) and (orientation: landscape) {
+    .spacer {
+        height: 48px;
+    }
+}
+@media (max-width: 359.98px) {
+    .cueImg {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+.myrtleGlow {
+    position: absolute;
+    inset: 12% 10%;
+    border-radius: 999px;
+    background: radial-gradient(closest-side, var(--glow-primary), transparent);
+    filter: blur(24px);
+    opacity: 0.55;
+}

@@ -1,0 +1,365 @@
+/* The grids.fun board: dark in both themes, a bold centred title, then equal
+   square cells, each art over a dark label strip. The board scrolls
+   sideways inside itself once its cells reach their minimum width, never the
+   page. */
+
+.board {
+    --board-bg: oklch(0.13 0.004 285);
+    --cell-bg: oklch(0.19 0.005 285);
+    --strip-bg: oklch(0.16 0.005 285);
+    --empty-bg: oklch(0.32 0.006 285);
+    --empty-fg: oklch(0.78 0.006 285);
+    --cell-gap: 6px;
+    --cell-min: 48px;
+    --cell-max: 180px;
+    --label-size: 13px;
+
+    border-radius: var(--radius-2xl);
+    background: var(--board-bg);
+    color: white;
+    padding: clamp(14px, 3vw, 28px) clamp(10px, 2.5vw, 28px) clamp(14px, 3vw, 28px);
+    box-shadow:
+        0 1px 2px oklch(0 0 0 / 0.08),
+        0 0 0 1px oklch(1 0 0 / 0.04) inset;
+}
+
+/* --label-size is the strip's text at desktop width; --label-min is the floor
+   the full board's fluid text (below) shrinks to. */
+.board[data-density="large"] {
+    --label-size: 16px;
+    --label-min: 13px;
+}
+.board[data-density="medium"] {
+    --label-size: 12.5px;
+    --label-min: 10px;
+}
+.board[data-density="small"] {
+    --label-size: 10.5px;
+    --label-min: 9px;
+    --cell-gap: 4px;
+}
+
+@media (max-width: 640px) {
+    .board[data-density="medium"] {
+        --cell-gap: 4px;
+    }
+    .board[data-density="small"] {
+        --cell-gap: 3px;
+    }
+}
+
+/* The compact board (`size="compact"`), drawn inside a profile showcase card:
+   GridBoard sets --cell-max, --cell-gap, --label-size and the max-width
+   inline from compact.ts, whose padding constants must match these. The host
+   card IS the panel, so the board draws none of its own: a dark panel inside
+   the card read as a card in a card. The cells stay dark in both themes. */
+.board[data-size="compact"] {
+    border-radius: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    margin-inline: auto;
+}
+
+.title {
+    margin: 0 0 clamp(12px, 2.5vw, 22px);
+    text-align: center;
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: clamp(1.125rem, 3.2vw, 2.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+}
+
+.scroller {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    gap: var(--cell-gap);
+    width: min(100%, calc(var(--cols) * var(--cell-max) + (var(--cols) - 1) * var(--cell-gap)));
+    min-width: calc(var(--cols) * var(--cell-min) + (var(--cols) - 1) * var(--cell-gap));
+    margin: 0 auto;
+}
+
+.cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--cell-bg);
+    transition:
+        box-shadow 140ms ease,
+        opacity 140ms ease;
+}
+/* A read-only cell that opens the full-screen viewer. The resets keep it the
+   div's exact box: the full page's 6 x 6 draws 180 x 220 either way. */
+button.cell {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+    cursor: zoom-in;
+}
+button.cell:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+.cell[data-dragging="true"] {
+    opacity: 0.45;
+}
+.cell[data-drop-target="true"] {
+    box-shadow: 0 0 0 2px var(--primary);
+}
+
+.art {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    overflow: hidden;
+    background: oklch(0.24 0.005 285);
+    color: white;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    /* The initials of a pick with no art. */
+    font-size: calc(var(--label-size) * 1.6);
+}
+.art[data-empty="true"] {
+    background: var(--empty-bg);
+    color: var(--empty-fg);
+}
+.art > img {
+    position: absolute;
+    inset: 0;
+}
+
+button.art {
+    cursor: pointer;
+}
+button.art:hover {
+    filter: brightness(1.12);
+}
+button.art:focus-visible,
+.strip:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+}
+
+/* A filled cell's remove button, over the art's top-right corner: shown on
+   hover or focus where there is a pointer, always where there is not. */
+.clear {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: oklch(0 0 0 / 0.68);
+    color: white;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+        opacity 120ms ease,
+        background-color 120ms ease;
+}
+.clear > svg {
+    width: 14px;
+    height: 14px;
+}
+.board[data-density="small"] .clear {
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+}
+.board[data-density="small"] .clear > svg {
+    width: 12px;
+    height: 12px;
+}
+.cell:hover .clear,
+.cell:focus-within .clear {
+    opacity: 1;
+}
+.clear:hover {
+    background: oklch(0.55 0.19 25);
+}
+.clear:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+}
+
+.addItem {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: var(--label-size);
+    line-height: 1.15;
+    text-align: center;
+    padding: 0 6%;
+}
+
+.strip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    /* Two lines, always, so every strip on a row lines up. */
+    min-height: calc(var(--label-size) * 1.2 * 2 + 10px);
+    padding: 5px 4px;
+    background: var(--strip-bg);
+    color: white;
+    border: 0;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: var(--label-size);
+    line-height: 1.2;
+    text-align: center;
+}
+.stripText {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+}
+/* After .strip, so the compact strip's padding wins. */
+.board[data-size="compact"] .strip {
+    min-height: calc(var(--label-size) * 1.2 * 2 + 8px);
+    padding: 4px 3px;
+}
+
+.stripPlaceholder {
+    color: oklch(0.6 0.006 285);
+    font-weight: 500;
+    font-style: italic;
+}
+button.strip {
+    cursor: text;
+}
+button.strip:hover {
+    background: oklch(0.21 0.006 285);
+}
+
+.stripInput {
+    width: 100%;
+    min-width: 0;
+    background: oklch(0.24 0.006 285);
+    color: white;
+    border: 0;
+    border-radius: 3px;
+    outline: 2px solid var(--ring);
+    padding: 2px 4px;
+    font: inherit;
+    text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cell,
+    .clear {
+        transition: none;
+    }
+}
+
+/* The full board's label text follows its cell width: about a fifth of the
+   cell, between the density's --label-min and --label-size. The scroller is
+   the container, so `100cqi` is the width the cells share; past --cell-min
+   the board scrolls and the cell stops shrinking, and so does the text. The
+   compact board keeps the size GridBoard sets inline. */
+.board:not([data-size="compact"]) .scroller {
+    container-type: inline-size;
+}
+.board:not([data-size="compact"]) .grid {
+    --cell-fit: max(var(--cell-min), min(var(--cell-max), (100cqi - (var(--cols) - 1) * var(--cell-gap)) / var(--cols)));
+    --label-fluid: clamp(var(--label-min), var(--cell-fit) * 0.21, var(--label-size));
+}
+.board:not([data-size="compact"]) .cell {
+    --label-size: var(--label-fluid);
+}
+
+/* Where there is no hover, the button is always shown and sized for a finger.
+   Its disc is 40% of the cell, between 22 and 32 px, and its hit area spills
+   10 px past the cell's top and right edges and 2 px into the art, so a cell
+   from 80 px up gets a 32 px disc and a 44 px target. On a smaller cell (6
+   columns on a phone draws 52 px) a 32 px disc and a 44 px target would cover
+   the art's centre, where a finger picks the cell; there the disc and target
+   shrink with the cell instead (22 and 34 px), stopping short of the centre.
+   A TRADE: the target is under 44 px there, the art stays pickable. The spill
+   reaches 6 to 7 px past the gap into a neighbour's corner. */
+@media (hover: none) {
+    .clear,
+    .board[data-density="small"] .clear {
+        opacity: 1;
+        top: 0;
+        right: 0;
+        width: clamp(22px, var(--cell-fit, 32px) * 0.4, 32px);
+        height: clamp(22px, var(--cell-fit, 32px) * 0.4, 32px);
+    }
+    .clear > svg,
+    .board[data-density="small"] .clear > svg {
+        width: max(14px, 50%);
+        height: max(14px, 50%);
+    }
+    .clear::after {
+        content: "";
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        bottom: -2px;
+        left: -2px;
+    }
+    .board:not([data-size="compact"]) .cell {
+        overflow: visible;
+    }
+    /* The scroller clips too, so it grows into the board's padding (10 px at
+       the least) and gives the space back: the top row's and last column's
+       spill stay pressable and nothing moves. */
+    .board:not([data-size="compact"]) .scroller {
+        margin: -10px;
+        padding: 10px;
+    }
+    .board:not([data-size="compact"]) .art {
+        border-radius: 6px 6px 0 0;
+    }
+    .board:not([data-size="compact"]) .strip {
+        border-radius: 0 0 6px 6px;
+    }
+}
+
+/* A label strip a finger can hit: at least 44 px tall where the pointer is coarse. */
+@media (pointer: coarse) {
+    .board:not([data-size="compact"]) button.strip {
+        min-height: 44px;
+    }
+}
+
+/* Under 16 px, iOS zooms the page into a focused input; the strip's text is 9 to 16 px. */
+@media (max-width: 640px), (pointer: coarse) {
+    .stripInput {
+        font-size: 16px;
+    }
+}
+
+/* Last, so no later .art rule sits under its higher specificity. */
+button.cell:hover .art {
+    filter: brightness(1.12);
+}

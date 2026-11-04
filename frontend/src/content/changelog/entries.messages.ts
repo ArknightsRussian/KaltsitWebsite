@@ -1,0 +1,1151 @@
+import { defineMessages, type MessageMap } from "#/lib/i18n/messages";
+
+/**
+ * The hand-written release notes' own prose, one key per title, lead and
+ * bullet, because this is document content, not UI chrome: a translator works
+ * through a whole entry at once and the entry is what goes stale when rewritten.
+ *
+ * Every new entry in `entries.ts` needs its keys added here.
+ */
+export const namespace = "changelog";
+
+export const messages = {
+    "note.2026-11-04.title": {
+        text: "Improved: Easier to read across the site",
+        description: "Title of the 2026-11-04 release note.",
+    },
+    "note.2026-11-04.lead": {
+        text: "**Text, focus outlines and data colours are easier to read across the site, in light and dark themes and with a custom accent colour.** When something fails to load, the page now says what and offers Try again.",
+        description: "Lead paragraph of the 2026-11-04 release note, rendered as Markdown. 'Try again' is the label of a button.",
+    },
+    "note.2026-11-04.item.1": {
+        text: "Operators CN has updated also list the outfits only CN has, with their chibi and animated art.",
+        description: "Release note item. CN is the Chinese game server; a chibi is the small animated in-game sprite of an operator.",
+    },
+    "note.2026-11-04.item.2": {
+        text: "Recruitment results colour operator names by rarity, and the DPS calculator shows each operator's rarity.",
+        description: "Release note item. DPS is the damage calculator tool.",
+    },
+    "note.2026-11-04.item.3": {
+        text: "Enemy stat bars are scaled so most enemies no longer read as nearly empty.",
+        description: "Release note item.",
+    },
+    "note.2026-11-04.item.4": {
+        text: "On phones, the tier list and enemy filters fold away, and tabs that run off the edge show that they scroll.",
+        description: "Release note item.",
+    },
+    "note.2026-11-04.item.5": {
+        text: "Ten-roll permits, Recruitment Permits and story items no longer land in Other in your inventory, and currencies and tickets each have their own section.",
+        description: "Release note item. Recruitment Permit keeps the game's item name.",
+    },
+    "note.2026-11-04.item.6": {
+        text: "Collapsing groups on the stage list no longer leaves a blank gap.",
+        description: "Release note item.",
+    },
+    "note.2026-11-04.item.7": {
+        text: 'Enemy stats no longer run together, such as "550ATK".',
+        description: "Release note item. 550ATK shows a number and a stat label printed with no space between them; keep it as is.",
+    },
+    "note.2026-11-04.item.8": {
+        text: "A failed refresh no longer replaces a loaded profile with an error page.",
+        description: "Release note item.",
+    },
+    "note.2026-11-02.title": {
+        text: "New: See what CN has changed on every operator page",
+        description: "Title of the 2026-11-02 release note. CN is the Chinese game server, which receives updates before the others.",
+    },
+    "note.2026-11-02.lead": {
+        text: "**Operator pages now show what CN has already changed.** New modules join the module picker with a CN tag, changed numbers sit beside this server's with a CN label, and the Upcoming list includes operators CN has updated. Most of the new text reads in English, though some module text is still in Chinese. You can turn this off with Show CN updates in Settings.",
+        description: "Lead paragraph of the 2026-11-02 release note, rendered as Markdown. CN is the Chinese game server. 'Show CN updates' is the name of a setting.",
+    },
+    "note.2026-11-02.item.1": {
+        text: "Recruitment can show the chance of getting an operator you don't own yet, for each rarity. Turn on Show new-operator odds beside the roster options.",
+        description: "Release note item. 'Show new-operator odds' is the name of a toggle.",
+    },
+    "note.2026-11-02.item.2": {
+        text: "Data Saver Mode in Settings shows small avatars instead of full artwork on roster cards, the operator list and operator pages, and loads the artwork only when you ask.",
+        description: "Release note item. 'Data Saver Mode' is the name of a setting.",
+    },
+    "note.2026-11-02.item.3": {
+        text: "With auto-save on, the tier list editor counts down to the next save.",
+        description: "Release note item.",
+    },
+    "note.2026-11-02.item.4": {
+        text: "The Reclamation Algorithm panel on the Score tab shows your completion of each topic and how much of the score it carries.",
+        description: "Release note item. Reclamation Algorithm is a game mode; a topic is one of its seasons.",
+    },
+    "note.2026-11-02.item.5": {
+        text: "Modules now add all of their stat bonuses. HP, attack speed, RES, redeploy time and block bonuses were missing from operator stats, and only ATK, DEF and cost applied.",
+        description: "Release note item. Modules are operator upgrades; ATK, DEF, RES and HP keep the game's stat names.",
+    },
+    "note.2026-11-02.item.6": {
+        text: "Since the 10/28 game update, Reclamation Algorithm topics you didn't have loaded in game scored 0. They count again.",
+        description: "Release note item. Reclamation Algorithm is a game mode; a topic is one of its seasons. 10/28 is a date.",
+    },
+    "note.2026-11-02.hrefLabel": {
+        text: "Browse operators",
+        description: "Link label on the 2026-11-02 release note, pointing to the operators page.",
+    },
+    "note.2026-10-28.title": {
+        text: "New: Share your pull history and look back on your roster",
+        description: "Title of the 2026-10-28 release note.",
+    },
+    "note.2026-10-28.lead": {
+        text: "**You can now make your pull history public and share a link to it.** Public pulls appear in a new Pulls tab on your profile, and a Lookback tab shows how your roster has grown from one event to the next.",
+        description: "Lead paragraph of the 2026-10-28 release note, rendered as Markdown. Pulls are gacha pulls; Lookback is the name of a profile tab.",
+    },
+    "note.2026-10-28.item.1": {
+        text: "The operator chibi viewer can flip, zoom, pan, show a grid and change its background, plays animations in a chain or on a loop at any speed, and saves PNG, WebM or GIF.",
+        description: "Release note item. A chibi is the small animated in-game sprite of an operator.",
+    },
+    "note.2026-10-28.item.2": {
+        text: "Tier lists can rank story CGs, story scenes and Archives pictures.",
+        description: "Release note item. Story CGs are illustrations shown during the story; Archives is the in-game art gallery.",
+    },
+    "note.2026-10-28.item.3": {
+        text: "The squad builder and randomizer can filter operators by source: gachaless, welfare or recruitment.",
+        description: "Release note item. Gachaless, welfare and recruitment are ways an operator is obtained without the gacha.",
+    },
+    "note.2026-10-28.item.4": {
+        text: "Tier list browsing can filter by author.",
+        description: "Release note item.",
+    },
+    "note.2026-10-28.item.5": {
+        text: "The tier list editor can save as you go, with auto-save off by default, and offers to restore unsaved changes after a crash.",
+        description: "Release note item.",
+    },
+    "note.2026-10-28.item.6": {
+        text: "Roster cards show the date you got each operator.",
+        description: "Release note item.",
+    },
+    "note.2026-10-28.item.7": {
+        text: "The header menu folds away when it runs out of room in any language.",
+        description: "Release note item.",
+    },
+    "note.2026-10-28.item.8": {
+        text: "The squad builder reads Closure's talent, redeployment times and faction synergies correctly, so Gravel, Mlynar and Nearl the Radiant Knight now count as a team.",
+        description: "Release note item. The named characters are operators and keep the game's names.",
+    },
+    "note.2026-10-28.hrefLabel": {
+        text: "Open your pull history",
+        description: "Link label on the 2026-10-28 release note, pointing to the pull history page.",
+    },
+    "note.2026-10-25.title": {
+        text: "New: The DPS calculator covers every 6★",
+        description: "Title of the 2026-10-25 release note. DPS is the damage calculator tool; 6★ is the top operator rarity.",
+    },
+    "note.2026-10-25.lead": {
+        text: "**Eleven 6★ operators the DPS calculator could not compute now have numbers**, including Closure, SilverAsh the Reignfrost, Wang and Ch'en the Dawnstreak. Muelsyse works again, module level 1 is no longer read as level 3, and operators such as Tecno and Ebenholz read their skills correctly.",
+        description: "Lead paragraph of the 2026-10-25 release note, rendered as Markdown. The named characters are operators and keep the game's names.",
+    },
+    "note.2026-10-25.hrefLabel": {
+        text: "Open the DPS calculator",
+        description: "Label of the 2026-10-25 release note's call to action, which opens the DPS calculator.",
+    },
+    "note.2026-10-25.item.1": {
+        text: "Pull history has an All tab that lists every banner's pulls together, newest first.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'New'. 'All' is a tab label and must match its translation.",
+    },
+    "note.2026-10-25.item.2": {
+        text: "The operator list can filter by module type: X, Y, Δ, α and β.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'New'. X, Y, Δ, α and β are the game's module type letters and stay as written.",
+    },
+    "note.2026-10-25.item.3": {
+        text: "Stage zones show the Originite Prime their first clears give, and Challenge Mode and Adverse Environment stages are one click away.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'New'. Originite Prime is a game currency; Challenge Mode and Adverse Environment are stage modes; all must match their in-game translations.",
+    },
+    "note.2026-10-25.item.4": {
+        text: "Tier lists can rank home-screen backgrounds.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'New'. Home-screen backgrounds are the game's lobby backgrounds.",
+    },
+    "note.2026-10-25.item.5": {
+        text: "The base optimizer counts your daily drones in its LMD and EXP, shows drones per day, and now prices Viy's and GALLUS²'s base skills.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'Improved'. LMD and EXP are game resources; Viy and GALLUS² are operators and keep the game's names.",
+    },
+    "note.2026-10-25.item.6": {
+        text: "With Store gacha history turned off in Settings, your pulls are no longer saved.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'Fixed'. 'Store gacha history' and 'Settings' are UI labels and must match their translations.",
+    },
+    "note.2026-10-25.item.7": {
+        text: "Players who have not been graded yet no longer rank first on the leaderboard.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-25.item.8": {
+        text: "Opening a DPS or HPS share link no longer replaces your own saved setup.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'Fixed'. DPS and HPS are the damage and healing calculator tools.",
+    },
+    "note.2026-10-25.item.9": {
+        text: "The Score tab explains the Expeditioner's Jǫklumarkar ending that a regular run cannot reach.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'Fixed'. 'Score' is a profile tab name and must match its translation; Expeditioner's Jǫklumarkar is an Integrated Strategies theme and keeps the game's name.",
+    },
+    "note.2026-10-25.item.10": {
+        text: "Shu's animated outfit art no longer shows a white square over the water.",
+        description: "Bullet in the 2026-10-25 release note, filed under 'Fixed'. Shu is an operator and keeps the game's name.",
+    },
+    "note.2026-10-23.title": {
+        text: "Improved: A better operator picker in the Squad Builder",
+        description: "Title of the 2026-10-23 release note. 'Squad Builder' is a page name and must match its translation.",
+    },
+    "note.2026-10-23.lead": {
+        text: "The Squad Builder's operator picker can now **filter by branch and sort by rarity, name, DP cost or level**, and shows each operator's promotion, potential, skill ranks and modules at a glance.",
+        description: "Lead paragraph of the 2026-10-23 release note, rendered as Markdown. 'Squad Builder' is a page name and must match its translation; DP is deployment points.",
+    },
+    "note.2026-10-23.hrefLabel": {
+        text: "Open the Squad Builder",
+        description: "Label of the 2026-10-23 release note's call to action, which opens the Squad Builder.",
+    },
+    "note.2026-10-23.item.1": {
+        text: "The stage picker marks harder variants such as Adverse Environment, and says when a stage has no map data.",
+        description: "Bullet in the 2026-10-23 release note, filed under 'Improved'. Adverse Environment is a game stage mode and must match its in-game translation.",
+    },
+    "note.2026-10-23.item.2": {
+        text: "Stages from three older mini-events are grouped under their event instead of a story chapter.",
+        description: "Bullet in the 2026-10-23 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-23.item.3": {
+        text: "The base optimizer reads your base's real drone cap, so Greyy the Lightningbearer's bonus is right on bases above 100 drones, and it no longer leaves strong operators such as Vermeil out of later shifts.",
+        description: "Bullet in the 2026-10-23 release note, filed under 'Fixed'. Greyy the Lightningbearer and Vermeil are operators and keep the game's names; drones are a base resource.",
+    },
+    "note.2026-10-15.title": {
+        text: "New: See the pity behind every 6★",
+        description: "Title of the 2026-10-15 release note. 'Pity' is the guaranteed-6★ counter; 6★ is the top operator rarity.",
+    },
+    "note.2026-10-15.lead": {
+        text: "In your pull history's banner breakdown, each 6★ now shows **how many pulls it took on its pity counter**. Tap it for the details: the banner, when you pulled it, the previous 6★ on that counter, and the 5★, 4★ and 3★ operators you got in between.",
+        description: "Lead paragraph of the 2026-10-15 release note, rendered as Markdown. 'Pity' is the guaranteed-6★ counter.",
+    },
+    "note.2026-10-15.hrefLabel": {
+        text: "Open pull history",
+        description: "Label of the 2026-10-15 release note's call to action, which opens the player's headhunting history.",
+    },
+    "note.2026-10-15.item.1": {
+        text: "The randomizer can draw from 6★ operators only, and can keep or drop the tiers of an official tier list.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'New'.",
+    },
+    "note.2026-10-15.item.2": {
+        text: "Stages suggested in your profile's Score tab open their stage page.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'New'. 'Score' is a profile tab name and must match its translation.",
+    },
+    "note.2026-10-15.item.3": {
+        text: "The base optimizer changes every room's crew at each 12-hour shift, the way the game's Rotate does, and compares its recommended rotation with your saved presets. Wang now counts the extra plants from Eunectes and Greyy the Lightningbearer.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'Improved'. Rotate is the game's base button and must match its in-game translation; Wang, Eunectes and Greyy the Lightningbearer are operators and keep the game's names.",
+    },
+    "note.2026-10-15.item.4": {
+        text: "The pull planner opens and switches tabs much faster.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'Improved'.",
+    },
+    "note.2026-10-15.item.5": {
+        text: "The events that started on October 14 show on EN again, and the release planner no longer lists Critical Phase Transition as overdue.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'Fixed'. EN is the global game server; Critical Phase Transition is an event and keeps the game's name.",
+    },
+    "note.2026-10-15.item.6": {
+        text: "Base evaluations no longer fail while a rotation is being planned.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-15.item.7": {
+        text: "The story library puts Lone Trail, When Elegies Are Ashes, Code of Brawl and Zwillingsturme im Herbst on the shelves the game files them under.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'Fixed'. The four names are game events and keep the game's names.",
+    },
+    "note.2026-10-15.item.8": {
+        text: "On phones, the planner's Create button is reachable again and the character picker folds its filters away so the tiles have room.",
+        description: "Bullet in the 2026-10-15 release note, filed under 'Fixed'. 'Create' is a button label and must match its translation.",
+    },
+    "note.2026-10-13-2.title": {
+        text: "New: Choose what visitors see on your profile",
+        description: "Title of the second 2026-10-13 release note.",
+    },
+    "note.2026-10-13-2.lead": {
+        text: "You can now **hide your currencies, level, join date, sign-in days and roster counts** from visitors, and pick which stat cards your profile header shows. Anything you hide is also left out of leaderboards and player search.",
+        description: "Lead paragraph of the second 2026-10-13 release note, rendered as Markdown.",
+    },
+    "note.2026-10-13-2.item.1": {
+        text: "Music keeps playing while you browse the rest of the site. The music page adds charts of the most played tracks and top listeners, and every track can be downloaded.",
+        description: "Bullet in the second 2026-10-13 release note, filed under 'New'.",
+    },
+    "note.2026-10-13-2.item.2": {
+        text: "The enemy list can filter by immunity, such as stun, silence, sleep or freeze, and enemy pages list what each enemy is immune to.",
+        description: "Bullet in the second 2026-10-13 release note, filed under 'New'. Stun, silence, sleep and freeze are the game's status effects and must match their in-game translations.",
+    },
+    "note.2026-10-13-2.item.3": {
+        text: "The Stats page has Field notes: how many enemies are immune to each status, the most owned and rarest 6★ operators, and how many enemies the average player has met.",
+        description: "Bullet in the second 2026-10-13 release note, filed under 'New'. 'Stats' and 'Field notes' are UI labels and must match their translations; 'player' is the site's term (the game itself says 'Doctor').",
+    },
+    "note.2026-10-13-2.item.4": {
+        text: "On phones, language and theme moved into the menu, so the top bar has room to breathe.",
+        description: "Bullet in the second 2026-10-13 release note, filed under 'Improved'.",
+    },
+    "note.2026-10-13.title": {
+        text: "Improved: Link previews for more pages",
+        description: "Title of the 2026-10-13 release note. A 'link preview' is the card a chat app such as Discord shows under a pasted link.",
+    },
+    "note.2026-10-13.lead": {
+        text: "Links to **profiles, enemies, Archives, music albums, recruitment tags and squads** now show their own preview card when you paste them into Discord or another chat. A profile's card shows the background its owner picked.",
+        description: "Lead paragraph of the 2026-10-13 release note, rendered as Markdown. 'Archives' is a page name and must match its translation.",
+    },
+    "note.2026-10-13.item.1": {
+        text: "Hover hints across the site use the site's own tooltip, and they now show in the fullscreen story reader too.",
+        description: "Bullet in the 2026-10-13 release note, filed under 'Improved'.",
+    },
+    "note.2026-10-13.item.2": {
+        text: "The music page's cover wheel glides smoothly when you scroll it.",
+        description: "Bullet in the 2026-10-13 release note, filed under 'Improved'.",
+    },
+    "note.2026-10-13.item.3": {
+        text: "In the profile background picker, the Archive pictures from Near Light, Stultifera Navis and Lone Trail sit with their story's CGs.",
+        description: "Bullet in the 2026-10-13 release note, filed under 'Improved'. Near Light, Stultifera Navis and Lone Trail are game events and keep the game's names; CGs are story illustrations.",
+    },
+    "note.2026-10-13.item.4": {
+        text: "The pull planner's What you earn section can be collapsed.",
+        description: "Bullet in the 2026-10-13 release note, filed under 'Improved'. 'What you earn' is a section title and must match its translation.",
+    },
+    "note.2026-10-13.item.5": {
+        text: "On phones, the homepage headline no longer leaves a gap above the text below it.",
+        description: "Bullet in the 2026-10-13 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-12.title": {
+        text: "New: Music, Archives and a Squad Builder",
+        description: "Title of the 2026-10-12 release note. 'Archives' and 'Squad Builder' are page names and must match their translations.",
+    },
+    "note.2026-10-12.lead": {
+        text: "Three new pages. **In-Game Music** puts every game track and Monster Siren song in one library, with lyrics, a queue and playlists. **Archives** maps the factions, their territories and their people. The **Squad Builder** plans a squad from your synced roster and checks its coverage, economy and synergy.",
+        description: "Lead paragraph of the 2026-10-12 release note, rendered as Markdown. 'In-Game Music', 'Archives' and 'Squad Builder' are page names and must match their translations; Monster Siren is the game's record label and keeps its name.",
+    },
+    "note.2026-10-12.hrefLabel": {
+        text: "Open the music library",
+        description: "Label of the 2026-10-12 release note's call to action, which opens the In-Game Music page.",
+    },
+    "note.2026-10-12.item.1": {
+        text: "A News page lists the official notices, and the header counts down to the end of maintenance.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'New'. 'News' is a page name and must match its translation.",
+    },
+    "note.2026-10-12.item.2": {
+        text: "Enemy pages play the sounds each enemy makes in battle.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'New'.",
+    },
+    "note.2026-10-12.item.3": {
+        text: "The chibi viewer can pause and step one frame at a time.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'New'. A chibi is an operator's or enemy's small battle sprite.",
+    },
+    "note.2026-10-12.item.4": {
+        text: "With Enable Spoilers on in Settings, operator pages show the factions an operator belongs to that their card leaves out.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'New'. 'Enable Spoilers' and 'Settings' are UI labels and must match their translations.",
+    },
+    "note.2026-10-12.item.5": {
+        text: "You can delete your account from Settings.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'New'. 'Settings' is a page name and must match its translation.",
+    },
+    "note.2026-10-12.item.6": {
+        text: "Typing a UID into player search opens that player's profile.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'Improved'. A UID is a player's in-game account number.",
+    },
+    "note.2026-10-12.item.7": {
+        text: "Links from the old site, such as /dps-calculator, open the right page instead of Not Found.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'Fixed'. '/dps-calculator' is a URL path and stays as written.",
+    },
+    "note.2026-10-12.item.8": {
+        text: "Inventory items no longer get stuck showing initials instead of their icons.",
+        description: "Bullet in the 2026-10-12 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-11.title": {
+        text: "New: A redesigned homepage",
+        description: "Title of the 2026-10-11 release note.",
+    },
+    "note.2026-10-11.lead": {
+        text: "The homepage now opens on **what's happening now**: the current events and banners from your selected game server, ending soonest first, next to the top players and the latest site updates.",
+        description: "Lead paragraph of the 2026-10-11 release note, rendered as Markdown. 'Top players' names the home page's top-five panel; the game itself says 'Doctor'. A 'banner' is a headhunting (gacha) pool.",
+    },
+    "note.2026-10-11.item.1": {
+        text: "The pull planner takes your Standard and Kernel pity separately, and its odds now count the free limited operator at 300 rolls and the three picks of an Orienteering banner. Saved plans carry over unchanged.",
+        description: "Bullet in the 2026-10-11 release note, filed under 'Improved'. Standard, Kernel and Orienteering are headhunting banner types and keep the game's names; 'pity' is the guaranteed-6★ counter.",
+    },
+    "note.2026-10-11.item.2": {
+        text: "Pull history counts pity the way each banner does: Standard and Kernel keep separate counters, Orienteering counts toward Standard, Limited and Collab pity starts over on each new banner, and Starter Headhunting has its own tab.",
+        description: "Bullet in the 2026-10-11 release note, filed under 'Fixed'. Standard, Kernel, Orienteering, Limited, Collab and Starter Headhunting are banner types and keep the game's names.",
+    },
+    "note.2026-10-11.item.3": {
+        text: "The banner for returning players is no longer shown as an active banner, and the release planner marks it as for returning players only.",
+        description: "Bullet in the 2026-10-11 release note, filed under 'Fixed'. 'Player' is the site's term; the game itself says 'Doctor'.",
+    },
+    "note.2026-10-11.item.4": {
+        text: "Voice lines for Passenger, Ling, Chongyue and Lappland the Decadenza no longer switch between their base and outfit voice sets.",
+        description: "Bullet in the 2026-10-11 release note, filed under 'Fixed'. The four names are operators and keep the game's names.",
+    },
+    "note.2026-10-11.item.5": {
+        text: "Players with Amiya's alternate art as their assistant see her avatar in the header again.",
+        description: "Bullet in the 2026-10-11 release note, filed under 'Fixed'. Amiya is an operator and keeps the game's name; the assistant is the operator a player displays on their profile.",
+    },
+    "note.2026-10-09.title": {
+        text: "New: Tap a Showcase to see a player's build",
+        description: "Title of the 2026-10-09 release note. 'Showcase' is a profile tab name and must match its translation; a 'build' is how a player has raised an operator.",
+    },
+    "note.2026-10-09.lead": {
+        text: "Operators in a profile's Showcase now open **that player's build** when tapped, and a faction opens its operators. The operator picker in tier lists, grids and the Showcase can also filter by race, nation and faction.",
+        description: "Lead paragraph of the 2026-10-09 release note, rendered as Markdown. 'Showcase' is a profile tab name and must match its translation.",
+    },
+    "note.2026-10-09.item.1": {
+        text: "The Myrtle Discord bot can show every page of an operator (skills, modules, costs, outfits, lore, voice lines and more), play voice lines and read voice-channel chat aloud, and lists Challenge Mode conditions on stages.",
+        description: "Bullet in the 2026-10-09 release note, filed under 'New'. Myrtle is the site's name; Challenge Mode is a stage variant and keeps the game's name.",
+    },
+    "note.2026-10-09.item.2": {
+        text: "The base optimizer no longer moves Proviso to the level-3 trading post when Shamare and Tequila there earn more.",
+        description: "Bullet in the 2026-10-09 release note, filed under 'Fixed'. Proviso, Shamare and Tequila are operators and keep the game's names; a trading post is an RIIC room.",
+    },
+    "note.2026-10-09.item.3": {
+        text: "The pull planner no longer lists the same outfits on two cards and charges for them twice.",
+        description: "Bullet in the 2026-10-09 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-09.item.4": {
+        text: "Eight operators that showed no damage when first opened in the DPS calculator now open on a skill it can compute.",
+        description: "Bullet in the 2026-10-09 release note, filed under 'Fixed'. DPS is the damage calculator tool.",
+    },
+    "note.2026-10-09.item.5": {
+        text: "The grid cell picker keeps its tabs and tiles on a phone held sideways.",
+        description: "Bullet in the 2026-10-09 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-07.title": {
+        text: "New: See which 6★ operators each banner gave you",
+        description: "Title of the 2026-10-07 release note. A 'banner' is a headhunting (gacha) pool; 6★ is the top operator rarity.",
+    },
+    "note.2026-10-07.lead": {
+        text: "In your pull history's banner breakdown, the 6★ count now opens a list of **every 6★ that banner gave you**, newest first, with the date and whether it was the rate-up or an off-banner pull.",
+        description: "Lead paragraph of the 2026-10-07 release note, rendered as Markdown. 'Rate-up' is the featured operator of a banner; 'off-banner' is a 6★ that was not featured.",
+    },
+    "note.2026-10-07.hrefLabel": {
+        text: "Open pull history",
+        description: "Label of the 2026-10-07 release note's call to action, which opens the player's headhunting history.",
+    },
+    "note.2026-10-07.item.1": {
+        text: "The planner never plans a downgrade: anything your operator already has is locked as reached, deleted plans disappear at once, and plan lists load much faster.",
+        description: "Bullet in the 2026-10-07 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-07.item.2": {
+        text: "About 130 skills that share another skill's icon, such as Jessica's, now show it instead of a broken image.",
+        description: "Bullet in the 2026-10-07 release note, filed under 'Fixed'. Jessica is an operator and keeps the game's name.",
+    },
+    "note.2026-10-07.item.3": {
+        text: "Operator favourites in a profile's Showcase use the same card as the operators page, and blocks placed side by side line up at the bottom.",
+        description: "Bullet in the 2026-10-07 release note, filed under 'Fixed'. 'Showcase' is a profile tab name and must match its translation.",
+    },
+    "note.2026-10-06-2.title": {
+        text: "New: Make your profile your own",
+        description: "Title of the 2026-10-06-2 release note. 'Profile' is a player's public page on the site.",
+    },
+    "note.2026-10-06-2.lead": {
+        text: "Your profile is now **customizable**. Reorder its tabs and make any of them private, pin favourites, grids, tier lists and plans to a new Showcase tab, and set header art from any outfit, operator art (Elite 1 and Elite 2 included) or gallery picture, cropped in a full-screen editor with a life-size preview.",
+        description: "Lead paragraph of the 2026-10-06-2 release note, rendered as Markdown. 'Showcase' is a profile tab name and must match its translation; Elite 1 and Elite 2 are operator promotion stages and keep the game's names.",
+    },
+    "note.2026-10-06-2.item.1": {
+        text: "Choose which game server's text the site shows, separately from the site's language, under Game text in the language menu. Japanese and Korean game text are now available.",
+        description: "Bullet in the 2026-10-06-2 release note, filed under 'New'. 'Game text' quotes the menu entry and must match its translation.",
+    },
+    "note.2026-10-06-2.item.2": {
+        text: "Grid cards show the whole board, a filled cell opens full screen with its art and full label, phones get a full-screen cell editor, and the picker has the same filters as tier lists.",
+        description: "Bullet in the 2026-10-06-2 release note, filed under 'Improved'. A 'grid' is a player-made board of labelled cells.",
+    },
+    "note.2026-10-06-2.item.3": {
+        text: "A browser without WebGL keeps the static art instead of crashing the page.",
+        description: "Bullet in the 2026-10-06-2 release note, filed under 'Fixed'. WebGL is a browser graphics feature and keeps its name.",
+    },
+    "note.2026-10-06-2.item.4": {
+        text: "Grani and the Knights' Treasure shows its cover art in tier lists instead of a letter.",
+        description: "Bullet in the 2026-10-06-2 release note, filed under 'Fixed'. Grani and the Knights' Treasure is an event and keeps the game's name.",
+    },
+    "note.2026-10-06.title": {
+        text: "New: Grids, and every story character in one place",
+        description: "Title of the 2026-10-06 release note. 'Grids' is a new feature where players fill a board of labelled cells; 'story character' means a character sprite from the game's story scenes.",
+    },
+    "note.2026-10-06.lead": {
+        text: "**Grids** are here: make a board of labelled cells, fill each one with an operator, enemy, outfit, event or anything else a tier list can hold, choose which kinds are allowed, and share it, download it as an image, or let others fill it in as a template. The story library also has a new **Characters** tab with every story sprite, over 1,600 of them, named by who speaks as them, with every expression and links to the lines they say.",
+        description: "Lead paragraph of the 2026-10-06 release note, rendered as Markdown. 'Characters' is a tab name in the story library and must match its translation; a 'template' is a grid others copy and fill in themselves.",
+    },
+    "note.2026-10-06.hrefLabel": {
+        text: "Open grids",
+        description: "Label of the 2026-10-06 release note's call to action, which opens the grids page.",
+    },
+    "note.2026-10-06.item.1": {
+        text: "Tier lists can rank all 17 main-story episodes.",
+        description: "Bullet in the 2026-10-06 release note, filed under 'New'. 'Episode' is the game's name for a main-story chapter.",
+    },
+    "note.2026-10-06.item.2": {
+        text: "The planner offers to remove plans you have already completed after a sync, bulk add can save presets and show plans on your profile, and plan groups can be pinned.",
+        description: "Bullet in the 2026-10-06 release note, filed under 'Improved'. 'Bulk add' creates plans for many operators at once; a 'preset' is a saved set of bulk add targets.",
+    },
+    "note.2026-10-06.item.3": {
+        text: "The planner now counts a locked module as not started, so planning its first stage costs materials instead of nothing.",
+        description: "Bullet in the 2026-10-06 release note, filed under 'Fixed'. A 'module' is an operator equipment upgrade and keeps the game's name.",
+    },
+    "note.2026-10-06.item.4": {
+        text: "Story characters show their art in downloaded tier list images and link previews, and about 190 missing characters, Maria Nearl among them, can now be ranked.",
+        description: "Bullet in the 2026-10-06 release note, filed under 'Fixed'. Maria Nearl is an Arknights character and keeps the game's name.",
+    },
+    "note.2026-10-05.title": {
+        text: "Improved: The pull planner shows one card per release day",
+        description: "Title of the 2026-10-05 release note. A 'card' is one entry on the pull planner's timeline.",
+    },
+    "note.2026-10-05.lead": {
+        text: "Outfit sales that open on the same EN day now share one card in the pull planner, and a sale that opens with an event sits **inside that event's card**, with the event's own outfit sets first. With Latin names switched on, mainline episodes and new outfit sets now show their English names wherever the game data has one.",
+        description: "Lead paragraph of the 2026-10-05 release note, rendered as Markdown. 'Latin names' is an appearance setting that shows English names instead of Chinese ones; 'outfit sets' are the game's skin series.",
+    },
+    "note.2026-10-05.hrefLabel": {
+        text: "Open the pull planner",
+        description: "Label of the 2026-10-05 release note's call to action, which opens the pull planner.",
+    },
+    "note.2026-10-05.item.1": {
+        text: "The base optimizer can keep Lancet-2 parked at zero morale in a power plant, so Eunectes' bonus still counts it while Greyy the Lightningbearer's bonus no longer does. Shifts mark it as parked.",
+        description: "Bullet in the 2026-10-05 release note, filed under 'New'. Lancet-2, Eunectes and Greyy the Lightningbearer are operators and keep the game's names; morale is an RIIC stat and a power plant is an RIIC room.",
+    },
+    "note.2026-10-05.item.2": {
+        text: "The story reader picks the right art for characters with more than one full-body sprite. Nine no longer appears as a dark silhouette, and Mostima, Skadi, Nearl, Swire and about twenty others show their intended art.",
+        description: "Bullet in the 2026-10-05 release note, filed under 'Fixed'. Every name is an Arknights character and keeps the game's name.",
+    },
+    "note.2026-10-04.title": {
+        text: "Improved: Pages across the site load faster",
+        description: "Title of the 2026-10-04 release note.",
+    },
+    "note.2026-10-04.lead": {
+        text: "Many pages stopped downloading data they never show. The enemies list, birthdays, the DPS, HPS and recruitment tools, stage pages and a profile's Roster, Plans and Optimizer tabs are now **much lighter**, so they open sooner, especially on phones and slow connections.",
+        description: "Lead paragraph of the 2026-10-04 release note, rendered as Markdown. DPS and HPS are damage and healing calculators; Roster, Plans and Optimizer are tab names on a player profile and must match their translations.",
+    },
+    "note.2026-10-04.item.1": {
+        text: "The language menu shows how much of the site each language has been translated.",
+        description: "Bullet in the 2026-10-04 release note, filed under 'New'.",
+    },
+    "note.2026-10-04.item.2": {
+        text: "The base optimizer reads group bonuses the way the game defines them: Gravel counts as a Knight, Hoshiguma the Breacher's Control Center bonus applies, and skills that ask whether an operator is in the base count operators resting in dormitories.",
+        description: "Bullet in the 2026-10-04 release note, filed under 'Fixed'. Gravel and Hoshiguma the Breacher are operators and keep the game's names; the Knights are a faction; the Control Center and dormitories are RIIC rooms.",
+    },
+    "note.2026-10-04.item.3": {
+        text: "Stage map previews are no longer squashed, and the randomizer's stage thumbnail grows when you hover it.",
+        description: "Bullet in the 2026-10-04 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-04.item.4": {
+        text: "An expired game login now says so plainly when you resync, instead of showing a raw error.",
+        description: "Bullet in the 2026-10-04 release note, filed under 'Fixed'. 'Resync' is the button that refreshes a profile from the game.",
+    },
+    "note.2026-10-04.item.5": {
+        text: "On phones, tapping the story reader's collapsed toolbar opens it, and the story library's chapter bar no longer flickers when you jump.",
+        description: "Bullet in the 2026-10-04 release note, filed under 'Fixed'.",
+    },
+    "note.2026-10-02.title": {
+        text: "Improved: The operators page and profiles load faster",
+        description: "Title of the 2026-10-02 release note. 'Profiles' are player profile pages.",
+    },
+    "note.2026-10-02.lead": {
+        text: "The operators list and a player profile's Stats and Roster tabs no longer download the game's full operator and voice tables before showing anything. They read a small index instead, so they open **much faster**, especially on phones and slow connections.",
+        description: "Lead paragraph of the 2026-10-02 release note, rendered as Markdown. 'Stats' and 'Roster' are tab names on a player profile and must match their translations.",
+    },
+    "note.2026-10-02.hrefLabel": {
+        text: "Open operators",
+        description: "Label of the 2026-10-02 release note's call to action, which opens the operators list.",
+    },
+    "note.2026-10-02.item.1": {
+        text: "Tier names save up to 40 characters. Longer names were cut off at 24 without a warning; a name that was already cut stays that way until you re-enter it.",
+        description: "Bullet in the 2026-10-02 release note, filed under 'Fixed'. A 'tier' is a row of a tier list.",
+    },
+    "note.2026-10-02.item.2": {
+        text: "A long filter row in the tier list editor, such as outfit brands, scrolls inside the dialog and fades at the edge where more is hidden.",
+        description: "Bullet in the 2026-10-02 release note, filed under 'Fixed'. 'Outfit brands' are the game's skin lines.",
+    },
+    "note.2026-10-01.title": {
+        text: "New: Tier lists for anything, and stories you can take with you",
+        description: "Title of the 2026-10-01 release note. 'Tier lists' are user-made rankings; 'stories you can take with you' means exporting the game's story to read elsewhere.",
+    },
+    "note.2026-10-01.lead": {
+        text: "Tier lists can now rank **any kind of entry**, not only operators: enemies, outfits, modules, skills, events, factions, Integrated Strategies collectibles and more, mixed in one list if you like. And any story, chapter, arc or reading-order range in the story library can be exported as an EPUB, PDF, Markdown or plain text, with every choice and its lines kept on the page.",
+        description: "Lead paragraph of the 2026-10-01 release note, rendered as Markdown. Integrated Strategies is the game's roguelike mode and keeps its name; EPUB and PDF are file formats.",
+    },
+    "note.2026-10-01.hrefLabel": {
+        text: "Open tier lists",
+        description: "Label of the 2026-10-01 release note's call to action, which opens the tier lists page.",
+    },
+    "note.2026-10-01.item.1": {
+        text: "Story radio calls open as their own small windows, like in the game, instead of filling the screen, and characters' faces change expression without a box drawn over their heads.",
+        description: "Bullet in the 2026-10-01 release note, filed under 'Improved'. A 'radio call' is a story scene where characters talk from small windows at the side of the screen.",
+    },
+    "note.2026-10-01.item.2": {
+        text: "The story library shows more chapters per screen and scrolls more smoothly.",
+        description: "Bullet in the 2026-10-01 release note, filed under 'Improved'.",
+    },
+    "note.2026-10-01.item.3": {
+        text: "Story lines that were never shown are back: parts of 1-3, 5-10 and one interlude were cut off after a choice, and sticker or subtitle lines no longer freeze the reader or print formatting tags.",
+        description: "Bullet in the 2026-10-01 release note, filed under 'Fixed'. 1-3 and 5-10 are story stage codes and keep the game's numbering.",
+    },
+    "note.2026-10-01.item.4": {
+        text: 'The pull planner no longer shows a passed estimate as a sale that already happened. An estimate whose day has gone by now reads "Due now", a CN sale EN skipped is no longer forecast, and an event EN has closed stops counting its Originite Prime.',
+        description: "Bullet in the 2026-10-01 release note, filed under 'Fixed'. \"Due now\" quotes the planner's badge and must match its translation; Originite Prime is a premium currency and keeps the game's name.",
+    },
+    "note.2026-10-01.item.5": {
+        text: "Il Siracusano's hub battle stages no longer show as missing or as needing a rerun, since they closed with the event.",
+        description: "Bullet in the 2026-10-01 release note, filed under 'Fixed'. Il Siracusano is an event and keeps the game's name; the 'hub' is that event's map of battle tasks.",
+    },
+    "note.2026-10-01.item.6": {
+        text: "An outfit's art sits centred in its detail popup, and the randomizer shows its title once.",
+        description: "Bullet in the 2026-10-01 release note, filed under 'Fixed'. 'Outfit' is the game's word for a skin.",
+    },
+    "note.2026-09-30.title": {
+        text: "Improved: One outfit planner, with rerun dates you can plan around",
+        description: "Title of the 2026-09-30 release note. 'Outfit' is the game's word for a skin; a 'rerun' is an outfit returning to the shop.",
+    },
+    "note.2026-09-30.lead": {
+        text: "The pull planner's Skins tab is folded into **the Planner**, which already lists every outfit under its event. The planner now fits your window with each pane scrolling on its own, picked outfits show their own art, and the summary lists only what you picked, with prices. Outfit rerun dates are estimated from each outfit's own shop history, so they land far closer to the real date, and the event shop and farming stages have moved to the Events tab.",
+        description: "Lead paragraph of the 2026-09-30 release note, rendered as Markdown. 'Skins', 'Planner' and 'Events' are tab names in the pull planner and must match their translations.",
+    },
+    "note.2026-09-30.hrefLabel": {
+        text: "Open the pull planner",
+        description: "Label of the 2026-09-30 release note's call to action, which opens the pull planner.",
+    },
+    "note.2026-09-30.item.1": {
+        text: "Recruitment results have a compact layout that fits each tag combination on one row, so a full set of results no longer needs a zoom-out. The detailed layout is still an option, and your choices are remembered.",
+        description: "Bullet in the 2026-09-30 release note, filed under 'New'. 'Recruitment' is the tag calculator tool; a 'tag combination' is a set of recruitment tags.",
+    },
+    "note.2026-09-30.item.2": {
+        text: "6★ and 5★ operators are easier to tell apart: 6★ is now orange and 5★ gold, everywhere on the site.",
+        description: "Bullet in the 2026-09-30 release note, filed under 'Improved'. The stars are operator rarity.",
+    },
+    "note.2026-09-30.item.3": {
+        text: '"Optimize this room only" in the base optimizer changes only that room, and never hands back a slower crew than the one already there.',
+        description: "Bullet in the 2026-09-30 release note, filed under 'Fixed'. \"Optimize this room only\" quotes the optimizer's own button and must match its translation.",
+    },
+    "note.2026-09-30.item.4": {
+        text: "An operator's first level 3 module no longer counts for more than the rest, so operators with several modules are graded evenly.",
+        description: "Bullet in the 2026-09-30 release note, filed under 'Fixed'. A 'module' is an operator equipment upgrade and keeps the game's name.",
+    },
+    "note.2026-09-30.item.5": {
+        text: "In the story reader, a radio call's portrait strip sits on the empty side of the stage instead of over the character speaking, and shows the character at the right size.",
+        description: "Bullet in the 2026-09-30 release note, filed under 'Fixed'. A 'radio call' is a story scene where a character speaks from a portrait strip at the side of the screen.",
+    },
+    "note.2026-09-30.item.6": {
+        text: "The pull planner shows Originite Prime with the gold hexagon from the game's top bar.",
+        description: "Bullet in the 2026-09-30 release note, filed under 'Fixed'. Originite Prime is a premium currency and keeps the game's name.",
+    },
+    "note.2026-09-25-2.title": {
+        text: "Improved: Skip shows the story's summary, and the library keeps up",
+        description: "Title of the 2026-09-25-2 release note. 'Skip' is a story reader control and keeps its name; 'the library' is the story library page.",
+    },
+    "note.2026-09-25-2.lead": {
+        text: "**Skip** in the story reader now opens the game's own summary of the story, so you can catch up on what happened and either keep reading or skip to the end with the story marked read. The library's search and filters stay pinned while you scroll, the page fits on one screen, and browsing and searching no longer lag.",
+        description: "Lead paragraph of the 2026-09-25-2 release note, rendered as Markdown. 'Skip' is a reader control and keeps its name; the 'summary' is the game's own synopsis of a story.",
+    },
+    "note.2026-09-25-2.hrefLabel": {
+        text: "Open the stories",
+        description: "Label of the 2026-09-25-2 release note's call to action, which opens the story library.",
+    },
+    "note.2026-09-25-2.item.1": {
+        text: "A story link shared on Discord or elsewhere shows its own preview card, with the story's name, chapter, read time and art.",
+        description: "Bullet in the 2026-09-25-2 release note, filed under 'New'. Discord is a chat app and keeps its name.",
+    },
+    "note.2026-09-25-2.item.2": {
+        text: "The backlog keeps the lines you had already read ahead when you jump back, so you can jump forward to them again.",
+        description: "Bullet in the 2026-09-25-2 release note, filed under 'Improved'. The 'backlog' is the reader's scrollable history of lines already shown.",
+    },
+    "note.2026-09-25-2.item.3": {
+        text: "Hovering the mute button opens the music and sound volume sliders.",
+        description: "Bullet in the 2026-09-25-2 release note, filed under 'Improved'.",
+    },
+    "note.2026-09-25-2.item.4": {
+        text: "Stacked stickers no longer overlap, and the next speaker's name no longer flashes in the text box before a scene change.",
+        description: "Bullet in the 2026-09-25-2 release note, filed under 'Fixed'. 'Stickers' are the text cards some stories lay over the scene.",
+    },
+    "note.2026-09-25.title": {
+        text: "New: Read the Arknights story, and pick up where the game left you",
+        description: "Title of the 2026-09-25 release note. 'The Arknights story' means the game's story scripts, which the site can now play back.",
+    },
+    "note.2026-09-25.lead": {
+        text: "**A story reader** now plays the game's own scripts: the text, portraits, backgrounds, music, sound, effects and cutscenes, with choices you can replay, a backlog you can jump through, Auto and Skip, and your own fonts, colours and text box. The library sorts every story by the game's own shelves and shows each event's art and theme music. Sign in and it already knows what you have read in game, and your progress follows you to any device.",
+        description: "Lead paragraph of the 2026-09-25 release note, rendered as Markdown. 'Backlog' is the scrollable history of lines already shown; Auto and Skip are the reader's playback modes and keep their names.",
+    },
+    "note.2026-09-25.hrefLabel": {
+        text: "Open the stories",
+        description: "Label of the 2026-09-25 release note's call to action, which opens the story library.",
+    },
+    "note.2026-09-25.item.1": {
+        text: "Player search can rank by score, operator count, potentials, Mastery 3 skills, level 3 modules, outfits or a class, and filter to players who own given operators. Every ranking is a link you can share.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'New'. Potentials, masteries and modules are operator upgrades and keep the game's names; 'outfits' are skins.",
+    },
+    "note.2026-09-25.item.2": {
+        text: "The max-level cost on your account card can stop at the level where an operator's module unlocks, which skips the most expensive and least useful stretch of levelling.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'New'. A 'module' is an operator equipment upgrade and keeps the game's name.",
+    },
+    "note.2026-09-25.item.3": {
+        text: "Grades have changed. Every operator you own now counts toward the Operators score, not only the ones you have raised, and rarity and modules are weighted by what they actually cost to build. Many accounts will see a lower grade, and it is expected.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'Improved'. 'Grades' and the 'Operators score' are the site's account ratings; 'raised' means levelled or promoted.",
+    },
+    "note.2026-09-25.item.4": {
+        text: "When choosing an item to rank the leaderboard by, each row shows how many players hold it, what share of players that is, and how much of it exists in total.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'Improved'. The item picker is the list the leaderboard is ranked from.",
+    },
+    "note.2026-09-25.item.5": {
+        text: "The base optimizer places Proviso, Shamare and the other traders at the right trading post, assembles the Knights team in the Control Center, and a base copied exactly from the Optimizer tab now grades at 100%.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'Fixed'. Proviso and Shamare are operators and keep the game's names; the Knights are a faction; the trading post and Control Center are RIIC rooms.",
+    },
+    "note.2026-09-25.item.6": {
+        text: "A brief server hiccup no longer signs you out, and links opened from Discord or another app arrive signed in.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'Fixed'. Discord is a chat app and keeps its name.",
+    },
+    "note.2026-09-25.item.7": {
+        text: 'The randomizer no longer draws nothing when you are signed out with filters saved from signing in, and "Only stages I\'ve cleared" is a filter you can turn off again. If your stage list was already thinned by the old behaviour, press All once to restore it.',
+        description: "Bullet in the 2026-09-25 release note, filed under 'Fixed'. \"Only stages I've cleared\" and \"All\" quote the randomizer's own controls and must match their translations.",
+    },
+    "note.2026-09-25.item.8": {
+        text: "The planner's operator picker opens quickly instead of waiting on the whole operator database, and in the release planner two stages sharing a code no longer toggle together, and an announced Fashion Review shows as confirmed.",
+        description: "Bullet in the 2026-09-25 release note, filed under 'Fixed'. The Fashion Review is a recurring in-game outfit event and keeps its name.",
+    },
+    "note.2026-09-21.title": {
+        text: "New: Recruitment reads your roster, and every item you hold is tracked",
+        description: "Title of the 2026-09-21 release note. 'Recruitment' is the tag calculator tool and 'roster' is the player's collection of operators.",
+    },
+    "note.2026-09-21.lead": {
+        text: "The recruitment calculator now knows what you own: every operator on a result card says whether you have them, at what potential, and what one more copy would buy. Your consumables are stored for the first time, so vouchers, selectors and packs count on the leaderboard alongside currencies. The account card works out what you earn a day and how long the LMD you are short will take. Four more base scoring bugs are fixed, and one of them gives points back.",
+        description: "Lead paragraph of the 2026-09-21 release note, rendered as Markdown. 'Potential' is the upgrade earned from duplicate operators; LMD is the game's main currency and keeps its name; 'base' is the player's RIIC facility.",
+    },
+    "note.2026-09-21.hrefLabel": {
+        text: "Open the recruitment calculator",
+        description: "Label of the 2026-09-21 release note's call to action, which opens the recruitment tag calculator.",
+    },
+    "note.2026-09-21.item.1": {
+        text: "Every operator on a recruitment result says whether you own them, at what potential, and what the next copy buys, read from the game's own data rather than from English wording, so it works on every server. A new sort puts the ones you do not own first.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'New'. 'Potential' is the upgrade earned from duplicate copies of an operator.",
+    },
+    "note.2026-09-21.item.2": {
+        text: "The roster filters by how an operator is obtained: any, headhunting or welfare. Hiding welfare operators is what makes the headhunting pool's potentials readable, since all 79 obtainable welfare 5 and 6 stars come at maximum potential.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'New'. 'Welfare' operators are given out by events rather than pulled; 'headhunting' is the game's word for the gacha.",
+    },
+    "note.2026-09-21.item.3": {
+        text: "The account card works out what your base and dailies earn in a day, and how many days the LMD you are short will take, with and without farming CE-6.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'New'. CE-6 is a stage farmed for LMD and keeps the game's name; 'dailies' are the daily mission rewards.",
+    },
+    "note.2026-09-21.item.4": {
+        text: "Consumables and ticket counters are stored for the first time: operator and Elite II vouchers, headhunting data contracts, material selectors, item packs, outfit vouchers, Expedited Plans and Universal Certificates. They count on the leaderboard, and the Items tab now lists your currencies alongside them.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'New'. Every item name is the game's own and keeps its wording.",
+    },
+    "note.2026-09-21.item.5": {
+        text: "Moving a tier up or down in a tier list keeps the colour ladder on the rows, so the tiers slide under it instead of carrying their colours along. A colour you chose yourself still travels with its tier.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Improved'. The 'colour ladder' is the default red to green sequence the editor assigns by position.",
+    },
+    "note.2026-09-21.item.6": {
+        text: "A placed operator comes off a tier in one click, or with Delete or Backspace while it has focus, rather than through a dialog.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Improved'. Delete and Backspace are keyboard keys and keep their English names.",
+    },
+    "note.2026-09-21.item.7": {
+        text: 'A tier list card shows as many operators as its row actually holds. The count was fixed at nine whatever the width, so a row could sit half empty behind a "+28".',
+        description: "Bullet in the 2026-09-21 release note, filed under 'Improved'. The '+28' is the overflow badge counting operators the row could not show.",
+    },
+    "note.2026-09-21.item.8": {
+        text: "Voice lines, story text and module descriptions printed the game's own formatting tags as literal text instead of rendering them. It affected 187 voice lines across 89 operators and 308 passages of story.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Fixed'. A 'module' is an operator equipment upgrade and keeps the game's name.",
+    },
+    "note.2026-09-21.item.9": {
+        text: "A Control Center seat held for a bonus that only reaches some operators now says what it pays, where, and how many operators in your plan qualify. Six morale skills that pay per operator of a given faction were priced as though they paid everyone, which seated operators next to nobody they applied to.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Fixed'. The Control Center is an RIIC room; 'morale' is the stat its skills restore and keeps the game's name.",
+    },
+    "note.2026-09-21.item.10": {
+        text: "Copying a single shift of the rotation cost about nine points, because the score graded that one stationing against the sustained optimum. Saved presets are graded on their own shifts now, so those points come back.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Fixed'. A 'shift' is one block of the base rotation and a 'preset' is a staffing the player saved in game.",
+    },
+    "note.2026-09-21.item.11": {
+        text: "An automation room would only take a partner whose skill the automation leader cancels out, so it never paired Weedy with Purestream: that pairing reads 117 where Weedy and Eunectes read 77.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Fixed'. Weedy, Eunectes and Purestream are operators and keep the game's names; the numbers are room efficiency percentages.",
+    },
+    "note.2026-09-21.item.12": {
+        text: "A factory hand could be moved into a trading post, where it produces nothing, and the grade's 100% now includes the plan the Optimizer tab can actually reach rather than only the sustained one.",
+        description: "Bullet in the 2026-09-21 release note, filed under 'Fixed'. A factory and a trading post are RIIC rooms; the Optimizer tab is a section of a player profile.",
+    },
+    "note.2026-09-20.title": {
+        text: "New: Rank the leaderboard by anything you hold",
+        description: "Title of the 2026-09-20 release note. The leaderboard could previously only be ranked by the site's own score.",
+    },
+    "note.2026-09-20.lead": {
+        text: "The leaderboard ranks by any item in your inventory, not just by score: pick LMD, Orundum, a certificate or anything else you hold, and the table, your own standing and the cards beside them all follow it. Five more base scoring bugs are fixed, and like yesterday's these do move numbers. Reclamation Algorithm is called by its name across the site instead of Sandbox.",
+        description: "Lead paragraph of the 2026-09-20 release note, rendered as Markdown. LMD and Orundum are in-game currencies and Reclamation Algorithm is a game mode; all keep the game's names. 'Base' is the player's RIIC facility.",
+    },
+    "note.2026-09-20.hrefLabel": {
+        text: "Open the leaderboard",
+        description: "Label of the 2026-09-20 release note's call to action, which opens the player leaderboard.",
+    },
+    "note.2026-09-20.item.1": {
+        text: "Rank the leaderboard by any item you hold. The Rank by picker searches everything anyone is holding and shows each item's icon and how many players hold it; the page keeps its shape whichever ranking you choose.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'New'. 'Rank by' is the picker's own label and should match its translation there.",
+    },
+    "note.2026-09-20.item.2": {
+        text: "An item ranking is a link you can share, and a player you search for keeps their true rank rather than being renumbered inside your search.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'New'.",
+    },
+    "note.2026-09-20.item.3": {
+        text: "Optimizing a single base room no longer re-crews the rooms outside it or changes a factory's recipe behind your back. Rooms outside the scope are held as they are and scored that way.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Improved'. A 'factory' is an RIIC room and its 'recipe' is what it is set to produce.",
+    },
+    "note.2026-09-20.item.4": {
+        text: "Reclamation Algorithm is named as such across the site, rather than Sandbox. Where a label has to be short it reads RA.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Improved'. Reclamation Algorithm is a game mode and keeps the game's name; RA is its usual abbreviation.",
+    },
+    "note.2026-09-20.item.5": {
+        text: "A rotation's shifts were priced against the operators you have seated now rather than the ones the shift recommends, so any skill that depends on who else is deployed read as inactive in every shift while the stationed view counted it.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. A 'shift' is one block of the base rotation; 'stationed' is the single best staffing shown beside the rotation.",
+    },
+    "note.2026-09-20.item.6": {
+        text: "On a gold-starved base Proviso takes the lower-level trading post, where her bonus on small orders pays on every order the post draws.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. Proviso is an operator, a trading post is an RIIC room and an 'order' is what it produces; all keep the game's names.",
+    },
+    "note.2026-09-20.item.7": {
+        text: "An operator reserved for the Office or the Reception Room was held out of every rotation and then never actually seated there.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. The Office and the Reception Room are RIIC rooms and keep the game's names.",
+    },
+    "note.2026-09-20.item.8": {
+        text: "A spare Control Center seat now goes to a base-wide morale bonus first, HR or training speed next, and clue speed last whatever its size. Clue speed was counted at triple weight and beat everything.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. The Control Center is an RIIC room; morale, HR, training and clues are the kinds of bonus its base skills give and keep the game's names.",
+    },
+    "note.2026-09-20.item.9": {
+        text: "Teams built around a capacity bonus were cut before they were ever compared, because the shortlist ranked on speed alone and a capacity skill scores nothing there.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. 'Capacity' is an RIIC base-skill effect that raises how much a room can hold.",
+    },
+    "note.2026-09-20.item.10": {
+        text: "Tapping your nickname in the account menu left the menu sitting open over the page. It closes now, and the entry can be reached with the arrow keys.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. The 'account menu' is the popup under the avatar in the site header.",
+    },
+    "note.2026-09-20.item.11": {
+        text: "A row in your tier lists squeezed its own title down to a single letter on a phone and spilled its badge across the actions button. The row wraps below that width now.",
+        description: "Bullet in the 2026-09-20 release note, filed under 'Fixed'. 'Your tier lists' is the page listing the tier lists a player made.",
+    },
+    "note.2026-09-19-2.title": {
+        text: "New: API docs, and more accurate base scoring",
+        description: "Title of the second 2026-09-19 release note. 'Base' is the player's RIIC facility.",
+    },
+    "note.2026-09-19-2.lead": {
+        text: "Every route of the API is now documented at /docs. Three scoring bugs in the base are fixed, and unlike this morning's update these ones do move numbers: two trading posts were crewed one after the other against a single gold supply, two mirror skills read five times the room they sit in, and a shift that rested an operator still claimed his facility bonus. 58 outfits the store sells at 15 Originium Prime were priced at 18.",
+        description: "Lead paragraph of the second 2026-09-19 release note, rendered as Markdown. A 'trading post' is an RIIC room and a 'mirror skill' is a base skill that copies what an operator's roommates provide; Originium Prime is the game's paid currency and keeps its name. Keep /docs as written.",
+    },
+    "note.2026-09-19-2.item.1": {
+        text: "Every route of the API is documented at /docs, and the document itself is at /api/openapi.json: 166 paths and 183 operations. Both sit outside the rate limiter, so reading the docs costs you none of your request budget.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'New'. Keep the two paths as written. The 'rate limiter' caps how many API requests a caller may make.",
+    },
+    "note.2026-09-19-2.item.2": {
+        text: "Pull targets in the release planner fold away, so a banner row can be read without its full list of goals.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Improved'. 'Pull targets' is the panel heading inside a banner row and should match its translation there.",
+    },
+    "note.2026-09-19-2.item.3": {
+        text: "Skin previews in the release planner are sized to match the rest of the site, and the note explaining where auto-translated names come from moved into the toggle's tooltip.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Improved'. A 'skin' is an operator outfit.",
+    },
+    "note.2026-09-19-2.item.4": {
+        text: "Two trading posts were crewed one after the other against a single gold supply, so the first took the strongest squad and the second was left selling bars nobody was making. They are crewed as a pair now, judged on what the pair actually earns. On one measured account that is 42.9k LMD a day against 39.5k.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. A 'bar' is a gold bar made in an RIIC factory and sold at a trading post; LMD is the game's main currency and keeps its name.",
+    },
+    "note.2026-09-19-2.item.5": {
+        text: "Waai Fu's Cooperative Will and Snowsant's Heavenly Reward read five times the room they sit in and so always hit their own cap. They now pay per full step of what their roommates' own skills provide. One room the game shows at 72 was being read as 77.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. The two skill names are the game's own and keep their English wording. A 'room' here is an RIIC facility and the numbers are its efficiency percentage.",
+    },
+    "note.2026-09-19-2.item.6": {
+        text: "A shift that rests an operator no longer claims the facility bonus that operator provides, so a rotation is priced against the operators actually seated in it.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. A 'shift' is one block of the base rotation the optimizer plans.",
+    },
+    "note.2026-09-19-2.item.7": {
+        text: "58 outfits the store sells at 15 Originium Prime were priced at 18, so a plan that picked several of them overstated its cost by 3 each. Outfit prices now match the wiki on 484 of 488.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. Originium Prime is the game's paid currency and keeps its name.",
+    },
+    "note.2026-09-19-2.item.8": {
+        text: "Angelina the Mellow Wish no longer renders her Elite 2 art with a flat sheet across the eyes and mouth.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. 'Angelina the Mellow Wish' is one operator's full name (a separate operator from Angelina) and Elite 2 is the operator's second promotion; both keep the game's wording.",
+    },
+    "note.2026-09-19-2.item.9": {
+        text: "The release note panel no longer cuts a line of text in half on a phone, and it shows a shadow at its edge while there is more to scroll to.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. The 'release note panel' is the list of changes in this very dialog.",
+    },
+    "note.2026-09-19-2.item.10": {
+        text: "A banner row in the pull planner printed its start date twice on the same line.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'. A 'banner' is a time-limited gacha pool.",
+    },
+    "note.2026-09-19-2.item.11": {
+        text: "In the release planner, the event list and the detail panel beside it scroll on their own instead of moving the whole page, and the list now runs to the bottom of the screen rather than stopping short.",
+        description: "Bullet in the second 2026-09-19 release note, filed under 'Fixed'.",
+    },
+    "note.2026-09-19.title": {
+        text: "Fixed: Base planning and upgrade advice",
+        description: "Title of the 2026-09-19 release note. 'Base' is the player's RIIC facility; 'upgrade advice' is the panel that ranks what to invest in next.",
+    },
+    "note.2026-09-19.lead": {
+        text: "The Base Optimizer now plans with the same economy the Score tab grades you on, so the staffing it shows is the staffing you are scored against. Trading posts are valued at their own level and crewed by what they actually earn. The Operators below milestone card lists only operators you have really invested in, so the gain it advertises is one you can reach. No score, breakdown or weight has moved.",
+        description:
+            "Lead paragraph of the 2026-09-19 release note, rendered as Markdown. The Base Optimizer and the Score tab are sections of a player profile; 'Operators below milestone' is a card inside the Score tab and should match its translation there; a 'trading post' is an RIIC room and keeps the game's name.",
+    },
+    "note.2026-09-19.item.1": {
+        text: "The Base Optimizer and the Score tab now solve the same base, so the plan you are shown is the plan you are graded on. It seats combinations the planner used to miss.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Improved'. The Base Optimizer and the Score tab are sections of a player profile.",
+    },
+    "note.2026-09-19.item.2": {
+        text: "Promotion, potential and mastery badges on the roster are readable on the light theme again, and no longer sit on top of the module icons beside them.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Improved'. Promotion, potential, mastery and modules are in-game operator upgrade systems.",
+    },
+    "note.2026-09-19.item.3": {
+        text: "The language picker is in two places instead of three, and the header now shows which language you are reading rather than a globe.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Improved'. The header shows the language's own code, such as EN or RU.",
+    },
+    "note.2026-09-19.item.4": {
+        text: "In the Account Optimizer, EXP and LMD each read the same way: what is needed, what is short, and what you hold.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Improved'. The Account Optimizer is a section of a player profile; EXP and LMD are in-game currencies and keep the game's names.",
+    },
+    "note.2026-09-19.item.5": {
+        text: "A trading post is valued at its own level. A level 2 post standing next to a level 3 one made both of them count as level 2, which understated the order limit and order rarity of the better room.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. A trading post is an RIIC room; 'orders' are the deliveries it produces and keep the game's name.",
+    },
+    "note.2026-09-19.item.6": {
+        text: "A trading post's crew is chosen by what the post actually earns beside the factories feeding it. A gold-starved base cannot sell bonus bars, so the squad that earns more per bar wins there, while the bonus-bar squad still wins when supply is spare.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. A 'bar' is a gold bar produced by an RIIC factory and sold at a trading post.",
+    },
+    "note.2026-09-19.item.7": {
+        text: "The Control Center no longer seats an operator for a clue, HR or training bonus that a stronger operator already sitting there covers.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. The Control Center is an RIIC room; clues, HR and training are the kinds of bonus its base skills give and keep the game's names.",
+    },
+    "note.2026-09-19.item.8": {
+        text: "Operators below milestone listed operators you had never promoted or levelled, and priced them as though you had. One section advertised a gain of 25.2 where only 13.8 was available. Your score, its breakdown and every weight are unchanged.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. 'Operators below milestone' is a card inside the Score tab and should match its translation there. The two numbers are grade points and are not formatted per locale.",
+    },
+    "note.2026-09-19.item.9": {
+        text: "Page titles no longer collapse into a column of single letters on a phone, on the Stages page and anywhere else a heading shares a row with a counter.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'.",
+    },
+    "note.2026-09-19.item.10": {
+        text: "Roster cards show an operator's alternate name in full instead of cutting off its top.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. An 'alternate name' is the second name a variant operator carries, shown above the operator's own.",
+    },
+    "note.2026-09-19.item.11": {
+        text: "In the translation editor, the message key no longer breaks into single characters on a phone, and turning a page returns you to the top of the list.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. The translation editor is the admin screen volunteer translators work in; a 'message key' is a string's identifier.",
+    },
+    "note.2026-09-19.item.12": {
+        text: "The release note panel gets a real share of the screen on a phone rather than whatever was left over.",
+        description: "Bullet in the 2026-09-19 release note, filed under 'Fixed'. The 'release note panel' is the list of secondary changes in this very dialog.",
+    },
+    "note.2026-09-18.title": {
+        text: "Improved: Readability and pull planner",
+        description: "Title of the 2026-09-18 release note, covering interface readability and changes to the pull planner.",
+    },
+    "note.2026-09-18.lead": {
+        text: "The roster fits more operators per row at every width, and its promotion, potential and mastery badges are legible on the light theme again. The pull planner's goals say what they measure, its currencies carry the game's own icons, and setting a potential no longer stalls before the numbers move. Margins and page headings are now shared across the site. Korean, Japanese and Chinese render in a matching typeface throughout, labels that used to break mid-word hold together, and the translation editor now explains a message's plural forms and shows what changed when its English moves.",
+        description: "Lead paragraph of the 2026-09-18 release note, rendered as Markdown. 'Roster' is a player's collection of operators; promotion, potential and mastery are in-game upgrade systems; a 'pull' is one gacha roll and a 'goal' here is a target number of copies.",
+    },
+    "note.2026-09-18.hrefLabel": {
+        text: "Open the pull planner",
+        description: "Label of the 2026-09-18 release note's call to action, which opens the release planner on its Pulls tab.",
+    },
+    "note.2026-09-18.item.1": {
+        text: "The roster fits more operators per row at every width, and three per row on any phone rather than two on some and three on others.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. 'Roster' is a player's collection of operators.",
+    },
+    "note.2026-09-18.item.2": {
+        text: "Orundum, Originite Prime, permits and certificates carry their own icons in the pull planner, and its smallest labels have been enlarged.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. Orundum, Originite Prime, Headhunting Permits and certificates are in-game currencies and keep the game's names.",
+    },
+    "note.2026-09-18.item.3": {
+        text: "The pull planner's goals say what they measure: a specific rate-up, any rate-up, six copies of one. On a banner with more than two rate-ups the old wording claimed something the estimate never covered.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. A 'rate-up' is an operator with raised odds on a banner; a banner is a time-limited gacha pool.",
+    },
+    "note.2026-09-18.item.4": {
+        text: "The Spark and Guarantee buttons ask for what you actually have to spend, with the banner's own free pulls already subtracted.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. A 'spark' is the pity exchange that trades a fixed number of pulls for an operator outright.",
+    },
+    "note.2026-09-18.item.5": {
+        text: "Margins, page headings and the wording for players are consistent across the site; the leaderboard, search and profiles all say 'players' now.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. The site previously alternated between 'Doctors', the game's own word for the player, and 'Players'.",
+    },
+    "note.2026-09-18.item.6": {
+        text: "Promotion ranks, potential ranks and mastery badges were nearly invisible on the light theme. They are legible again, and larger on phones.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'. Promotion, potential and mastery are in-game operator upgrade systems.",
+    },
+    "note.2026-09-18.item.7": {
+        text: "Stepping an operator's potential in the pull planner no longer stalls for about a second before the numbers move.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'. 'Potential' is the in-game upgrade earned from duplicate copies of an operator.",
+    },
+    "note.2026-09-18.item.8": {
+        text: "A banner's Clear button now clears the operators picked on it as well as the pulls, and a banner with no art of its own no longer borrows an unrelated event's picture or hides half its rate-up operators.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'. A 'rate-up' is an operator with raised odds on a banner.",
+    },
+    "note.2026-09-18.item.9": {
+        text: "Profile, settings and tier-list pages no longer scroll sideways by a few pixels on a phone.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'.",
+    },
+    "note.2026-09-18.item.10": {
+        text: "When a message's English is edited, its translation now shows the old and new wording word by word, instead of only being marked out of date.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. It describes the translation editor in the admin panel, which volunteer translators use.",
+    },
+    "note.2026-09-18.item.11": {
+        text: "The translation editor explains a message's placeholders: which plural forms your language needs, which numbers each one covers, and the English wording for each.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Improved'. A 'placeholder' is a slot in a message that is filled with a value; a 'plural form' is one of the wordings a language selects between by number, such as one/few/many/other in Russian.",
+    },
+    "note.2026-09-18.item.12": {
+        text: "Korean, Japanese and Chinese fell back to a mismatched typeface in small headings, and carried letter-spacing meant for the Latin alphabet that pushed the characters apart.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'. 'Letter-spacing' is the extra space set between characters.",
+    },
+    "note.2026-09-18.item.13": {
+        text: "The appearance switch's labels no longer break mid-word in a language whose word for 'Dark' is wider than the button.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'. The 'appearance switch' is the light/dark/auto control in the site header.",
+    },
+    "note.2026-09-18.item.14": {
+        text: "The leaderboard's Top movers heading no longer runs into the column label beside it when it is translated into something longer.",
+        description: "Bullet in the 2026-09-18 release note, filed under 'Fixed'. 'Top movers' is the card listing the players whose rank changed most.",
+    },
+    "note.2026-09-17-3.title": {
+        text: "Latin names for CN-only operators",
+        description: "Title of the third 2026-09-17 release note. 'CN' is the Chinese game server's short name and stays as-is.",
+    },
+    "note.2026-09-17-3.lead": {
+        text: "Operators that have not reached the global server yet now show under the Latin-script name the game gives them, so 予愿安洁莉娜 reads as Angelina the Mellow Wish. It is an appearance setting, on by default, and search finds these operators by either name.",
+        description: "Lead paragraph of the third 2026-09-17 release note, rendered as Markdown. The Chinese example and its Latin name are game data and stay as-is. 'Global server' is the English-language game server.",
+    },
+    "note.2026-09-17-3.hrefLabel": {
+        text: "Open appearance settings",
+        description: "Label of the third 2026-09-17 release note's call to action, which opens the settings page where the switch lives.",
+    },
+    "note.2026-09-17-3.item.1": {
+        text: "Appearance setting: show Latin names for CN-only operators. Applies to the operator list, operator pages, the planner and the search palette.",
+        description: "Bullet in the third 2026-09-17 release note, filed under 'New'. 'CN' is the Chinese game server's short name and stays as-is.",
+    },
+    "note.2026-09-17-3.item.2": {
+        text: "The search palette now includes CN-only operators and matches their Latin name as strongly as any other name.",
+        description: "Bullet in the third 2026-09-17 release note, filed under 'Improved'. 'CN' is the Chinese game server's short name and stays as-is.",
+    },
+    "note.2026-09-17-2.title": {
+        text: "Integrated Strategies regrade",
+        description: "Title of the second 2026-09-17 release note. 'Integrated Strategies' is an in-game mode name and is never translated. A grade is this site's own letter rating of a player.",
+    },
+    "note.2026-09-17-2.lead": {
+        text: "A bug in how Integrated Strategies runs were scored has been found and fixed. Every account has been regraded with the corrected scoring, so your Roguelike subscore, composite score and grade may differ from what you saw before.",
+        description: "Lead paragraph of the second 2026-09-17 release note, rendered as Markdown. 'Integrated Strategies' is an in-game mode name and is never translated; 'Roguelike' is the label this site's leaderboard and profile give that mode's subscore. Composite score and grade are the site's own player rating.",
+    },
+    "note.2026-09-17-2.hrefLabel": {
+        text: "See the leaderboard",
+        description: "Label of the second 2026-09-17 release note's call to action, which opens the player leaderboard where grades and the Roguelike sort are shown.",
+    },
+    "note.2026-09-17-2.item.1": {
+        text: "Integrated Strategies scoring counted some runs incorrectly; the scoring is now correct.",
+        description: "Bullet in the second 2026-09-17 release note, filed under 'Fixed'. 'Integrated Strategies' is an in-game mode name and is never translated.",
+    },
+    "note.2026-09-17-2.item.2": {
+        text: "All users have been regraded. Grades and leaderboard positions have been recomputed from the corrected scores.",
+        description: "Bullet in the second 2026-09-17 release note, filed under 'Fixed'. A grade is this site's own letter rating of a player.",
+    },
+    "note.2026-09-17.title": {
+        text: "Pull planner",
+        description: "Title of the 2026-09-17 release note. 'Pull' is the community's word for a single gacha roll.",
+    },
+    "note.2026-09-17.lead": {
+        text: "The planner's Pulls tab is live. It holds one ledger of your rolls across every upcoming banner, prices each goal against the pity you will actually be carrying when that banner lands, and shows what committing early to one banner costs you at the next. Login, roster and settings fixes from Discord feedback ship alongside it.",
+        description: "Lead paragraph of the 2026-09-17 release note, rendered as Markdown. 'Pity' is the game's guarantee counter that improves the odds as rolls go without a top-rarity result; 'banner' is a time-limited gacha pool.",
+    },
+    "note.2026-09-17.hrefLabel": {
+        text: "Open the pull planner",
+        description: "Label of the 2026-09-17 release note's call to action, which opens the release planner on its Pulls tab.",
+    },
+    "note.2026-09-17.item.1": {
+        text: "Added a pull planner: budget one pool of rolls across upcoming banners and see which goals you can actually afford.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'New'. 'Rolls' and 'banners' are gacha terms.",
+    },
+    "note.2026-09-17.item.2": {
+        text: "Pull odds are computed exactly, and cover every guarantee the game ships: soft and hard pity, rate-up guarantees, and the Limited spark.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'New'. 'Soft pity' is the rising-rate window, 'hard pity' the forced result, and 'spark' the exchange after a set number of rolls on a Limited banner. Keep the game's own terms.",
+    },
+    "note.2026-09-17.item.3": {
+        text: "Rosters can be sorted by investment, scoring each operator against its own ceiling rather than against the roster.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'New'. 'Investment' means how far an operator has been levelled and upgraded.",
+    },
+    "note.2026-09-17.item.4": {
+        text: 'Signing in now asks whether to keep your game credentials with a "Keep me synced" choice, and declining deletes anything an earlier sign-in stored.',
+        description: "Bullet in the 2026-09-17 release note, filed under 'New'. 'Keep me synced' is the control's own label and should be translated as a label.",
+    },
+    "note.2026-09-17.item.5": {
+        text: "Settings now has a single Account section in place of separate Profile and Account & data panels.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'Improved'. 'Account', 'Profile' and 'Account & data' are settings panel names.",
+    },
+    "note.2026-09-17.item.6": {
+        text: "Planner events read as their in-game names instead of raw tags, a banner matched only by date says so, and the calendar keeps its month header and legend in view while you scroll.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'Improved'.",
+    },
+    "note.2026-09-17.item.7": {
+        text: 'First sign-in no longer fails with "Failed to fetch user data", and signing in on mobile no longer signs you straight back out.',
+        description: "Bullet in the 2026-09-17 release note, filed under 'Fixed'. The quoted string is an error message the user saw in English; keep it recognisable.",
+    },
+    "note.2026-09-17.item.8": {
+        text: "The roster's view mode and your chosen profile tab stay where you left them.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'Fixed'. 'View mode' is the roster's icons-or-list toggle.",
+    },
+    "note.2026-09-17.item.9": {
+        text: "Removed the leaderboard's Skins sort, which ranked every player at 0.0%.",
+        description: "Bullet in the 2026-09-17 release note, filed under 'Fixed'. 'Skins' are operator outfits.",
+    },
+    "note.2026-09-16.title": {
+        text: "Release & event planner",
+        description: "Title of the 2026-09-16 release note. The planner forecasts when CN content (operators, events, skins) reaches the global server.",
+    },
+    "note.2026-09-16.lead": {
+        text: "A new release and event planner forecasts when upcoming operators, events, and skins arrive on the global server, so you can plan your pulls ahead of time. Translations have also started rolling out.",
+        description: "Lead paragraph of the 2026-09-16 release note, rendered as Markdown. 'Pulls' is the community's word for gacha rolls.",
+    },
+    "note.2026-09-16.hrefLabel": {
+        text: "Open the planner",
+        description: "Label of the 2026-09-16 release note's call to action, which opens the release and event planner.",
+    },
+    "note.2026-09-16.item.1": {
+        text: "Added release & event planner feature.",
+        description: "Bullet in the 2026-09-16 release note, filed under 'New'.",
+    },
+    "note.2026-09-16.item.2": {
+        text: "Added translation support.",
+        description: "Bullet in the 2026-09-16 release note, filed under 'New'.",
+    },
+    "note.2026-09-16.item.3": {
+        text: "Improved/fixed base optimizer (daily LMD, control center, perception).",
+        description: "Bullet in the 2026-09-16 release note, filed under 'Improved'. 'LMD' is the game's currency; 'control center' and 'perception' are base-building terms.",
+    },
+    "note.2026-09-16.item.4": {
+        text: "Improved dynamic illustration.",
+        description: "Bullet in the 2026-09-16 release note, filed under 'Improved'. 'Dynamic illustration' is the game's name for animated operator art.",
+    },
+    "note.2026-09-16.item.5": {
+        text: "Workflow and security fixes.",
+        description: "Bullet in the 2026-09-16 release note, filed under 'Fixed'.",
+    },
+    "note.2026-09-10.title": {
+        text: "Build statistics",
+        description: "Title of the 2026-09-10 release note. 'Build' here means how players level and equip an operator.",
+    },
+    "note.2026-09-10.lead": {
+        text: "Based on community statistics, operators now display what users build for masteries and modules. More bug fixes and grading have been improved.",
+        description: "Lead paragraph of the 2026-09-10 release note, rendered as Markdown. 'Mastery' and 'module' are the game's own names for skill and equipment upgrades.",
+    },
+    "note.2026-09-10.hrefLabel": {
+        text: "Browse operators",
+        description: "Label of the 2026-09-10 release note's call to action, which opens the operator index.",
+    },
+    "note.2026-09-10.item.1": {
+        text: "Added changelog notifications.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'New'.",
+    },
+    "note.2026-09-10.item.2": {
+        text: "Added build statistics.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'New'.",
+    },
+    "note.2026-09-10.item.3": {
+        text: "Display breakpoints and percentages for mastery/module levels.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'New'. A breakpoint is the level at which a skill's numbers jump.",
+    },
+    "note.2026-09-10.item.4": {
+        text: "Operator skills/modules default to what is most used.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'Improved'.",
+    },
+    "note.2026-09-10.item.5": {
+        text: "Operator grades were computed from the wrong baseline. Scores across the roster have shifted.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'Improved'. A grade is this site's own letter rating of an operator.",
+    },
+    "note.2026-09-10.item.6": {
+        text: "Profile rosters no longer play E2 dynamic art over an operator who has not reached E2.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'Fixed'. 'E2' is the game's second promotion tier and stays as-is.",
+    },
+    "note.2026-09-10.item.7": {
+        text: "Check-in dates and Reclamation Algorithm scoring.",
+        description: "Bullet in the 2026-09-10 release note, filed under 'Fixed'. 'Reclamation Algorithm' is a game mode name and is never translated.",
+    },
+} satisfies MessageMap;
+
+// `dynamic`: every key here is reached through a field on a RELEASE_NOTES entry
+// (`t(note.titleKey)`, `t(item.textKey)`), never as a literal, so the extractor
+// has no call site to match them against.
+export const { keys } = defineMessages({ namespace, messages, dynamic: true });

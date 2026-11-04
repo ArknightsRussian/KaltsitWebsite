@@ -1,0 +1,160 @@
+import { useCallback, useMemo } from "react";
+import { useLocalStorageState } from "#/hooks/use-local-storage-state";
+import { rarityToNumber } from "#/lib/utils";
+import { CLASS_SORT_ORDER } from "./constants";
+import { operatorFilterPredicate } from "./matchFilters";
+import { buildFilterOptions, countSharedFilters } from "./shared-filters";
+import type { ArrayFilterKey, AvailabilityFilter, IFilterState, IOperatorView, IUseOperatorFiltersReturn } from "./types";
+
+const initialState: IFilterState = {
+    searchQuery: "",
+    classes: [],
+    subclasses: [],
+    rarities: [],
+    genders: [],
+    nations: [],
+    factions: [],
+    races: [],
+    birthPlaces: [],
+    artists: [],
+    voiceActors: [],
+    modules: [],
+    hasNotes: "any",
+    availability: "global",
+    sortBy: "rarity",
+    sortOrder: "desc",
+};
+
+const AVAILABILITIES: ReadonlySet<string> = new Set<AvailabilityFilter>(["global", "upcoming"]);
+
+/**
+ * Stored filters, merged over the initial state since they predate later keys (modules). An
+ * availability no longer offered falls back: the retired "updated" (Global operators CN has
+ * updated) to "upcoming", which lists them now, anything else to the default.
+ */
+export function parseStoredFilters(raw: string): IFilterState {
+    const stored = { ...initialState, ...(JSON.parse(raw) as Partial<IFilterState>) };
+    const availability: string = stored.availability;
+    if (AVAILABILITIES.has(availability)) return stored;
+    return { ...stored, availability: availability === "updated" ? "upcoming" : initialState.availability };
+}
+
+export function useOperatorFilters(data: IOperatorView[]): IUseOperatorFiltersReturn {
+    const [filters, setFilters] = useLocalStorageState<IFilterState>("operators:filters", initialState, { parse: parseStoredFilters });
+
+    const set = useCallback(<K extends keyof IFilterState>(key: K, value: IFilterState[K]) => setFilters((prev) => ({ ...prev, [key]: value })), [setFilters]);
+
+    const removeFrom = useCallback(
+        (key: ArrayFilterKey, value: string) =>
+            setFilters((prev) => ({
+                ...prev,
+                [key]: (prev[key] as string[]).filter((v) => v !== value),
+            })),
+        [setFilters],
+    );
+
+    const filterOptions = useMemo(() => buildFilterOptions(data), [data]);
+
+    // Separate memos so a sort change doesn't rerun the more expensive filter pass.
+    const filtered = useMemo(
+        () =>
+            data.filter(
+                operatorFilterPredicate({
+                    searchQuery: filters.searchQuery,
+                    classes: filters.classes,
+                    subclasses: filters.subclasses,
+                    rarities: filters.rarities,
+                    genders: filters.genders,
+                    nations: filters.nations,
+                    factions: filters.factions,
+                    races: filters.races,
+                    birthPlaces: filters.birthPlaces,
+                    artists: filters.artists,
+                    voiceActors: filters.voiceActors,
+                    modules: filters.modules,
+                    hasNotes: filters.hasNotes,
+                }),
+            ),
+        [data, filters.searchQuery, filters.classes, filters.subclasses, filters.rarities, filters.genders, filters.nations, filters.factions, filters.races, filters.birthPlaces, filters.artists, filters.voiceActors, filters.modules, filters.hasNotes],
+    );
+
+    const filteredOperators = useMemo(() => {
+        const { sortBy, sortOrder } = filters;
+        const dir = sortOrder === "asc" ? 1 : -1;
+        // Primary sort honors `dir`; name tiebreaker is always A->Z so listings stay readable in either direction.
+        const nameTiebreak = (a: IOperatorView, b: IOperatorView) => a.name.localeCompare(b.name);
+        /** 1 when an operator has a real E2 conversion rate, 0 when it has
+         *  none to report. Applied before the direction multiplier so the
+         *  rate-less operators stay at the end in both directions. */
+        const e2Rank = (op: IOperatorView) => (op.ownership?.e2Pct == null ? 0 : 1);
+        const cmp = (a: IOperatorView, b: IOperatorView): number => {
+            switch (sortBy) {
+                case "name":
+                    return a.name.localeCompare(b.name) * dir;
+                case "class":
+                    return ((CLASS_SORT_ORDER[a.profession] ?? 99) - (CLASS_SORT_ORDER[b.profession] ?? 99)) * dir || nameTiebreak(a, b);
+                case "hp":
+                    return ((a.stats?.hp ?? 0) - (b.stats?.hp ?? 0)) * dir || nameTiebreak(a, b);
+                case "atk":
+                    return ((a.stats?.atk ?? 0) - (b.stats?.atk ?? 0)) * dir || nameTiebreak(a, b);
+                case "def":
+                    return ((a.stats?.def ?? 0) - (b.stats?.def ?? 0)) * dir || nameTiebreak(a, b);
+                case "res":
+                    return ((a.stats?.res ?? 0) - (b.stats?.res ?? 0)) * dir || nameTiebreak(a, b);
+                case "cost":
+                    return ((a.stats?.cost ?? 0) - (b.stats?.cost ?? 0)) * dir || nameTiebreak(a, b);
+                case "block":
+                    return ((a.stats?.block ?? 0) - (b.stats?.block ?? 0)) * dir || nameTiebreak(a, b);
+                case "ownership":
+                    return ((a.ownership?.pct ?? 0) - (b.ownership?.pct ?? 0)) * dir || nameTiebreak(a, b);
+                case "e2":
+                    // `e2Pct` is null both for operators nobody owns and for the
+                    // 36 that cannot reach E2. Coercing either to 0 would rank
+                    // them alongside operators players genuinely declined to
+                    // promote, so they sort to the end regardless of direction
+                    // and the descending view opens on real conversion rates.
+                    return e2Rank(b) - e2Rank(a) || ((a.ownership?.e2Pct ?? 0) - (b.ownership?.e2Pct ?? 0)) * dir || nameTiebreak(a, b);
+                default:
+                    return (rarityToNumber(a.rarity) - rarityToNumber(b.rarity)) * dir || (CLASS_SORT_ORDER[a.profession] ?? 99) - (CLASS_SORT_ORDER[b.profession] ?? 99) || nameTiebreak(a, b);
+            }
+        };
+        return [...filtered].sort(cmp);
+    }, [filtered, filters.sortBy, filters.sortOrder, filters]);
+
+    const clearFilters = useCallback(() => setFilters(initialState), [setFilters]);
+
+    const activeFilterCount = countSharedFilters(filters) + (filters.searchQuery ? 1 : 0) + (filters.hasNotes !== "any" ? 1 : 0);
+
+    const setters = useMemo(
+        () => ({
+            setSearchQuery: (v: string) => set("searchQuery", v),
+            setClasses: (v: string[]) => set("classes", v),
+            setSubclasses: (v: string[]) => set("subclasses", v),
+            setRarities: (v: IFilterState["rarities"]) => set("rarities", v),
+            setGenders: (v: string[]) => set("genders", v),
+            setNations: (v: string[]) => set("nations", v),
+            setFactions: (v: string[]) => set("factions", v),
+            setRaces: (v: string[]) => set("races", v),
+            setBirthPlaces: (v: string[]) => set("birthPlaces", v),
+            setArtists: (v: string[]) => set("artists", v),
+            setVoiceActors: (v: string[]) => set("voiceActors", v),
+            setModules: (v: string[]) => set("modules", v),
+            setHasNotes: (v: IFilterState["hasNotes"]) => set("hasNotes", v),
+            setAvailability: (v: IFilterState["availability"]) => set("availability", v),
+            setSortBy: (v: IFilterState["sortBy"]) => setFilters((prev) => ({ ...prev, sortBy: v, sortOrder: v === "name" || v === "class" ? "asc" : "desc" })),
+            setSortOrder: (v: IFilterState["sortOrder"]) => set("sortOrder", v),
+        }),
+        [set, setFilters],
+    );
+
+    return {
+        filters,
+        filterOptions,
+        filteredOperators,
+        ...setters,
+        removeFrom,
+        clearFilters,
+        activeFilterCount,
+        hasActiveFilters: activeFilterCount > 0,
+    };
+}

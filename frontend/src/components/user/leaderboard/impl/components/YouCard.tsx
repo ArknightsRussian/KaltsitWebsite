@@ -1,0 +1,121 @@
+import { Link } from "@tanstack/react-router";
+import { Share2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
+import { Button } from "#/components/ui/button";
+import { Kicker } from "#/components/ui/kicker";
+import { toastManager } from "#/components/ui/toast";
+import type { ILeaderboardEntry, IPlayerStanding } from "#/lib/api/user";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { getAvatarById } from "#/lib/utils";
+import { DEFAULT_AVATAR_ID } from "../constants";
+import { GradeBadge } from "./GradeBadge";
+import type { messages as moversMessages } from "./MoversCard.messages";
+import type { messages } from "./YouCard.messages";
+
+interface IYouCardProps {
+    standing: IPlayerStanding | null;
+    rankedPlayers: number | null;
+}
+
+export function YouCard({ standing, rankedPlayers }: IYouCardProps) {
+    /** 'Δ Rank' is declared once, on the sibling movers card. */
+    const t: TypedT<typeof messages & typeof moversMessages> = useT("user");
+    const f = useFormatters();
+
+    if (!standing) return null;
+    const player: ILeaderboardEntry = standing.player;
+    const nickname = player.nickname ?? `Player ${player.uid}`;
+    const initials = nickname.slice(0, 2).toUpperCase();
+    const avatarSrc = getAvatarById(player.avatar_id ?? DEFAULT_AVATAR_ID);
+    const rank = player.rank_global ?? null;
+    const percentileFromRank = rank != null && rankedPlayers && rankedPlayers > 0 ? (rank / rankedPlayers) * 100 : null;
+    const percentile = percentileFromRank ?? standing.percentile * 100;
+    const delta = standing.rank_delta;
+    const grade = player.grade ?? "-";
+
+    const deltaColor = delta == null ? "text-muted-foreground" : delta > 0 ? "text-success-foreground" : delta < 0 ? "text-destructive-foreground" : "text-muted-foreground";
+    const deltaText = delta == null ? "-" : `${delta > 0 ? "+" : ""}${delta}`;
+
+    const handleShare = async () => {
+        try {
+            await navigator.clipboard.writeText(`${window.location.origin}/user/${player.uid}`);
+            toastManager.add({
+                id: `lb-you-share-${Date.now()}`,
+                title: t("leaderboard.you.share.copied.title"),
+                description: t("leaderboard.you.share.copied.desc"),
+                type: "success",
+            });
+        } catch {
+            toastManager.add({
+                id: `lb-you-share-error-${Date.now()}`,
+                title: t("leaderboard.you.share.failed.title"),
+                description: t("leaderboard.you.share.failed.desc"),
+                type: "error",
+            });
+        }
+    };
+
+    return (
+        <aside className="relative isolate overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)]">
+            <div aria-hidden className="pointer-events-none absolute inset-0 -z-10" style={{ background: "radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 60%)" }} />
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <Kicker className="min-w-0 truncate">{t("leaderboard.you.title")}</Kicker>
+                <span className="shrink-0 rounded-full border border-border bg-card px-2 py-0.5 font-medium font-mono text-[11px] text-foreground tabular-nums leading-none">#{rank ?? "-"}</span>
+            </div>
+            <div className="flex items-center gap-3">
+                <Avatar className="size-12 rounded-2xl">
+                    <AvatarImage src={avatarSrc} alt={nickname} />
+                    <AvatarFallback className="rounded-2xl text-sm">{initials}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                    <div className="truncate font-bold font-sans text-base text-foreground leading-tight tracking-tight">{nickname}</div>
+                    <div className="mt-1 font-mono text-[11px] text-muted-foreground leading-none">
+                        {t("leaderboard.you.rank")} <b className="font-bold text-foreground">#{rank ?? "-"}</b>
+                        {percentile != null && (
+                            <>
+                                {t("leaderboard.you.topPercentile")}
+                                <b className="font-bold text-foreground">{percentile.toFixed(1)}%</b>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div className="mt-3.5 grid grid-cols-3 gap-2">
+                <Metric k={t("leaderboard.you.metric.grade")}>
+                    <GradeBadge grade={grade} className="size-7" />
+                </Metric>
+                <Metric k={t("leaderboard.you.metric.score")}>
+                    <span className="font-bold font-sans text-base tabular-nums leading-none tracking-tight">{player.total_score == null ? "-" : f.number(player.total_score)}</span>
+                </Metric>
+                <Metric k={t("leaderboard.deltaRank")}>
+                    <span className={`font-bold font-sans text-base tabular-nums leading-none tracking-tight ${deltaColor}`}>{deltaText}</span>
+                </Metric>
+            </div>
+            <div className="mt-3.5 flex items-center gap-2">
+                <Button
+                    variant="default"
+                    size="sm"
+                    className="flex-1"
+                    render={
+                        <Link to="/user/$id" params={{ id: player.uid }}>
+                            {t("leaderboard.you.viewProfile")}
+                        </Link>
+                    }
+                />
+                <Button variant="outline" size="icon-sm" aria-label={t("leaderboard.you.share")} onClick={handleShare}>
+                    <Share2 />
+                </Button>
+            </div>
+        </aside>
+    );
+}
+
+function Metric({ k, children }: { k: string; children: React.ReactNode }) {
+    return (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/60 p-2.5">
+            <Kicker>{k}</Kicker>
+            <span className="flex items-center font-bold font-sans text-base text-foreground tabular-nums leading-none tracking-tight">{children}</span>
+        </div>
+    );
+}

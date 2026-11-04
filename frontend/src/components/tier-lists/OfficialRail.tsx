@@ -1,0 +1,54 @@
+import type { ITierListBrowseItem } from "#/lib/api/tier-lists";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import BrowseCard from "./BrowseCard";
+import type { messages } from "./OfficialRail.messages";
+
+// Up to three lists fit the row, so they share its width instead of sitting in a scroll
+// shelf: one 280px card left two thirds of the row empty.
+const FIT_COLUMNS: Record<number, string> = { 1: "", 2: "md:grid-cols-2", 3: "md:grid-cols-2 lg:grid-cols-3" };
+
+interface IOfficialRailProps {
+    lists: ITierListBrowseItem[];
+    onOpen: (slug: string) => void;
+    onViewAll: () => void;
+    onAuthorClick?: (author: { id: string; name: string }) => void;
+}
+
+export function OfficialRail({ lists, onOpen, onViewAll, onAuthorClick }: IOfficialRailProps) {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    if (lists.length === 0) return null;
+
+    return (
+        <section className="page-gutter mt-4 [--page-max:1080px]">
+            <header className="mb-3 flex items-end justify-between gap-3">
+                <h2 className="m-0 font-sans font-semibold text-base text-foreground tracking-tight">{t("browse.official.title")}</h2>
+                <button type="button" onClick={onViewAll} className="inline-flex items-center gap-1 font-medium font-sans text-[12.5px] text-muted-foreground leading-none transition-colors hover:text-foreground [&>svg]:h-3 [&>svg]:w-3 [&>svg]:transition-transform hover:[&>svg]:translate-x-0.5">
+                    {t("browse.official.viewAll")}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m12 5 7 7-7 7" />
+                    </svg>
+                </button>
+            </header>
+
+            {lists.length <= 3 ? (
+                <div className={`grid grid-cols-1 gap-3 ${FIT_COLUMNS[lists.length]}`}>
+                    {lists.map((tl) => (
+                        <BrowseCard key={tl.id} tl={tl} onOpen={onOpen} onAuthorClick={onAuthorClick} />
+                    ))}
+                </div>
+            ) : (
+                <div className="page-bleed px-[var(--page-gutter)] sm:mx-0 sm:px-0">
+                    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {lists.map((tl) => (
+                            <div key={tl.id} className="w-70 shrink-0 snap-start">
+                                <BrowseCard tl={tl} onOpen={onOpen} onAuthorClick={onAuthorClick} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}

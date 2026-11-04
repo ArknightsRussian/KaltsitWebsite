@@ -1,0 +1,57 @@
+import { useMemo, useState } from "react";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { Markdown, stripMarkdown } from "#/lib/markdown";
+import { cn } from "#/lib/utils";
+import type { messages } from "./ExpandableDescription.messages";
+import { DESCRIPTION_CLAMP_THRESHOLD } from "./shared";
+
+interface IExpandableDescriptionProps {
+    text: string;
+    className?: string;
+    clampLines?: number;
+    threshold?: number;
+    markdown?: boolean;
+}
+
+export function ExpandableDescription({ text, className, clampLines = 3, threshold = DESCRIPTION_CLAMP_THRESHOLD, markdown = false }: IExpandableDescriptionProps) {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    const [expanded, setExpanded] = useState(false);
+    const measured = useMemo(() => (markdown ? stripMarkdown(text) : text), [markdown, text]);
+    const isLong = measured.length > threshold;
+    const showToggle = isLong;
+    const clamped = isLong && !expanded;
+
+    const clampStyle: React.CSSProperties | undefined = clamped
+        ? {
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: clampLines,
+              overflow: "hidden",
+          }
+        : undefined;
+
+    return (
+        <div className={cn("flex flex-col gap-1.5", className)}>
+            {markdown ? (
+                <div className="wrap-break-word" style={clampStyle}>
+                    <Markdown text={text} flush />
+                </div>
+            ) : (
+                <p className={cn("wrap-break-word m-0 whitespace-pre-line")} style={clampStyle}>
+                    {text}
+                </p>
+            )}
+            {showToggle && (
+                <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    aria-expanded={expanded}
+                    className="relative self-start font-medium font-sans text-primary underline underline-offset-4 pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2 hover:decoration-2"
+                >
+                    {expanded ? t("description.showLess") : t("description.showMore")}
+                </button>
+            )}
+        </div>
+    );
+}

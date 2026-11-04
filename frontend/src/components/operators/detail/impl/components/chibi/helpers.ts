@@ -1,0 +1,376 @@
+import * as PIXI from "pixi.js";
+import type { Spine } from "pixi-spine";
+import { assetURL, encodeAssetPath } from "#/lib/assets";
+import { type DecodedImage, decodedSize, loadDecoded, uploadSource } from "#/lib/utils";
+import { CHIBI_OFFSET_X, CHIBI_OFFSET_Y, CHIBI_SCALE, DYNAMIC_FIT_MARGIN, EXPORT_HEIGHT, EXPORT_PADDING, EXPORT_WIDTH, MAX_EXPORT_DIM } from "./constants";
+import { patchSpine38NoScaleUnderFlattenedParent } from "./noScaleFix";
+import { patchSpine38PathConstraint } from "./pathConstraintFix";
+import { DEFAULT_SPINE_FIT, type ISpineFit } from "./skin-data";
+
+export { DEFAULT_SPINE_FIT, getAvailableViewTypes, getChibiSkinData, type IResolvedChibiView, type ISpineFit, resolveChibiView, type SpineAlign, type SpineFitMode } from "./skin-data";
+
+let spineModulesPromise: Promise<{
+    Spine: typeof import("pixi-spine").Spine;
+    TextureAtlas: typeof import("pixi-spine").TextureAtlas;
+    settings: typeof import("pixi-spine").settings;
+    AtlasAttachmentLoader: typeof import("@pixi-spine/runtime-3.8").AtlasAttachmentLoader;
+    SkeletonBinary: typeof import("@pixi-spine/runtime-3.8").SkeletonBinary;
+    SkeletonJson: typeof import("@pixi-spine/runtime-3.8").SkeletonJson;
+}> | null = null;
+
+function loadSpineModules() {
+    if (!spineModulesPromise) {
+        spineModulesPromise = Promise.all([import("pixi-spine"), import("@pixi-spine/runtime-3.8")]).then(([spine, runtime]) => ({
+            Spine: spine.Spine,
+            TextureAtlas: spine.TextureAtlas,
+            settings: spine.settings,
+            AtlasAttachmentLoader: runtime.AtlasAttachmentLoader,
+            SkeletonBinary: runtime.SkeletonBinary,
+            SkeletonJson: runtime.SkeletonJson,
+        }));
+    }
+    return spineModulesPromise;
+}
+
+// Matches an atlas page declaration: a line ending in ".png" followed by "size: W,H".
+// Capturing groups: 1=page name, 2=width, 3=height.
+const ATLAS_PAGE_RE = /^(.+\.png)\r?\n\s*size:\s*(\d+)\s*,\s*(\d+)/gm;
+
+/** `root` (DEV ONLY) redirects the fetch at an ALTERNATE export root instead of the backend,
+ *  so an exporter A/B can be scored without writing the deployed asset tree. It is served by
+ *  the `myrtle:alt-asset-root` vite plugin under the SAME relative path shape the backend
+ *  uses, which is what makes the two interchangeable. Undefined, empty or production leaves
+ *  the URL unchanged. */
+export function chibiAssetURL(path: string, server?: "en" | "cn", root?: string): string {
+    if (root && import.meta.env.DEV) return `${root}${encodeAssetPath(path)}`;
+    return assetURL(encodeAssetPath(path), server);
+}
+
+/** Atlas pages are MINIFIED heavily (a dynchar page is 2280x2280 drawn into a viewport a
+ *  few hundred px tall), and PIXI's default `MIPMAP_MODES.POW2` builds no mipmap chain for a
+ *  non-power-of-two page, so every such page is sampled with bilinear-only minification. Fine
+ *  detail in the art then aliases into shimmering vertical slivers that read as spurious
+ *  "rain": measured on Virtuosa's seated set, our vertically-coherent high-frequency energy is
+ *  1.57x the game's, and that excess survives both downscaling from a 1280x624 render (8.55)
+ *  and an h264 crf23 round trip (8.65) against a native 8.71, so it is not a capture artifact.
+ *  WebGL2 supports NPOT mipmaps, and PIXI falls back to no mipmap where it cannot build one.
+ *  Measured over the three reference skins this is worth -1.40 / -0.53 / -0.39 MADC (interior).
+ *  It did NOT move the vertical-streak metric (1.57x -> 1.55x), so the aliasing it removes is
+ *  general minification shimmer across the whole illustration, not those streaks, which remain
+ *  unexplained. Applying the same to the SCENE textures is a measured no-op: those pages are
+ *  128/256/512/1024, already power-of-two, so PIXI's default POW2 mode mipmaps them; this
+ *  matters only because the dynchar ATLAS pages are 2280 and fall outside that default. */
+const ATLAS_MIPMAP = PIXI.MIPMAP_MODES.ON;
+
+/** A base texture over a decoded source: the element, or the premultiplied upload twin
+ *  of a bitmap (see loadDecoded). The resource owns the twin, so destroying the texture
+ *  releases those pixels as PixiJS's own image resource released its bitmap. */
+export function baseTextureOf(img: DecodedImage, options?: PIXI.IBaseTextureOptions): PIXI.BaseTexture {
+    const src = uploadSource(img);
+    if (src instanceof HTMLImageElement) return PIXI.BaseTexture.from(src, options);
+    return new PIXI.BaseTexture(new PIXI.ImageBitmapResource(src, { ownsImageBitmap: true }), options);
+}
+
+/** A base texture over a decoded source with its alpha left STRAIGHT (non-premultiplied),
+ *  for lookup maps a shader reads by channel rather than draws: a dissolve, disturb or
+ *  weight map keeps its colour channels regardless of its alpha. The premultiplied upload
+ *  `baseTextureOf` makes is right for artwork but multiplies those channels by the map's
+ *  alpha on upload, and 87 of the corpus's 514 mask maps carry an alpha below opaque (Ch'en
+ *  E2's `_DisturTex` is an RG noise at alpha 0), which reads as a zero map and a silent
+ *  no-op. The bitmap path uploads the loader's straight-alpha bitmap itself, which the
+ *  premultiplied twin's owner does not close; the element path relies on the unpack flag. */
+export function maskTextureOf(img: DecodedImage, options?: PIXI.IBaseTextureOptions): PIXI.BaseTexture {
+    const opts = { ...options, alphaMode: PIXI.ALPHA_MODES.NPM };
+    if (img instanceof HTMLImageElement) return new PIXI.BaseTexture(img, opts);
+    return new PIXI.BaseTexture(new PIXI.ImageBitmapResource(img, { ownsImageBitmap: false }), opts);
+}
+
+/**
+ * Build a BaseTexture from an image, resized to the atlas-declared page size whenever it
+ * differs. Region coordinates live in the declared space but pixi normalizes UVs by the real
+ * `baseTexture.width`, so any disagreement misplaces every attachment.
+ *
+ * Both directions occur. Smaller is the common one: the game packs base chibi textures at two
+ * thirds scale and leaves the atlas at authored coordinates, which is 939 of 4880 CN pages.
+ * Larger is rare but real: `build_char_4214_cairn` declares 572x572 and ships a 696x696 PNG,
+ * a uniform 1.2168x upscale of the same atlas (its regions reach 570x570, inside the declared
+ * box). That page took the early return and rendered every UV at 572/696 of where it
+ * belongs: only the undersized case was corrected.
+ */
+function buildPageTexture(img: DecodedImage, declaredW: number, declaredH: number): PIXI.BaseTexture {
+    const [w, h] = decodedSize(img);
+    if (w === declaredW && h === declaredH) {
+        return baseTextureOf(img, { mipmap: ATLAS_MIPMAP });
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = declaredW;
+    canvas.height = declaredH;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, declaredW, declaredH);
+    }
+    return PIXI.BaseTexture.from(canvas, { mipmap: ATLAS_MIPMAP });
+}
+
+function parseAtlasPages(atlasText: string): Map<string, { declaredW: number; declaredH: number }> {
+    const pages = new Map<string, { declaredW: number; declaredH: number }>();
+    ATLAS_PAGE_RE.lastIndex = 0;
+    let match = ATLAS_PAGE_RE.exec(atlasText);
+    while (match !== null) {
+        pages.set(match[1].trim(), {
+            declaredW: Number.parseInt(match[2], 10),
+            declaredH: Number.parseInt(match[3], 10),
+        });
+        match = ATLAS_PAGE_RE.exec(atlasText);
+    }
+    return pages;
+}
+
+/** `signal` aborts every fetch of the set (skeleton, atlas, pages) when the caller's run is
+ *  superseded, so the bytes stop rather than landing for nobody. */
+export async function loadSpineWithEncodedURLs(skelPath: string, atlasPath: string, server?: "en" | "cn", root?: string, signal?: AbortSignal): Promise<Spine> {
+    const skelURL = chibiAssetURL(skelPath, server, root);
+    const atlasURL = chibiAssetURL(atlasPath, server, root);
+
+    // In dev, cache-bust the skel/atlas/page-image fetches so re-extracted spine
+    // assets are picked up immediately. Without this, the backend's long
+    // Cache-Control serves a stale page image; if it's smaller than the atlas's
+    // declared size, buildPageTexture silently upscales it, mapping every region
+    // to the wrong pixels (garbage). No-op in prod.
+    const bust = import.meta.env.DEV ? `?v=${Date.now()}` : "";
+
+    const [{ Spine, TextureAtlas, AtlasAttachmentLoader, SkeletonBinary, SkeletonJson, settings }, skelResponse, atlasResponse] = await Promise.all([loadSpineModules(), fetch(skelURL + bust, { signal }), fetch(atlasURL + bust, { signal })]);
+
+    if (!skelResponse.ok) throw new Error(`Failed to load skeleton: ${skelResponse.status}`);
+    if (!atlasResponse.ok) throw new Error(`Failed to load atlas: ${atlasResponse.status}`);
+
+    const [skelData, atlasText] = await Promise.all([skelResponse.arrayBuffer(), atlasResponse.text()]);
+
+    const atlasBaseDir = atlasURL.slice(0, atlasURL.lastIndexOf("/") + 1);
+    const pageInfo = parseAtlasPages(atlasText);
+
+    const textureCache = new Map<string, PIXI.BaseTexture>();
+    await Promise.all(
+        Array.from(pageInfo, async ([pageName, { declaredW, declaredH }]) => {
+            const img = await loadDecoded(`${atlasBaseDir}${encodeURIComponent(pageName)}${bust}`, "image", signal);
+            textureCache.set(pageName, buildPageTexture(img, declaredW, declaredH));
+        }),
+    );
+
+    const atlas = new TextureAtlas(atlasText, (pageName, callback) => {
+        const tex = textureCache.get(pageName);
+        if (tex) callback(tex);
+    });
+
+    // A `.skel` normally holds Spine binary data, but some dynchar illustrations
+    // ship the skeleton as Spine JSON text under the same extension (e.g.
+    // Eyjafjalla "A Picnic Before A Long Trip"'s idle). Sniff the first
+    // non-whitespace byte: `{` => try JSON (a binary skel's leading hash byte
+    // could coincidentally be `{`, so fall back to binary if the parse fails).
+    const skelBytes = new Uint8Array(skelData);
+    let firstByte = 0;
+    for (let i = 0; i < skelBytes.length; i++) {
+        const b = skelBytes[i];
+        if (b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d || b === 0xef || b === 0xbb || b === 0xbf) continue; // ws / UTF-8 BOM
+        firstByte = b;
+        break;
+    }
+    const loader = new AtlasAttachmentLoader(atlas);
+    let skeletonData: ReturnType<InstanceType<typeof SkeletonBinary>["readSkeletonData"]> | null = null;
+    if (firstByte === 0x7b /* '{' */) {
+        try {
+            skeletonData = new SkeletonJson(loader).readSkeletonData(JSON.parse(new TextDecoder().decode(skelBytes)));
+        } catch {
+            skeletonData = null; // not JSON after all: fall through to binary
+        }
+    }
+    if (!skeletonData) {
+        skeletonData = new SkeletonBinary(loader).readSkeletonData(skelBytes);
+    }
+
+    // runtime-3.8 SkeletonData types diverge slightly from pixi-spine's base types,
+    // but the runtime contract is compatible.
+    const spine = new Spine(skeletonData as unknown as ConstructorParameters<typeof Spine>[0]);
+    // Repair the runtime-3.8 PathConstraint rotation bug (see pathConstraintFix)
+    // so Chain-mode path-constrained meshes (e.g. Zuo Le's legs) don't smear.
+    patchSpine38PathConstraint(spine);
+    // Repair the runtime-3.8 NoScale handedness flip under a zero-scale parent (see noScaleFix):
+    // Angelina "Mellow Wish" head-turn rig, her face folded over her eyes and mouth.
+    patchSpine38NoScaleUnderFlattenedParent(spine, settings.yDown);
+    return spine;
+}
+
+export interface IAnimationBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+const BOUNDS_SAMPLES = 40;
+
+/**
+ * Make the next bounds read see the skeleton's current mesh pose. A pixi-spine mesh writes
+ * its posed vertices into its buffer on `update`, but PixiJS's `SimpleMesh` marks that
+ * buffer changed only when it is DRAWN, and a mesh's bounds are cached against that mark.
+ * So between two renders `getLocalBounds` reads every mesh where it was last drawn: on a
+ * skeleton never rendered, the first pose for the whole clip. Bumping the mark is what the
+ * next render does anyway, so drawing is unchanged.
+ */
+export function syncMeshBounds(spine: Spine): void {
+    for (const slot of spine.slotContainers) {
+        for (const child of slot.children) {
+            if (child instanceof PIXI.SimpleMesh && child.autoUpdate) child.geometry.getBuffer("aVertexPosition").update();
+        }
+    }
+}
+
+/** The current pose's local bounds as a plain box (PixiJS reuses the rectangle it returns). */
+export function poseBounds(spine: Spine): IAnimationBounds {
+    syncMeshBounds(spine);
+    const { x, y, width, height } = spine.getLocalBounds();
+    return { x, y, width, height };
+}
+
+export interface IMeasureOptions {
+    /**
+     * Re-read the mesh pose at every sample (see {@link syncMeshBounds}). Without it a
+     * skeleton not yet drawn reports its first pose's box: Amiya's Idle measured 250 wide
+     * where the clip reaches 312. Off by default only because the dynamic-illustration
+     * framing in `SceneIllust` was tuned against the old result; the chibi viewer and its
+     * exporter turn it on.
+     */
+    wholeClip?: boolean;
+}
+
+export function measureAnimationBounds(spine: Spine, animationName: string, samples = BOUNDS_SAMPLES, options: IMeasureOptions = {}): IAnimationBounds | null {
+    const animation = spine.spineData.findAnimation(animationName);
+    if (!animation) return null;
+
+    const prevTimeScale = spine.state.timeScale;
+    spine.state.timeScale = 1;
+    spine.state.clearTracks();
+    spine.skeleton.setToSetupPose();
+    spine.state.setAnimation(0, animationName, true);
+
+    const step = animation.duration > 0 ? animation.duration / samples : 0;
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i <= samples; i++) {
+        spine.update(i === 0 ? 0 : step);
+        if (options.wholeClip) syncMeshBounds(spine);
+        const b = spine.getLocalBounds();
+        if (b.width > 0 && b.height > 0) {
+            minX = Math.min(minX, b.x);
+            minY = Math.min(minY, b.y);
+            maxX = Math.max(maxX, b.x + b.width);
+            maxY = Math.max(maxY, b.y + b.height);
+        }
+        if (step === 0) break;
+    }
+
+    spine.state.timeScale = prevTimeScale;
+
+    if (maxX - minX <= 0 || maxY - minY <= 0) return null;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+export function chibiMaxScale(canvasWidth: number, canvasHeight: number): number {
+    return Math.min(canvasWidth / EXPORT_WIDTH, canvasHeight / EXPORT_HEIGHT) * CHIBI_SCALE;
+}
+
+/**
+ * Position and scale a dynamic-illustration spine to fill a box, matching how
+ * the static `<img>` underneath is framed (its `object-fit`/`object-position`).
+ * When the two match, the animation lines up with the static art instead of
+ * floating over it. Falls back to the chibi feet-at-bottom anchor when bounds
+ * couldn't be measured.
+ */
+export function layoutSpine(target: PIXI.Container, canvasWidth: number, canvasHeight: number, bounds: IAnimationBounds | null, fit: ISpineFit = DEFAULT_SPINE_FIT): void {
+    if (!bounds) {
+        target.scale.set(chibiMaxScale(canvasWidth, canvasHeight));
+        target.x = canvasWidth * CHIBI_OFFSET_X;
+        target.y = canvasHeight * CHIBI_OFFSET_Y;
+        return;
+    }
+
+    const scale = fit.mode === "cover" ? Math.max(canvasWidth / bounds.width, canvasHeight / bounds.height) : fit.mode === "height" ? canvasHeight / bounds.height : Math.min(canvasWidth / bounds.width, canvasHeight / bounds.height) * DYNAMIC_FIT_MARGIN;
+    target.scale.set(scale);
+    target.x = canvasWidth / 2 - (bounds.x + bounds.width / 2) * scale;
+    switch (fit.align) {
+        case "top":
+            target.y = -bounds.y * scale;
+            break;
+        case "bottom":
+            target.y = canvasHeight - (bounds.y + bounds.height) * scale;
+            break;
+        default:
+            target.y = canvasHeight / 2 - (bounds.y + bounds.height / 2) * scale;
+    }
+}
+
+/**
+ * The region actually VISIBLE once {@link layoutSpine} has fitted `bounds` into the canvas.
+ *
+ * `contain`/`height` fit by ONE axis, so the other axis shows strictly MORE than `bounds`:
+ * a square framing box in a 2.16∶1 viewport reveals ~2.16× its width. Anything asking "is
+ * this on screen?" - particle culling above all - must test against this rect, never the
+ * framing box, or it discards content the viewer can plainly see.
+ */
+export function visibleRect(bounds: IAnimationBounds, canvasWidth: number, canvasHeight: number, fit: ISpineFit = DEFAULT_SPINE_FIT): IAnimationBounds {
+    const scale = fit.mode === "cover" ? Math.max(canvasWidth / bounds.width, canvasHeight / bounds.height) : fit.mode === "height" ? canvasHeight / bounds.height : Math.min(canvasWidth / bounds.width, canvasHeight / bounds.height) * DYNAMIC_FIT_MARGIN;
+    if (!(scale > 0) || !Number.isFinite(scale)) return bounds;
+    const width = canvasWidth / scale;
+    const height = canvasHeight / scale;
+    // Mirror layoutSpine's placement: it always centres horizontally on the box centre,
+    // while the vertical anchor follows `fit.align`.
+    const x = bounds.x + bounds.width / 2 - width / 2;
+    const y = fit.align === "top" ? bounds.y : fit.align === "bottom" ? bounds.y + bounds.height - height : bounds.y + bounds.height / 2 - height / 2;
+    return { x, y, width, height };
+}
+
+export interface IExportLayout {
+    width: number;
+    height: number;
+    chibiScale: number;
+}
+
+export function computeExportLayout(bounds: IAnimationBounds | null, scaleSetting: number): IExportLayout {
+    const baseWidth = Math.round(EXPORT_WIDTH * scaleSetting);
+    const baseHeight = Math.round(EXPORT_HEIGHT * scaleSetting);
+    let chibiScale = chibiMaxScale(baseWidth, baseHeight);
+
+    let width = baseWidth;
+    let height = baseHeight;
+    if (bounds) {
+        width = Math.max(baseWidth, Math.ceil(bounds.width * chibiScale) + EXPORT_PADDING * 2);
+        height = Math.max(baseHeight, Math.ceil(bounds.height * chibiScale) + EXPORT_PADDING * 2);
+
+        const overshoot = Math.max(width, height) / MAX_EXPORT_DIM;
+        if (overshoot > 1) {
+            chibiScale /= overshoot;
+            width = Math.max(baseWidth, Math.ceil(bounds.width * chibiScale) + EXPORT_PADDING * 2);
+            height = Math.max(baseHeight, Math.ceil(bounds.height * chibiScale) + EXPORT_PADDING * 2);
+        }
+    }
+    // H.264 encoders require even dimensions.
+    width += width % 2;
+    height += height % 2;
+
+    return { width, height, chibiScale };
+}
+
+/** GIF frame delays are stored in centiseconds, so round to 10ms steps; browsers treat delays under 20ms as unreasonably fast and clamp them. */
+export function gifFrameDelayMs(fps: number): number {
+    return Math.max(20, Math.round(1000 / fps / 10) * 10);
+}
+
+export function effectiveGifFps(fps: number): number {
+    return 1000 / gifFrameDelayMs(fps);
+}

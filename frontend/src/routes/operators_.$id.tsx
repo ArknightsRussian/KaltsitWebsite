@@ -1,0 +1,70 @@
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { OperatorDetail } from "#/components/operators/detail/Operators";
+import { RouteError } from "#/components/ui/route-error";
+import { operatorBuildStatsQueryOptions, operatorQueryOptions, operatorsIndexQueryOptions } from "#/lib/api/operators";
+import { metaT } from "#/lib/meta";
+import { ogURL, warmOg } from "#/lib/og/impl/url";
+import { operatorDisplayName } from "#/lib/operators/display-name";
+import { seo } from "#/lib/seo";
+import { professionLabel, subProfessionLabel } from "#/lib/utils";
+import type { IOperatorListItem } from "#/types/operators";
+
+function buildOgData(operator: IOperatorListItem) {
+    const rarityNum = Number(String(operator.rarity).replace("TIER_", "")) || 1;
+    return {
+        name: operator.name,
+        appellation: operator.appellation ?? "",
+        profession: operator.profession,
+        rarity: rarityNum as 1 | 2 | 3 | 4 | 5 | 6,
+        // Carried so the OG cache key differs between the CN and Global art
+        // trees; `/operators/{id}` tags every operator with the server it
+        // resolved on, CN-exclusive ones included.
+        server: operator.server,
+    };
+}
+
+export const Route = createFileRoute("/operators_/$id")({
+    component: RouteComponent,
+    errorComponent: RouteError,
+    loader: async ({ context, params }) => {
+        const server = context.i18n.gamedataServer;
+        // Community build stats decide which skill and module the tabs open
+        // on, so they load beside the operator and SSR renders with them: a
+        // late arrival would visibly re-select in front of the reader, and
+        // one that landed in the browser before hydration mismatched the
+        // server HTML. `prefetchQuery` never throws, so a missing aggregate
+        // is still a fallback, not an error.
+        const [operator] = await Promise.all([context.queryClient.ensureQueryData(operatorQueryOptions(params.id, server)), context.queryClient.prefetchQuery(operatorBuildStatsQueryOptions(params.id, server))]);
+        if (!operator) throw notFound();
+        warmOg("operator", params.id, buildOgData(operator));
+        // For operators with alternate forms (Amiya), preload the index so
+        // the form switcher renders in SSR without a hydration flash.
+        if ((operator.tmplIds?.length ?? 0) >= 2) {
+            await context.queryClient.ensureQueryData(operatorsIndexQueryOptions(server));
+        }
+        return operator;
+    },
+    head: ({ loaderData, match, params }) => {
+        const locale = match.context.i18n?.locale;
+        if (!loaderData) return seo({ title: metaT(match.context.i18n)("operator.fallbackTitle"), path: `/operators/${params.id}`, locale });
+        const ogData = buildOgData(loaderData);
+        return seo({
+            // The tab title and share card are rendered on the server, where
+            // the Latin-names preference (a localStorage setting) is unknown,
+            // so they take the preference's DEFAULT: a CN-only operator is
+            // titled by appellation even for a reader who turned it off.
+            title: operatorDisplayName(loaderData, true),
+            // Name, profession and archetype are game vocabulary the gamedata
+            // layer translates per region; nothing here belongs to this catalog.
+            description: `${ogData.rarity}★ ${professionLabel(loaderData)} • ${subProfessionLabel(loaderData)}`.trim(),
+            image: ogURL("operator", params.id, ogData),
+            path: `/operators/${params.id}`,
+            type: "profile",
+            locale,
+        });
+    },
+});
+
+function RouteComponent() {
+    return <OperatorDetail />;
+}

@@ -1,0 +1,185 @@
+import { ChevronDown } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "#/components/ui/collapsible";
+import { useFormatters } from "#/lib/i18n";
+import { cn } from "#/lib/utils";
+
+export const PANEL_PADDING = "px-4 pb-4 sm:px-5 sm:pb-5";
+
+// One type scale for every improvement panel; add sizes here, not inline.
+
+/** Chips, level/state indicators, badges. */
+export const TEXT_BADGE = "font-mono text-[10px] tabular-nums";
+/** The same eyebrow as the Stats cards; see the `.kicker` rule in `styles.css`. */
+export const TEXT_KICKER = "kicker";
+/** Secondary text, subtitles. */
+export const TEXT_META = "text-[10.5px] leading-snug";
+/** List rows, descriptions. */
+export const TEXT_BODY = "text-[11.5px] leading-tight";
+
+// Shared rarity scheme so the Operator and Medal panels read with the same
+// visual language. Hue picks roughly match Arknights' in-game color tiers
+// (gold -> purple -> blue -> gray).
+
+const RARITY_HUE = {
+    /** 6★ / T3D5. */
+    apex: "oklch(0.78 0.16 80)",
+    /** Gold (5★ / T2.5 / T3). */
+    gold: "oklch(0.74 0.16 80)",
+    /** Purple (4★ / T2). */
+    purple: "oklch(0.67 0.17 295)",
+    /** Blue (3★ / T1.5). */
+    blue: "oklch(0.65 0.13 220)",
+    /** Muted gray (2★/1★ / T1). */
+    muted: "oklch(0.58 0.04 285)",
+} as const;
+
+/** Operator rarity (1-6 ★). */
+export function operatorRarityColor(rarity: number): string {
+    if (rarity >= 6) return RARITY_HUE.apex;
+    if (rarity === 5) return RARITY_HUE.gold;
+    if (rarity === 4) return RARITY_HUE.purple;
+    if (rarity === 3) return RARITY_HUE.blue;
+    return RARITY_HUE.muted;
+}
+
+/** Medal rarity (T1 -> T3D5). */
+export function medalRarityColor(rarity: string): string {
+    switch (rarity) {
+        case "T3D5":
+            return RARITY_HUE.apex;
+        case "T3":
+        case "T2D5":
+            return RARITY_HUE.gold;
+        case "T2":
+            return RARITY_HUE.purple;
+        case "T1D5":
+            return RARITY_HUE.blue;
+        default:
+            return RARITY_HUE.muted;
+    }
+}
+
+/** Urgency color for time-bound items (event medals running out). */
+export const URGENT_COLOR = "oklch(0.65 0.22 30)";
+
+/**
+ * Mini-section header inside an expanded subscore panel.
+ */
+export function SectionHeader({ title, count, accent }: { title: string; count?: ReactNode; accent: string }) {
+    return (
+        <div className="flex items-center justify-between border-border/40 border-b pb-1.5">
+            <span className={cn(TEXT_KICKER)} style={{ color: `color-mix(in oklch, ${accent} 60%, var(--foreground))` }}>
+                {title}
+            </span>
+            {count !== undefined && <span className={cn(TEXT_BADGE, "rounded-md border border-border/40 bg-muted/30 px-1.5 py-0.5 text-muted-foreground")}>{count}</span>}
+        </div>
+    );
+}
+
+/** `SectionHeader` plus a chevron, for secondary sections that stay one click away instead of stretching the panel. */
+export function CollapsibleSection({ title, count, accent, defaultOpen = false, children }: { title: string; count?: ReactNode; accent: string; defaultOpen?: boolean; children: ReactNode }) {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+        <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-3">
+            <CollapsibleTrigger className="flex items-center justify-between gap-2 border-border/40 border-b pb-1.5 text-left transition-colors hover:border-border">
+                <span className={cn(TEXT_KICKER)} style={{ color: `color-mix(in oklch, ${accent} 60%, var(--foreground))` }}>
+                    {title}
+                </span>
+                <span className="flex items-center gap-2">
+                    {count !== undefined && <span className={cn(TEXT_BADGE, "rounded-md border border-border/40 bg-muted/30 px-1.5 py-0.5 text-muted-foreground")}>{count}</span>}
+                    <ChevronDown className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
+                </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+                <div className="flex flex-col gap-3 pt-0.5">{children}</div>
+            </CollapsibleContent>
+        </Collapsible>
+    );
+}
+
+/**
+ * "X / Y" progress chip with a thin bar underneath.
+ */
+export function ProgressLine({ label, current, max, accent, hint }: { label: string; current: number; max: number; accent: string; hint?: ReactNode }) {
+    const f = useFormatters();
+    const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0;
+    return (
+        <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">{label}</span>
+                <span className="flex items-center gap-1">
+                    <span className={cn(TEXT_BADGE, "text-foreground/85")}>
+                        {f.number(current)} <span className="text-muted-foreground">/ {f.number(max)}</span>
+                    </span>
+                    {hint}
+                </span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted/40">
+                <div
+                    className="h-full rounded-full transition-[width] duration-500 ease-out"
+                    style={{
+                        width: `${pct}%`,
+                        background: `linear-gradient(to right, color-mix(in oklch, ${accent} 55%, transparent), ${accent})`,
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
+
+export function EmptyHint({ children }: { children: ReactNode }) {
+    return <p className="rounded-md border border-border/40 border-dashed bg-muted/15 px-3 py-2 text-center text-[11px] text-muted-foreground">{children}</p>;
+}
+
+interface IPillProps {
+    children: ReactNode;
+    color?: string;
+    className?: string;
+}
+
+export function Pill({ children, color, className }: IPillProps) {
+    return (
+        <span className={cn("inline-flex items-center gap-1 rounded-md border border-border/50 px-1.5 py-0.5", TEXT_KICKER, "text-subtle-foreground", className)} style={color ? { background: `color-mix(in oklch, ${color} 8%, transparent)`, color: `color-mix(in oklch, ${color} 75%, var(--foreground))` } : undefined}>
+            {children}
+        </span>
+    );
+}
+
+export function ShowMoreButton({ onClick, label }: { onClick: () => void; label: string }) {
+    return (
+        <button type="button" onClick={onClick} className={cn("self-start", TEXT_KICKER, "text-muted-foreground transition-colors hover:text-foreground")}>
+            {label}
+        </button>
+    );
+}
+
+/**
+ * Top-of-panel summary tile. `min-h` keeps a row level when one sub-label
+ * wraps; tiles without `onClick` render dimmed so a "0" doesn't look clickable.
+ */
+export function StatTile({ value, label, sub, accent, active, onClick }: { value: ReactNode; label: string; sub?: ReactNode; accent: string; active?: boolean; onClick?: () => void }) {
+    const interactive = onClick !== undefined;
+    const Wrapper = interactive ? "button" : "div";
+    return (
+        <Wrapper
+            type={interactive ? "button" : undefined}
+            onClick={onClick}
+            aria-pressed={interactive ? active : undefined}
+            className={cn("flex min-h-22 flex-col items-center justify-center gap-1 rounded-md border px-2 py-2.5 text-center transition-colors", active ? "border-foreground/30 bg-muted/40" : "border-border/40 bg-muted/15", interactive ? "cursor-pointer hover:border-foreground/25 hover:bg-muted/30" : "opacity-55")}
+        >
+            <span
+                className="font-bold tabular-nums leading-none"
+                style={{
+                    fontSize: "1.5rem",
+                    letterSpacing: "-0.02em",
+                    color: `color-mix(in oklch, ${accent} 70%, var(--foreground))`,
+                }}
+            >
+                {value}
+            </span>
+            <span className={cn(TEXT_KICKER, "text-foreground/75")}>{label}</span>
+            {sub !== undefined && <span className={cn(TEXT_BADGE, "text-subtle-foreground leading-tight")}>{sub}</span>}
+        </Wrapper>
+    );
+}

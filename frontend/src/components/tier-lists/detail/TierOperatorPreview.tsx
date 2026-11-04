@@ -1,0 +1,84 @@
+import { CampIcon, ClassIcon } from "#/components/operators/list/impl/components/Icons";
+import type { ITierOperator } from "#/lib/api/tier-lists";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { stripMarkdown } from "#/lib/markdown";
+import { archetypeLabel, getAvatarById, nationLabel, parseOperatorName, professionLabel } from "#/lib/utils";
+import { operatorPlacementNote } from "../shared";
+import type { messages } from "./TierOperatorPreview.messages";
+import styles from "./TierOperatorPreview.module.css";
+
+interface ITierOperatorPreviewProps {
+    operator: ITierOperator;
+}
+
+export function TierOperatorPreview({ operator }: ITierOperatorPreviewProps) {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    const { displayName, subtitle } = parseOperatorName(operator.name);
+    const note = operatorPlacementNote(operator);
+    const archetype = archetypeLabel(operator);
+    const factionId = operator.nationId && operator.nationId.length > 0 ? operator.nationId : "rhodes";
+    const positionLabel = operator.position === "RANGED" ? t("detail.preview.position.ranged") : operator.position === "MELEE" ? t("detail.preview.position.melee") : null;
+    const initial = operator.name.charAt(0).toUpperCase();
+
+    return (
+        <article className={styles.preview} data-rarity={operator.rarity}>
+            <div className={styles.head}>
+                <div className={styles.avatar} aria-hidden="true">
+                    {operator.id ? <img className={styles.avatarImg} src={getAvatarById(operator.id)} alt="" /> : <span className={styles.initial}>{initial}</span>}
+                    <CampIcon groupId={factionId} size={48} className={styles.faction} />
+                </div>
+                <div className={styles.title}>
+                    <div className={styles.name}>{displayName}</div>
+                    {subtitle && <div className={styles.subtitle}>{subtitle}</div>}
+                    <div className={styles.rarity} role="img" aria-label={t("detail.preview.rarityLabel", { rarity: operator.rarity })}>
+                        {Array.from({ length: operator.rarity }, (_, i) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: decorative stars
+                            <span key={`s-${i}`} aria-hidden="true">
+                                ★
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <div className={styles.row}>
+                <ClassIcon profession={operator.profession} size={16} />
+                <span className={styles.class}>{professionLabel(operator)}</span>
+                {archetype && (
+                    <>
+                        <span className={styles.dot} aria-hidden="true">
+                            ·
+                        </span>
+                        <span className={styles.archetype}>{archetype}</span>
+                    </>
+                )}
+            </div>
+
+            {(operator.nationId || positionLabel) && (
+                <div className={styles.meta}>
+                    {operator.nationId && (
+                        <span className={styles.metaItem}>
+                            <span className={styles.k}>{t("detail.preview.nation")}</span>
+                            <span className={styles.v}>{nationLabel(operator)}</span>
+                        </span>
+                    )}
+                    {positionLabel && (
+                        <span className={styles.metaItem}>
+                            <span className={styles.k}>{t("detail.preview.position")}</span>
+                            <span className={styles.v}>{positionLabel}</span>
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {note && (
+                <p className={styles.notes} style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 5, overflow: "hidden" }}>
+                    “{stripMarkdown(note)}”
+                </p>
+            )}
+
+            <p className={styles.hint}>{t("detail.preview.hint")}</p>
+        </article>
+    );
+}

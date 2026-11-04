@@ -1,0 +1,461 @@
+import type React from "react";
+import { useMemo, useState } from "react";
+import { Kicker } from "#/components/ui/kicker";
+import type { IEnemyAttributes, IEnemyLevelStats, IEnemySkill } from "#/lib/api/enemies";
+import { assetURL } from "#/lib/assets";
+import { emphasizeTagsHtml } from "#/lib/gamedata/richtext";
+import { type IFormatters, type TypedRichT, useFormatters, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { LevelBadge } from "../../list/impl/components/atoms";
+import { EnemyPlaceholder } from "../../list/impl/components/EnemyPlaceholder";
+import { APPLY_WAY_LABEL_KEY } from "../../list/impl/constants";
+import type { messages as listConstantsMessages } from "../../list/impl/constants.messages";
+import { DAMAGE_TOKENS, LEVEL_TOKENS } from "../../list/impl/tokens";
+import type { IEnemyView } from "../../list/impl/types";
+import type { messages } from "./sections.messages";
+
+/** A key in `sections.messages.ts`; resolved by whichever block renders it. */
+type SectionsMessageKey = keyof typeof messages & string;
+
+export function EnemyHero({ enemy }: { enemy: IEnemyView }) {
+    const tConst: TypedT<typeof listConstantsMessages> = useT("enemies");
+    const [imgError, setImgError] = useState(false);
+    const tok = LEVEL_TOKENS[enemy.enemyLevel];
+    const hasPortrait = !!enemy.portrait && !imgError;
+    const portraitSrc = hasPortrait && enemy.portrait ? assetURL(enemy.portrait) : undefined;
+    const meta = [enemy.enemyIndex, enemy.race, enemy.applyWay ? tConst(APPLY_WAY_LABEL_KEY[enemy.applyWay]) : null].filter(Boolean).join(" · ");
+
+    return (
+        <div className="flex gap-4 rounded-2xl border border-border bg-card p-4 sm:gap-5 sm:p-5">
+            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border bg-[color-mix(in_oklch,var(--muted)_40%,transparent)] sm:h-28 sm:w-28" style={{ borderColor: enemy.enemyLevel === "NORMAL" ? "var(--border)" : tok.badgeBorder }}>
+                {hasPortrait && portraitSrc ? <img src={portraitSrc} alt={enemy.name} onError={() => setImgError(true)} className="absolute inset-0 h-full w-full object-contain" /> : <EnemyPlaceholder className="absolute inset-0 h-full w-full p-2.5" />}
+                {enemy.enemyLevel !== "NORMAL" && <span aria-hidden="true" className="absolute right-0 bottom-0 left-0 h-0.75" style={{ background: tok.accent }} />}
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="m-0 font-bold font-sans text-[20px] text-foreground leading-[1.1] tracking-tight sm:text-[26px]">{enemy.name}</h1>
+                    <LevelBadge level={enemy.enemyLevel} />
+                </div>
+                {meta && <div className="font-medium font-mono text-[10.5px] text-muted-foreground leading-snug sm:text-[11px]">{meta}</div>}
+
+                {enemy.damageType.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                        {enemy.damageType.map((dt) => {
+                            const tk = DAMAGE_TOKENS[dt];
+                            return (
+                                <span
+                                    key={dt}
+                                    className="inline-flex items-center gap-1.5 rounded-full border px-2.25 py-0.75 font-medium font-sans text-[11px] text-foreground leading-none"
+                                    style={{
+                                        borderColor: `color-mix(in oklch, ${tk.color} 40%, transparent)`,
+                                        background: `color-mix(in oklch, ${tk.color} 12%, transparent)`,
+                                    }}
+                                >
+                                    <span className="h-1.5 w-1.5 rounded-[1.5px]" style={{ background: tk.color }} />
+                                    {tConst(tk.labelKey)}
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+export function SectionHead({ children }: { children: React.ReactNode }) {
+    return (
+        <div className="mb-3">
+            <Kicker className="leading-none">{children}</Kicker>
+        </div>
+    );
+}
+
+function Meta({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-md bg-[color-mix(in_oklch,var(--muted)_50%,transparent)] px-2.5 py-2">
+            <Kicker className="mb-1.25 block leading-none">{label}</Kicker>
+            <div className="break-all font-medium font-sans text-[12.5px] text-foreground leading-[1.2]">{value}</div>
+        </div>
+    );
+}
+
+interface IAbilityGroup {
+    title: string | null;
+    items: { text: string; textFormat: string }[];
+}
+
+export function OverviewTab({ enemy }: { enemy: IEnemyView }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    const groups = useMemo<IAbilityGroup[]>(() => {
+        const out: IAbilityGroup[] = [];
+        let cur: IAbilityGroup = { title: null, items: [] };
+        for (const ab of enemy.abilityList ?? []) {
+            if (ab.textFormat === "TITLE") {
+                if (cur.items.length || cur.title) out.push(cur);
+                cur = { title: ab.text, items: [] };
+            } else {
+                cur.items.push(ab);
+            }
+        }
+        if (cur.items.length || cur.title) out.push(cur);
+        return out;
+    }, [enemy.abilityList]);
+
+    return (
+        <div className="flex flex-col gap-5 sm:gap-5.5">
+            {enemy.description && (
+                <section aria-label={t("overview.description")}>
+                    <p className="m-0 text-pretty font-sans text-[13.5px] text-foreground leading-relaxed">{enemy.description}</p>
+                </section>
+            )}
+
+            {groups.length > 0 && (
+                <section>
+                    <SectionHead>{t("overview.traits")}</SectionHead>
+                    <div className="flex flex-col gap-3.5">
+                        {groups.map((g, gi) => (
+                            <div key={g.title ?? `g-${gi}`}>
+                                {g.title && (
+                                    <h4 className="mb-1.5">
+                                        <Kicker tone="accent" className="leading-none">
+                                            {g.title}
+                                        </Kicker>
+                                    </h4>
+                                )}
+                                {g.items.length > 0 && (
+                                    <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                                        {g.items.map((ab) => (
+                                            <li key={`${ab.text}-${ab.textFormat}`} className="flex gap-2.5 font-sans text-[13.5px] leading-[1.55]">
+                                                <span className="mt-2 h-1.25 w-1.25 shrink-0 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_50%,transparent)]" />
+                                                {/* biome-ignore lint/security/noDangerouslySetInnerHtml: text is from trusted backend handbook data and is sanitized via emphasizeTagsHtml */}
+                                                <span className="text-foreground" dangerouslySetInnerHTML={{ __html: emphasizeTagsHtml(ab.text) }} />
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {enemy.enemyTags && enemy.enemyTags.length > 0 && (
+                <section>
+                    <SectionHead>{t("overview.tags")}</SectionHead>
+                    <div className="flex flex-wrap gap-1.5">
+                        {enemy.enemyTags.map((tag) => (
+                            <span key={tag} className="rounded-full border border-border px-2.25 py-0.75 font-medium font-sans text-[11px] text-muted-foreground leading-none">
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            <section>
+                <SectionHead>{t("overview.metadata")}</SectionHead>
+                <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+                    <Meta label={t("overview.meta.enemyId")} value={enemy.enemyId} />
+                    <Meta label={t("overview.meta.sortId")} value={String(enemy.sortId)} />
+                    <Meta label={t("overview.meta.race")} value={enemy.race ?? "-"} />
+                    <Meta label={t("overview.meta.handbook")} value={enemy.hideInHandbook ? t("overview.meta.hidden") : t("overview.meta.visible")} />
+                </div>
+            </section>
+        </div>
+    );
+}
+
+function PhaseHeader({ phase, label }: { phase: IEnemyLevelStats; label: string }) {
+    return (
+        <div className="flex items-center gap-2 rounded-md border border-[color-mix(in_oklch,var(--primary)_45%,transparent)] bg-[color-mix(in_oklch,var(--primary)_14%,transparent)] px-2.5 py-1.5 leading-none">
+            <span aria-hidden="true" className="inline-block h-1.25 w-1.25 shrink-0 rounded-full bg-primary" />
+            <h4 className="m-0 truncate font-medium font-sans text-[13px] text-foreground">{label}</h4>
+            <span className="ml-auto font-mono text-[10px] text-muted-foreground tracking-[0.12em]">L{phase.level}</span>
+        </div>
+    );
+}
+
+interface IPhaseMeta {
+    labels: string[];
+    fromNarrative: boolean;
+    narrativeFormCount: number;
+}
+
+interface IPhaseMetaResult extends IPhaseMeta {
+    orderedPhases: IEnemyLevelStats[];
+}
+
+function getPhaseMeta(enemy: IEnemyView, phases: IEnemyLevelStats[], t: TypedT<typeof messages>): IPhaseMetaResult {
+    const titles = (enemy.abilityList ?? [])
+        .filter((a) => a.textFormat === "TITLE")
+        .map((a) => a.text.trim())
+        .filter(Boolean);
+    if (titles.length === phases.length && titles.length > 1) {
+        return {
+            labels: titles,
+            fromNarrative: true,
+            narrativeFormCount: titles.length,
+            orderedPhases: phases.slice().reverse(),
+        };
+    }
+    if (phases.length === 1) {
+        return {
+            labels: [t("stats.phase.single")],
+            fromNarrative: false,
+            narrativeFormCount: titles.length,
+            orderedPhases: phases,
+        };
+    }
+    return {
+        labels: phases.map((p, i) => t("stats.phase.level", { level: p.level ?? i })),
+        fromNarrative: false,
+        narrativeFormCount: titles.length,
+        orderedPhases: phases,
+    };
+}
+
+interface IStatRow {
+    labelKey: SectionsMessageKey;
+    pick: (a: IEnemyAttributes) => number;
+    format: (v: number, f: IFormatters) => string;
+}
+
+const STAT_ROWS: IStatRow[] = [
+    { labelKey: "stats.row.maxHp", pick: (a) => a.maxHp, format: (v, f) => f.number(v) },
+    { labelKey: "stats.row.atk", pick: (a) => a.atk, format: (v, f) => f.number(v) },
+    { labelKey: "stats.row.def", pick: (a) => a.def, format: (v, f) => f.number(v) },
+    { labelKey: "stats.row.res", pick: (a) => a.magicResistance, format: (v) => String(v) },
+    { labelKey: "stats.row.moveSpeed", pick: (a) => a.moveSpeed, format: (v) => v.toFixed(2) },
+    { labelKey: "stats.row.aspd", pick: (a) => a.attackSpeed, format: (v) => v.toFixed(2) },
+    { labelKey: "stats.row.baseAttackTime", pick: (a) => a.baseAttackTime, format: (v) => v.toFixed(2) },
+    { labelKey: "stats.row.weight", pick: (a) => a.massLevel, format: (v) => String(v) },
+];
+
+const IMMUNITY_ROWS: { labelKey: SectionsMessageKey; pick: (a: IEnemyAttributes) => boolean }[] = [
+    { labelKey: "stats.immunity.stun", pick: (a) => !!a.stunImmune },
+    { labelKey: "stats.immunity.silence", pick: (a) => !!a.silenceImmune },
+    { labelKey: "stats.immunity.sleep", pick: (a) => !!a.sleepImmune },
+    { labelKey: "stats.immunity.frozen", pick: (a) => !!a.frozenImmune },
+    { labelKey: "stats.immunity.levitate", pick: (a) => !!a.levitateImmune },
+    { labelKey: "stats.immunity.fear", pick: (a) => !!a.fearImmune },
+    { labelKey: "stats.immunity.paralysis", pick: (a) => !!a.paralysisImmune },
+    { labelKey: "stats.immunity.tremble", pick: (a) => !!a.trembleImmune },
+    { labelKey: "stats.immunity.lure", pick: (a) => !!a.lureImmune },
+];
+
+function PhaseStatsBlock({ phase, label }: { phase: IEnemyLevelStats; label: string }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    const f = useFormatters();
+    return (
+        <div className="flex flex-col gap-2">
+            <PhaseHeader phase={phase} label={label} />
+            <div className="rounded-2xl border border-border bg-[color-mix(in_oklch,var(--muted)_22%,transparent)] p-3">
+                <dl className="m-0 grid grid-cols-1 gap-y-1 sm:grid-cols-2 sm:gap-x-6">
+                    {STAT_ROWS.map((row) => (
+                        <div key={row.labelKey} className="flex items-baseline justify-between gap-2 border-border/40 border-b py-1 last:border-b-0 sm:nth-last-[2]:border-b-0">
+                            <dt className="kicker leading-none">{t(row.labelKey)}</dt>
+                            <dd className="m-0 font-mono font-semibold text-[13px] text-foreground tabular-nums leading-none">{row.format(row.pick(phase.attributes), f)}</dd>
+                        </div>
+                    ))}
+                </dl>
+            </div>
+        </div>
+    );
+}
+
+function ImmunityIcon({ on }: { on: boolean }) {
+    if (on) {
+        return (
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+            </svg>
+        );
+    }
+    return (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+    );
+}
+
+function ImmunityCompareGrid({ phases, labels }: { phases: IEnemyLevelStats[]; labels: string[] }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    return (
+        <div className="overflow-x-auto rounded-2xl border border-border">
+            <table className="w-full border-collapse text-left">
+                <thead>
+                    <tr className="border-border/60 border-b bg-[color-mix(in_oklch,var(--muted)_30%,transparent)]">
+                        <th className="px-2.5 py-1.5 font-medium font-mono text-[10px] text-muted-foreground uppercase leading-none tracking-[0.12em] sm:px-3 sm:py-2">{t("stats.immunity.status")}</th>
+                        {phases.map((p, i) => (
+                            <th key={`im-h-${p.level}-${p.attributes.maxHp}-${p.attributes.atk}`} className="px-2.5 py-1.5 text-center font-medium font-mono text-[10px] text-muted-foreground uppercase leading-none tracking-[0.12em] sm:px-3 sm:py-2">
+                                {phases.length > 1 ? labels[i] : t("stats.immunity.value")}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {IMMUNITY_ROWS.map((row) => (
+                        <tr key={row.labelKey} className="border-border/40 border-b last:border-b-0">
+                            <td className="px-2.5 py-1.5 font-medium font-sans text-[12px] text-foreground leading-none sm:px-3 sm:py-2">{t(row.labelKey)}</td>
+                            {phases.map((p, i) => {
+                                const on = row.pick(p.attributes);
+                                return (
+                                    <td key={`im-${row.labelKey}-${p.level}-${p.attributes.maxHp}-${p.attributes.atk}`} className="px-2.5 py-1.5 text-center sm:px-3 sm:py-2">
+                                        <span
+                                            role="img"
+                                            aria-label={on ? t("stats.immunity.aria.immune", { status: t(row.labelKey), phase: labels[i] }) : t("stats.immunity.aria.vulnerable", { status: t(row.labelKey), phase: labels[i] })}
+                                            className={
+                                                on
+                                                    ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--primary)_14%,transparent)] text-primary shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--primary)_45%,transparent)]"
+                                                    : "inline-flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--muted)_40%,transparent)] text-muted-foreground"
+                                            }
+                                        >
+                                            <ImmunityIcon on={on} />
+                                        </span>
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function NarrativeFormsNote({ narrativeFormCount, levelCount }: { narrativeFormCount: number; levelCount: number }) {
+    const rt: TypedRichT<typeof messages> = useRichT("enemies");
+    return (
+        <div className="mt-3 flex gap-2.5 rounded-md border border-border bg-[color-mix(in_oklch,var(--muted)_30%,transparent)] px-3 py-2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-px shrink-0 text-muted-foreground">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+            </svg>
+            <p className="m-0 font-sans text-[12px] text-muted-foreground leading-relaxed">
+                {rt("stats.forms.note", {
+                    forms: <strong className="text-foreground">{narrativeFormCount}</strong>,
+                    count: levelCount,
+                    traits: <strong className="text-foreground">{rt("stats.forms.note.traits")}</strong>,
+                })}
+            </p>
+        </div>
+    );
+}
+
+export function StatsTab({ enemy }: { enemy: IEnemyView }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    const phases = enemy.stats?.levels ?? [];
+    if (phases.length === 0) {
+        return (
+            <div className="p-10 text-center">
+                <p className="m-0 font-sans text-[13px] text-muted-foreground leading-normal">{t("stats.none")}</p>
+            </div>
+        );
+    }
+    const meta = getPhaseMeta(enemy, phases, t);
+    const multi = phases.length > 1;
+    const sectionLabel = multi ? (meta.fromNarrative ? t("stats.combat.forms", { count: phases.length }) : t("stats.combat.levels", { count: phases.length })) : t("stats.combat");
+    const showNarrativeNote = meta.narrativeFormCount > phases.length;
+    const gridClass = multi ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "grid grid-cols-1 gap-3";
+    return (
+        <div className="flex flex-col gap-5 sm:gap-5.5">
+            <section>
+                <SectionHead>{sectionLabel}</SectionHead>
+                <div className={gridClass}>
+                    {meta.orderedPhases.map((phase, i) => (
+                        <PhaseStatsBlock key={`phase-${phase.level}-${phase.attributes.maxHp}-${phase.attributes.atk}-${phase.attributes.def}`} phase={phase} label={meta.labels[i]} />
+                    ))}
+                </div>
+                {showNarrativeNote && <NarrativeFormsNote narrativeFormCount={meta.narrativeFormCount} levelCount={phases.length} />}
+            </section>
+            <section>
+                <SectionHead>{t("stats.immunities")}</SectionHead>
+                <ImmunityCompareGrid phases={meta.orderedPhases} labels={meta.labels} />
+            </section>
+        </div>
+    );
+}
+
+function skillsAreEqual(a: IEnemySkill[], b: IEnemySkill[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        const x = a[i];
+        const y = b[i];
+        if (x.prefabKey !== y.prefabKey || x.priority !== y.priority || x.cooldown !== y.cooldown || x.initCooldown !== y.initCooldown || x.spCost !== y.spCost) return false;
+    }
+    return true;
+}
+
+function SkillCard({ skill }: { skill: IEnemySkill }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    return (
+        <div className="rounded-2xl border border-border bg-[color-mix(in_oklch,var(--muted)_30%,transparent)] p-3 sm:p-3.5">
+            <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium font-mono text-[12px] text-foreground leading-none">{skill.prefabKey}</span>
+                <span className="font-mono text-[10.5px] text-muted-foreground uppercase leading-none tracking-[0.12em]">P{skill.priority}</span>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5 sm:gap-2">
+                <Meta label={t("skills.cooldown")} value={`${skill.cooldown}s`} />
+                <Meta label={t("skills.initCd")} value={`${skill.initCooldown}s`} />
+                <Meta label={t("skills.spCost")} value={String(skill.spCost)} />
+            </div>
+        </div>
+    );
+}
+
+export function SkillsTab({ enemy }: { enemy: IEnemyView }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    const rt: TypedRichT<typeof messages> = useRichT("enemies");
+    const phases = enemy.stats?.levels ?? [];
+    if (phases.length === 0 || phases.every((p) => p.skills.length === 0)) {
+        return (
+            <div className="p-10 text-center">
+                <p className="m-0 font-sans text-[13px] text-muted-foreground leading-normal">{t("skills.none")}</p>
+            </div>
+        );
+    }
+
+    const base = phases[0].skills;
+    const allSame = phases.every((p) => skillsAreEqual(p.skills, base));
+    const meta = getPhaseMeta(enemy, phases, t);
+
+    if (allSame) {
+        return (
+            <div className="flex flex-col gap-3 sm:gap-4">
+                {phases.length > 1 && (
+                    <p className="m-0 font-sans text-[12px] text-muted-foreground leading-normal">
+                        {rt(meta.fromNarrative ? "skills.identical.forms" : "skills.identical.levels", {
+                            phases: <strong className="text-foreground">{phases.length}</strong>,
+                            count: phases.length,
+                        })}
+                    </p>
+                )}
+                {base.map((sk) => (
+                    <SkillCard key={`${sk.prefabKey}-${sk.priority}-${sk.cooldown}-${sk.initCooldown}-${sk.spCost}`} skill={sk} />
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col gap-4 sm:gap-5">
+            {meta.orderedPhases.map((phase, i) => (
+                <section key={`skills-phase-${phase.level}-${phase.attributes.maxHp}-${phase.attributes.atk}`} className="flex flex-col gap-2.5 sm:gap-3">
+                    <PhaseHeader phase={phase} label={meta.labels[i]} />
+                    {phase.skills.length === 0 ? (
+                        <p className="m-0 font-sans text-[12.5px] text-muted-foreground leading-normal">{meta.fromNarrative ? t("skills.empty.form") : t("skills.empty.level")}</p>
+                    ) : (
+                        <div className="flex flex-col gap-3">
+                            {phase.skills.map((sk) => (
+                                <SkillCard key={`p${phase.level}-${sk.prefabKey}-${sk.priority}-${sk.cooldown}-${sk.initCooldown}-${sk.spCost}`} skill={sk} />
+                            ))}
+                        </div>
+                    )}
+                </section>
+            ))}
+        </div>
+    );
+}

@@ -1,0 +1,90 @@
+import * as React from "react";
+import { PageHeader } from "#/components/ui/page-header";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
+import { useAuth } from "#/hooks/use-auth";
+import { useTheme } from "#/hooks/use-theme";
+import { isSuperAdmin } from "#/lib/api/admin";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { AutoTranslateProvider } from "./impl/autoTranslate";
+import { BannersTab } from "./impl/components/BannersTab";
+import { CalendarTab } from "./impl/components/CalendarTab";
+import { EventsTab } from "./impl/components/EventsTab";
+import { OverridesManager } from "./impl/components/overrides/OverridesListSheet";
+import { PlannerTab } from "./impl/components/PlannerTab";
+import { PullsPlannerTab } from "./impl/components/PullsPlannerTab";
+import { SkinPopupProvider } from "./impl/components/SkinPopup";
+import type { messages } from "./ReleasePlanner.messages";
+
+type ReleaseView = "planner" | "pulls" | "events" | "banners" | "calendar";
+
+const RELEASE_VIEWS: readonly ReleaseView[] = ["planner", "pulls", "events", "banners", "calendar"];
+
+export function ReleasePlanner(): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("tools");
+    const today = React.useMemo(() => new Date(), []);
+    const [view, setView] = React.useState<ReleaseView>("planner");
+    const { latinNames } = useTheme();
+    const { user } = useAuth();
+
+    /**
+     * A tab mounts on its first visit and then STAYS mounted, hidden, so going back to it
+     * is an attribute flip instead of a rebuild. Remounting was the cost of every switch:
+     * the Planner tab rebuilt its 36 cards and the detail pane (about 170 ms of handler time
+     * in the dev build), and the Pulls tab reran the plan DP, the Monte Carlo and three
+     * charts (about 400 ms). Mounting all five up front would put that work on page load
+     * for tabs most visits never open, hence first-visit.
+     */
+    const [visited, setVisited] = React.useState<ReadonlySet<ReleaseView>>(() => new Set<ReleaseView>(["planner"]));
+    const select = React.useCallback((next: ReleaseView) => {
+        setView(next);
+        setVisited((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
+    }, []);
+
+    // Built once, so a tab switch re-renders the strip and not the hidden tabs.
+    const panels = React.useMemo<Record<ReleaseView, React.ReactElement>>(
+        () => ({
+            planner: <PlannerTab today={today} />,
+            pulls: <PullsPlannerTab today={today} />,
+            events: <EventsTab today={today} />,
+            banners: <BannersTab today={today} />,
+            calendar: <CalendarTab today={today} />,
+        }),
+        [today],
+    );
+
+    return (
+        <div className="page-shell [--page-max:1200px]" translate="no">
+            <PageHeader breadcrumbLabel="breadcrumb" breadcrumb={[t("release.breadcrumb.tools"), t("release.title")]} title={t("release.title")} actions={isSuperAdmin(user?.role) ? <OverridesManager /> : undefined} />
+
+            <AutoTranslateProvider value={latinNames}>
+                <SkinPopupProvider>
+                    <Tabs value={view} onValueChange={(v) => select(v as ReleaseView)} className="mt-5">
+                        <TabsList className="mb-4 w-max">
+                            <TabsTrigger value="planner" className="max-sm:shrink-0">
+                                {t("release.tab.planner")}
+                            </TabsTrigger>
+                            <TabsTrigger value="pulls" className="max-sm:shrink-0">
+                                {t("release.tab.pulls")}
+                            </TabsTrigger>
+                            <TabsTrigger value="events" className="max-sm:shrink-0">
+                                {t("release.tab.events")}
+                            </TabsTrigger>
+                            <TabsTrigger value="banners" className="max-sm:shrink-0">
+                                {t("release.tab.banners")}
+                            </TabsTrigger>
+                            <TabsTrigger value="calendar" className="max-sm:shrink-0">
+                                {t("release.tab.calendar")}
+                            </TabsTrigger>
+                        </TabsList>
+                        {RELEASE_VIEWS.map((v) => (
+                            <TabsContent key={v} value={v} keepMounted>
+                                {visited.has(v) && panels[v]}
+                            </TabsContent>
+                        ))}
+                    </Tabs>
+                </SkinPopupProvider>
+            </AutoTranslateProvider>
+        </div>
+    );
+}

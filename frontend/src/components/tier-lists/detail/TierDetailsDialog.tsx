@@ -1,0 +1,230 @@
+import { Link } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
+import { ClassIcon } from "#/components/operators/list/impl/components/Icons";
+import { Kicker } from "#/components/ui/kicker";
+import { OperatorAvatar } from "#/components/ui/operator-avatar";
+import { isOperatorEntity } from "#/lib/api/tier-entities";
+import type { ITierEntryFull } from "#/lib/api/tier-lists";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { Markdown } from "#/lib/markdown";
+import { archetypeLabel, professionLabel, RARITY_LABELS } from "#/lib/utils";
+import type { OperatorRarity } from "#/types/operators";
+import { ExpandableDescription } from "../ExpandableDescription";
+import { EntityAvatar, entityAccent } from "../entities";
+import { entityPage, useEntityLabels } from "../kinds";
+import { operatorPlacementNote } from "../shared";
+import { type ReadableTextColor, readableTextColor } from "./contrast";
+import type { messages } from "./TierDetailsDialog.messages";
+import { computeTierStats } from "./tierStats";
+
+interface ITierDetailsDialogProps {
+    tier: ITierEntryFull;
+    color: string;
+}
+
+const RARITY_VAR: Record<OperatorRarity, string> = {
+    6: "var(--rarity-6)",
+    5: "var(--rarity-5)",
+    4: "var(--rarity-4)",
+    3: "var(--rarity-3)",
+    2: "var(--rarity-2)",
+    1: "var(--rarity-1)",
+};
+
+/** The rarity hues as text: the plain ones measure 1.39 to 2.52 on the light popover. */
+const RARITY_INK: Record<OperatorRarity, string> = {
+    6: "var(--rarity-6-ink)",
+    5: "var(--rarity-5-ink)",
+    4: "var(--rarity-4-ink)",
+    3: "var(--rarity-3-ink)",
+    2: "var(--rarity-2-ink)",
+    1: "var(--rarity-1-ink)",
+};
+
+function rarityShadow(textColor: ReadableTextColor) {
+    return textColor === "white" ? "0 1px 0 oklch(0 0 0 / 0.25)" : "0 1px 0 oklch(1 0 0 / 0.5)";
+}
+
+export function TierDetailsDialog({ tier, color }: ITierDetailsDialogProps) {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    const f = useFormatters();
+    const textColor = readableTextColor(color);
+    const stats = computeTierStats(tier);
+    const labels = useEntityLabels();
+    const ops = tier.entities;
+    const total = stats.total;
+
+    return (
+        <div className="flex max-h-[88dvh] flex-col sm:max-h-[80vh]">
+            <header className="relative flex items-start gap-3 border-border border-b px-4 pt-5 pb-4 sm:gap-4 sm:px-6 sm:pt-7 sm:pb-5" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${color} 16%, transparent), transparent 70%)` }}>
+                <span className="absolute inset-x-0 top-0 h-1" style={{ background: color }} aria-hidden="true" />
+                <span
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-extrabold font-features-['ss01','cv11'] font-sans text-[26px] leading-none tracking-tight sm:h-16 sm:w-16 sm:rounded-2xl sm:text-[34px]"
+                    style={{
+                        background: color,
+                        color: textColor,
+                        textShadow: rarityShadow(textColor),
+                        boxShadow: `0 6px 24px color-mix(in srgb, ${color} 30%, transparent)`,
+                    }}
+                    aria-hidden="true"
+                >
+                    {tier.name.length <= 2 ? tier.name : tier.name.charAt(0)}
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5 pr-10 sm:pr-0">
+                    <Kicker className="block leading-none">{t("detail.tierDialog.kicker")}</Kicker>
+                    <h2 className="wrap-break-word m-0 mt-1.5 font-bold font-features-['ss01','cv11'] font-sans text-[22px] text-foreground leading-[1.1] tracking-[-0.015em] sm:mt-2 sm:text-[28px]">{tier.name}</h2>
+                    <p className="m-0 mt-1.5 font-mono font-semibold text-[10.5px] text-muted-foreground tabular-nums leading-none sm:mt-2 sm:text-[11px]">
+                        <span className="text-foreground/90">{total}</span> {t("detail.tierDialog.opCount", { count: total })}
+                        {stats.lastUpdatedAt && (
+                            <>
+                                <span className="mx-1.5 opacity-50 sm:mx-2">·</span>
+                                <span>{t("detail.tierDialog.updated", { when: f.relative(stats.lastUpdatedAt) })}</span>
+                            </>
+                        )}
+                    </p>
+                </div>
+            </header>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
+                {tier.description ? (
+                    <Markdown text={tier.description} className="wrap-break-word max-w-prose font-sans text-[14.5px] text-foreground leading-[1.65] tracking-[-0.005em]" flush />
+                ) : (
+                    <p className="m-0 font-sans text-[13px] text-muted-foreground italic leading-relaxed">{t("detail.tierDialog.noDescription")}</p>
+                )}
+
+                {total > 0 && (
+                    <section aria-label={t("detail.tierDialog.overviewLabel")} className="grid grid-cols-3 gap-2">
+                        <Stat label={t("detail.tierDialog.stat.operators")} value={String(stats.operatorCount)} />
+                        <Stat label={t("detail.tierDialog.stat.avgRarity")} value={stats.averageRarity ? stats.averageRarity.toFixed(1) : "-"} />
+                        <Stat label={t("detail.tierDialog.stat.meleeRanged")} value={`${stats.position.melee} / ${stats.position.ranged}`} />
+                    </section>
+                )}
+
+                {stats.rarity.length > 0 && (
+                    <section aria-label={t("detail.tierDialog.rarityLabel")} className="space-y-2">
+                        <SectionHeading>{t("detail.tierDialog.rarityHeading")}</SectionHeading>
+                        <div className="flex flex-wrap gap-1.5">
+                            {stats.rarity.map(({ rarity, count }) => (
+                                <span key={rarity} className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 font-sans font-semibold text-[12.5px] text-foreground leading-none" style={{ borderColor: `color-mix(in srgb, ${RARITY_VAR[rarity]} 38%, var(--border))` }}>
+                                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: RARITY_VAR[rarity] }} aria-hidden="true" />
+                                    <span className="tabular-nums" style={{ color: RARITY_INK[rarity] }}>
+                                        {RARITY_LABELS[rarity]}
+                                    </span>
+                                    <span className="font-medium font-mono text-[11.5px] text-muted-foreground tabular-nums">{count}</span>
+                                </span>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {stats.profession.length > 0 && (
+                    <section aria-label={t("detail.tierDialog.classLabel")} className="space-y-2">
+                        <SectionHeading>{t("detail.tierDialog.classHeading")}</SectionHeading>
+                        <div className="flex flex-wrap gap-1.5">
+                            {stats.profession.map(({ profession, professionName, count }) => (
+                                <span key={profession} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 font-sans font-semibold text-[12.5px] text-foreground leading-none">
+                                    <ClassIcon profession={profession} size={14} />
+                                    <span>{professionLabel({ profession, professionName })}</span>
+                                    <span className="font-medium font-mono text-[11.5px] text-muted-foreground tabular-nums">{count}</span>
+                                </span>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                <section aria-label={t("detail.tierDialog.operatorsLabel")} className="space-y-2.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                        <SectionHeading>{t("detail.tierDialog.operatorsHeading")}</SectionHeading>
+                        <span className="font-mono text-[10.5px] text-muted-foreground tabular-nums">{total}</span>
+                    </div>
+                    {ops.length === 0 ? (
+                        <p className="rounded-lg border border-border border-dashed bg-muted/20 px-4 py-6 text-center font-sans text-[12.5px] text-muted-foreground italic">{t("detail.tierDialog.operatorsEmpty")}</p>
+                    ) : (
+                        <ul className="m-0 grid grid-cols-1 gap-1 p-0 sm:grid-cols-2">
+                            {ops.map((op) => {
+                                const note = operatorPlacementNote(op);
+                                if (!isOperatorEntity(op)) {
+                                    const detail = labels.detail(op);
+                                    const page = entityPage(op);
+                                    const face = (
+                                        <>
+                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted font-semibold text-[11px] text-foreground" style={{ borderBottom: `2px solid ${entityAccent(op)}` }}>
+                                                <EntityAvatar entity={op} />
+                                            </span>
+                                            {op.resolved ? (
+                                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                    <span className="truncate font-sans font-semibold text-[13.5px] text-foreground tracking-[-0.005em] transition-colors group-hover:text-primary">{op.name}</span>
+                                                    <span className="truncate font-mono text-[10.5px] text-muted-foreground leading-none">{[labels.singular(op.kind), ...detail].join(" · ")}</span>
+                                                </span>
+                                            ) : (
+                                                <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-muted-foreground">{op.id}</span>
+                                            )}
+                                        </>
+                                    );
+                                    return (
+                                        <li key={op.key} className={page !== null ? "list-none rounded-lg border border-transparent transition-colors hover:border-border hover:bg-muted/40" : "list-none rounded-lg border border-transparent"}>
+                                            {page !== null ? (
+                                                <Link to={page} params={{ id: op.id }} className="group flex items-center gap-3 px-2 py-2 no-underline">
+                                                    {face}
+                                                    <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/0 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" aria-hidden="true" />
+                                                </Link>
+                                            ) : (
+                                                <div className="flex items-center gap-3 px-2 py-2">{face}</div>
+                                            )}
+                                            {note && <ExpandableDescription text={note} markdown clampLines={2} threshold={140} className="border-border/60 border-t px-3 py-2 font-sans text-[12.5px] text-muted-foreground leading-[1.55]" />}
+                                        </li>
+                                    );
+                                }
+                                return (
+                                    <li key={op.key} className="list-none rounded-lg border border-transparent transition-colors hover:border-border hover:bg-muted/40">
+                                        <Link to="/operators/$id" params={{ id: op.id }} className="group flex items-center gap-3 px-2 py-2 no-underline">
+                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted font-semibold text-[11px] text-foreground" style={{ borderBottom: `2px solid ${RARITY_VAR[op.rarity]}` }}>
+                                                <OperatorAvatar charId={op.id} name={op.name} />
+                                            </span>
+                                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                <span className="truncate font-sans font-semibold text-[13.5px] text-foreground tracking-[-0.005em] transition-colors group-hover:text-primary">{op.name}</span>
+                                                <span className="truncate font-mono text-[10.5px] text-muted-foreground leading-none">
+                                                    <span style={{ color: RARITY_INK[op.rarity] }} className="font-semibold">
+                                                        {op.rarity}★
+                                                    </span>
+                                                    <span className="mx-1 opacity-50">·</span>
+                                                    <span>{archetypeLabel(op)}</span>
+                                                </span>
+                                            </span>
+                                            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/0 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground" aria-hidden="true" />
+                                        </Link>
+                                        {note && <ExpandableDescription text={note} markdown clampLines={2} threshold={140} className="border-border/60 border-t px-3 py-2 font-sans text-[12.5px] text-muted-foreground leading-[1.55]" />}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </section>
+            </div>
+        </div>
+    );
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+    return (
+        <h3 className="m-0 leading-none">
+            <Kicker>{children}</Kicker>
+        </h3>
+    );
+}
+
+interface IStatProps {
+    label: string;
+    value: string;
+    muted?: boolean;
+}
+
+function Stat({ label, value, muted = false }: IStatProps) {
+    return (
+        <div className="rounded-lg border border-border bg-card/60 px-3 py-2.5">
+            <Kicker className="block leading-none">{label}</Kicker>
+            <p className={`m-0 mt-2 font-extrabold font-features-['ss01','cv11'] font-sans text-[20px] tabular-nums leading-none tracking-[-0.015em] ${muted ? "text-subtle-foreground" : "text-foreground"}`}>{value}</p>
+        </div>
+    );
+}

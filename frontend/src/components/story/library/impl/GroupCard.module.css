@@ -1,0 +1,916 @@
+/*
+ * Story ticket. Silhouette from tools.adachurch.com: 500x272, two halves torn at
+ * 79% along a scalloped perforation, picture turned sideways in the stub. The
+ * contents are the game's own card from `ui/[uc]mixstory.ab`: key visual
+ * cover-fitted, 516x260 logotype contained on top.
+ *
+ * Dark art in both themes, so colours here are literal, not --background /
+ * --card. Exceptions: the list row and the kind badge, which has to be legible.
+ *
+ * No tape band (five hard stripes of the sampled inks read as a palette swatch
+ * on the art) and no ring blob (noise over a photograph). The inks survive only
+ * on the spec dot and the progress fill.
+ */
+
+/*
+ * Contact sheet, not posters, about the skin planner's 177 px card: a 200 px
+ * minimum column on a 12 px gap (160 / 10 under 640). Six 223.3 x 121.5 tickets
+ * across the 1,400 px column at 1440 (223 / 224 x 121 on whole pixels; 7 would
+ * need 1,472), three 237.3 x 129.1 at 768 (a 736 column; 4 would need 836), and
+ * under 640 two 178.0 x 96.8 across the 366 px column at 390 (178 x 97 whole).
+ * The old 300 px track gave 4 / 2 / 1.
+ *
+ * The old track used `min(..., 100%)`, not a bare length, because a bare one
+ * floors the track and not the card: at a 320 px viewport the column is 296 and
+ * a bare 300 px track put every ticket 4 px into the right gutter. That column
+ * takes one 296 px ticket under the 160 px track, since two need 330.
+ *
+ * Whole pixels (2026-09-30): `repeat(auto-fill, minmax(min(200px, 100%), 1fr))`
+ * split 1,340 px six ways into 223.333 px columns, tickets at x = 255.328,
+ * 490.664, ... and 121.484 px tall, and a composited ticket snaps to a whole
+ * device pixel (407,934 px changed under `will-change: transform`). So `--cols` is what
+ * auto-fill would pick (n x 200 + (n - 1) x 12 fits), via container query, and
+ * column k ends at round(k x inner / cols), within half a pixel of 1fr. Height
+ * is the average column x 272 / 500, rounded, so a row stays one height.
+ * `--page-max` caps the column at 1,400 px, so six is the most.
+ */
+@property --story-tile-h {
+    syntax: "auto | <length>";
+    inherits: true;
+    initial-value: auto;
+}
+
+.shelf {
+    container: story-shelf / inline-size;
+}
+
+.grid {
+    --gap: 12px;
+    --cols: 1;
+    --col: calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols));
+    /* Column k spans [round((k - 1) x col), round(k x col)]. */
+    --c1: round(var(--col), 1px);
+    --c2: calc(round(2 * var(--col), 1px) - round(var(--col), 1px));
+    --c3: calc(round(3 * var(--col), 1px) - round(2 * var(--col), 1px));
+    --c4: calc(round(4 * var(--col), 1px) - round(3 * var(--col), 1px));
+    --c5: calc(round(5 * var(--col), 1px) - round(4 * var(--col), 1px));
+    --c6: calc(round(6 * var(--col), 1px) - round(5 * var(--col), 1px));
+    --story-tile-h: round(calc(var(--col) * 272 / 500), 1px);
+    display: grid;
+    grid-template-columns: var(--c1);
+    gap: var(--gap);
+}
+
+@container story-shelf (min-width: 412px) {
+    .grid {
+        --cols: 2;
+        grid-template-columns: var(--c1) var(--c2);
+    }
+}
+
+@container story-shelf (min-width: 624px) {
+    .grid {
+        --cols: 3;
+        grid-template-columns: var(--c1) var(--c2) var(--c3);
+    }
+}
+
+@container story-shelf (min-width: 836px) {
+    .grid {
+        --cols: 4;
+        grid-template-columns: var(--c1) var(--c2) var(--c3) var(--c4);
+    }
+}
+
+@container story-shelf (min-width: 1048px) {
+    .grid {
+        --cols: 5;
+        grid-template-columns: var(--c1) var(--c2) var(--c3) var(--c4) var(--c5);
+    }
+}
+
+@container story-shelf (min-width: 1260px) {
+    .grid {
+        --cols: 6;
+        grid-template-columns: var(--c1) var(--c2) var(--c3) var(--c4) var(--c5) var(--c6);
+    }
+}
+
+/* 639.98 so the grid and the title fit (`useMediaQuery("max-sm")`, under 640) switch at the same pixel. */
+@media (max-width: 639.98px) {
+    .grid {
+        --gap: 10px;
+        --cols: 1;
+        grid-template-columns: var(--c1);
+    }
+
+    @container story-shelf (min-width: 330px) {
+        .grid {
+            --cols: 2;
+            grid-template-columns: var(--c1) var(--c2);
+        }
+    }
+
+    @container story-shelf (min-width: 500px) {
+        .grid {
+            --cols: 3;
+            grid-template-columns: var(--c1) var(--c2) var(--c3);
+        }
+    }
+}
+
+/* The page header's 24 px title under 640 sets a 26.4 px line (1.1), and that
+   0.398 px is what put every ticket below it off the half pixel (598.398 at
+   390). 26.5 moves the page under it by 0.102 px. */
+@media (max-width: 639.98px) {
+    .shelfHead h1 {
+        line-height: 26.5px;
+    }
+}
+
+/* The card is the ticket plus its caption, one <button>, so the caption is as
+   much a target as the art. */
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+}
+
+.ticket {
+    position: relative;
+    display: block;
+    width: 100%;
+    /* `--story-tile-h` is the grid's whole-pixel height; `auto` (the A/B, or a
+       ticket outside a grid) falls back to the aspect ratio. */
+    height: var(--story-tile-h);
+    aspect-ratio: 500 / 272;
+    /* The logotype's caps are expressed in cqw, so they stay proportional at every card width. */
+    container-type: inline-size;
+    filter: drop-shadow(rgba(0, 0, 0, 0.4) 0 4px 10px);
+    transition:
+        filter 0.25s,
+        transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.card:hover .ticket,
+.card:focus-visible .ticket {
+    transform: scale(1.045);
+    z-index: 5;
+    filter: brightness(1.04) drop-shadow(rgba(0, 0, 0, 0.6) 0 14px 28px);
+}
+
+.card:focus-visible .ticket {
+    outline: 2px solid var(--ring);
+    outline-offset: 4px;
+    border-radius: 10px;
+}
+
+/* Both halves carry the same silhouette; the clip decides which part of it shows. */
+.half {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    -webkit-mask-image: url(/story/ticket.svg);
+    mask-image: url(/story/ticket.svg);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+.body {
+    /* The tear on a whole pixel: 79% of a 223 px ticket is 176.17. */
+    clip-path: inset(0 calc(100% - round(79%, 1px)) 0 0);
+    background: #08090d;
+}
+
+/*
+ * 113.0% oversize, copied from the game's card (`image_ss_kv` 282x204 on a 240x180
+ * card, `image_collect_kv` 237x204). The vertical bias comes from `impl/art.ts`
+ * as `object-position`, since the 17 mainline key visuals have the title
+ * typeset in.
+ *
+ * `max-width: none` is load-bearing: preflight's `img { max-width: 100% }`
+ * capped Shatterpoint's box at 336.5 x 206.9 instead of 380.2 x 206.9, so the
+ * crop was 61.5% of the poster's height instead of 54.4% and reached row 0.657,
+ * where SHATTERPOINT is typeset (the stray titles on four mainline cards).
+ */
+.kv {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 113%;
+    max-width: none;
+    height: 113%;
+    object-fit: cover;
+    transform: translate(-50%, -50%);
+}
+
+/*
+ * Scrim over the bottom-left text corner only. A whole-card ramp (100deg, 88%
+ * black to nothing at 92%, plus a 72% bottom band) read as a dark card with a
+ * faint picture behind it.
+ *
+ * The art is not blurred; the softness is the key visual's own authored edge
+ * vignette. The only blur here is the drop-shadow (10 px, 28 px on hover).
+ */
+.scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    /* Reach, second cut (2026-09-24): the logotype is bound by HEIGHT and its
+       right end lands 70.5% across the card, where the first radial had faded
+       to 0.14 and a light plate (`main_1`, `main_2`) showed through the white
+       ink. The ellipse is wider: 0.55 to 40%, 0.26 to 64%; the top right of
+       the card is still clear past 84%. */
+    background: radial-gradient(150% 112% at 0% 100%, rgba(4, 6, 10, 0.86) 0, rgba(4, 6, 10, 0.55) 40%, rgba(4, 6, 10, 0.26) 64%, rgba(4, 6, 10, 0) 84%), linear-gradient(to top, rgba(4, 6, 10, 0.6) 0, rgba(4, 6, 10, 0) 30%);
+}
+
+/* The stub is two elements on purpose: the mask lives on the inner one, so the
+   outer one's drop-shadow renders OUTSIDE the silhouette instead of being
+   clipped away by it (filter, then clip, then mask, in that order). */
+.stub {
+    position: absolute;
+    inset: 0;
+    transform-origin: 79% center;
+    transition:
+        transform 0.32s cubic-bezier(0.2, 0, 0, 1),
+        filter 0.32s;
+}
+
+.card:hover .stub,
+.card:focus-visible .stub {
+    transform: rotate(-5deg) translate(5px, -8px);
+    filter: drop-shadow(rgba(0, 0, 0, 0.55) -6px 8px 12px);
+}
+
+.stubFace {
+    clip-path: inset(0 0 0 round(79%, 1px));
+    background: #0a1418;
+}
+
+/*
+ * rotate(90), not -90. Recipe: 190% cover, a quarter turn, the 21% masked stub,
+ * which samples 78.0..98.4% across the rotated image. Under -90 that is the
+ * image's bottom: rows 0.711..0.865 on a 632x456 event plate and 0.652..0.763 on
+ * a 432x432 mainline poster, where `kv_stormwatch.png` typesets STORMWATCH.
+ * Under 90 it is the top, rows 0.135..0.289 and 0.237..0.348, art on all 81
+ * plates. Only the 17 mainline posters carry type; the 64 event plates (632x456
+ * and 532x456) have none.
+ */
+.stubImage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 190%;
+    /* Same preflight cap: without this the box is 336.5 x 347.8, not 639.4 x 347.8. */
+    max-width: none;
+    height: 190%;
+    object-fit: cover;
+    transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.stubBlank {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--ticket-c1) 22%, transparent) 0, transparent 65%), #0d0f16;
+}
+
+.content {
+    position: absolute;
+    /* 23% on the right is the 21% stub plus a 2% margin before the tear. */
+    inset: 8px 23% 10px 10px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 0;
+    min-width: 0;
+}
+
+/*
+ * One pill for every kind. `.kindBadge` is the themed surfaces' (chapter modal,
+ * reading order, illustrations panel); the ticket's `.badge` adds a hairline so
+ * the dark-mode pill has an edge on dark art. 21.00:1 and 19.35:1; the tinted
+ * pills they replaced went down to 4.31:1 (MAIN STORY on Stormwatch's #4a4a26).
+ */
+.badge,
+.kindBadge {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-family: var(--font-heading);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: #000;
+    background: #fff;
+}
+
+.badge {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+:global(.dark) .badge,
+:global(.dark) .kindBadge {
+    color: #fff;
+    background: #0b0d12;
+}
+
+:global(.dark) .badge {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+/*
+ * The title is the game's per-event 516x260 logotype.
+ *
+ * Caps 72% x 60% of the card (the game's `image_title` 197x103 on a 240x180 card
+ * is 82.1% x 57.2%). The first cut, 62% by 52%, drew every plate 188.9 x 95.2
+ * and was hard to read; at 72% by 60% the same plate is 237.2 x 119.5, 70.5% of
+ * the card's width. The plate's aspect (1.985) is under the box's (2.028), so
+ * all 81 are height-bound and render at one size. Height cap in cqw because a
+ * block-axis container unit needs a sized container: 60 * 272 / 500 = 32.64cqw.
+ *
+ * Separation is a drop-shadow halo on the logotype's alpha, leaving the art 20 px
+ * away untouched, instead of the first cut's 88% black ramp over the card's left.
+ *
+ * Bottom left, not the game's low right of centre, because the stub owns the right.
+ */
+.logotype {
+    /* The cap is the content box, not 72cqw of the card: at 23% + 10 px the box
+       is 72.5cqw on a 223 px card and 71.4cqw on a 178 px one. The height cap is
+       the old 32.64cqw, so a 223.3 px ticket draws a 72.9 px tall logotype. */
+    max-width: 100%;
+    max-height: 32.64cqw;
+    width: auto;
+    height: auto;
+    margin-top: auto;
+    object-fit: contain;
+    object-position: left center;
+    /* 1 px edge for thin strokes on light art, plus a 6 px dark ground.
+       Two shadows, not four (2026-09-30): each ticket entering the viewport
+       re-blurs its logotype per shadow. With all four (two 1 px edges, 6 px,
+       18 px glow) off: GPU per wheel scroll 602.6 -> 229.7 ms, GPU-bound
+       dropped frames 44.3 -> 20.7%. */
+    filter: drop-shadow(rgba(0, 0, 0, 1) 0 0 1px) drop-shadow(rgba(0, 0, 0, 0.9) 0 2px 6px);
+}
+
+/* Groups with no logotype set their name at the size impl/titleFit.ts fits.
+   No ellipsis or clamp: every line is whole words. */
+.title {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    margin: auto 0 0;
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: calc(var(--title-size, 18) * 1px);
+    letter-spacing: -0.5px;
+    line-height: 1.04;
+    color: #fff;
+    text-transform: uppercase;
+    overflow-wrap: var(--title-wrap, normal);
+    /* Same two-shadow halo as the logotype. */
+    text-shadow:
+        rgba(0, 0, 0, 1) 0 0 1px,
+        rgba(0, 0, 0, 0.9) 0 2px 6px;
+}
+
+.titleLine {
+    display: block;
+}
+
+/* No deco glyph on the ticket. It is a two-line numeral (`deco_stormwatch.png`:
+   EP over 09 on 56x68), one white blob at the 13.00 and 14.00 px this row can
+   give it. The game draws it 51x64 on a 240x180 card, 21.3% by 35.6% (71.6 x
+   65.2 on ours), only because `variant_mainline` has no logotype; beside the
+   then 62%-wide logotype and a 21% stub it left 17% of the card. It stays on
+   the chapter modal header (29.64 x 36.00) and the list row's blank plate. */
+/*
+ * Caption under the ticket, not inside it. Inside at the 11 px floor, on the
+ * 223.3 px card at 1440 it took two lines on 86 of 87 tickets and squeezed the
+ * logotype to 0.0..49.7 px tall (it was 119.5 on the 336.5 card); on the 178 px
+ * phone card 62 of 87 took three lines, the logotype got at most 25.0 px and 6
+ * children ran out of the content box. "ACT18MINI · 2025 · 6 entries · 1h 52m"
+ * is wider than any content box the small ticket has; under the ticket it gets
+ * the card's whole width, so the logotype keeps its 32.64cqw cap.
+ *
+ * Sans, not the old 9 px uppercase mono: mono is how the site writes codes
+ * (1-4, GT-1). Tabular figures keep 12 and 14 entries aligned.
+ */
+.spec {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+    padding: 0 2px;
+    color: var(--muted-foreground);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+    line-height: 16px;
+}
+
+/* Centred on the first line; the caption can wrap. */
+.dot {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: var(--ticket-c2);
+}
+
+/* THE CAPTION WRAPS BETWEEN FIELDS, NEVER INSIDE ONE, and never ellipsises. */
+.specText {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.3em;
+    min-width: 0;
+}
+
+.specField {
+    white-space: nowrap;
+}
+
+/* The reader's 11 px floor, taken on the phone only: on the 178 px card it
+   puts "Chapter 4 · 20 entries · 38m" back on one line. */
+@media (max-width: 639.98px) {
+    .spec {
+        font-size: 11px;
+        line-height: 15px;
+    }
+    .dot {
+        margin-top: 4.5px;
+    }
+}
+
+.progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.progressFill {
+    display: block;
+    height: 100%;
+    background: var(--ticket-c1);
+    transition: width 0.3s;
+}
+
+/* Shared by the ticket and the read-state pills, so the filter pills are the
+   legend for the bookmark colours. Unread is muted ink in the pills, but an
+   untouched ticket gets no bookmark at all: signed out that is most of the 87
+   EN groups. */
+:root {
+    --story-mark-progress: rgb(240, 196, 25);
+    --story-mark-done: rgb(79, 209, 122);
+}
+
+.bookmark {
+    position: absolute;
+    top: 0;
+    /* Centred on the stub (10.5% of the card) at the smaller ticket's scale. */
+    right: calc(10.5% - 6px);
+    z-index: 3;
+    width: 12px;
+    height: 22px;
+    -webkit-mask-image: url(/story/bookmark.svg);
+    mask-image: url(/story/bookmark.svg);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    background: var(--story-mark-progress);
+}
+
+.bookmarkDone {
+    background: var(--story-mark-done);
+}
+
+/* The same tab at legend size, for the read-state pills. */
+.mark {
+    display: inline-block;
+    flex: none;
+    width: 8px;
+    height: 14px;
+    -webkit-mask-image: url(/story/bookmark.svg);
+    mask-image: url(/story/bookmark.svg);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    background: var(--muted-foreground);
+}
+
+.markProgress {
+    background: var(--story-mark-progress);
+}
+
+.markDone {
+    background: var(--story-mark-done);
+}
+
+.rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.row {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    min-height: 74px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--ticket-c1);
+    border-radius: 8px;
+    background: var(--secondary);
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color 0.2s,
+        background 0.2s;
+}
+
+.row:hover {
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+    border-left-color: var(--ticket-c1);
+    background: color-mix(in srgb, var(--foreground) 5%, var(--secondary));
+}
+
+.row:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+.rowThumb {
+    position: relative;
+    flex-shrink: 0;
+    width: 172px;
+    height: 92px;
+    overflow: hidden;
+    background: #0a1418;
+}
+
+/* `cover`, not `contain`: a 420x230 key visual letterboxed into a 172x92 box
+   left two grey bars and the row read as a broken image. The child combinator
+   keeps the blank plate's own mark (below) out of this rule. */
+.rowThumb > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* The chapter mark, burnt into the bottom left of the key visual the way an
+   episode number is stamped on a season tile. Main story only: an event has no
+   number a reader knows it by. */
+.rowEp {
+    position: absolute;
+    left: 6px;
+    bottom: 5px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.62);
+    color: rgba(255, 255, 255, 0.92);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+}
+
+.rowMark {
+    width: 60%;
+    height: 60%;
+    /* The blank plate is dark art in both themes and the deco is drawn for the
+       game's dark chrome at mean luminance 114.9, so it is flattened to the
+       white the plate's fallback code already prints. */
+    filter: brightness(0) invert(1);
+    opacity: 0.7;
+    object-fit: contain;
+}
+
+.rowBlank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--ticket-c1) 22%, transparent) 0, transparent 65%), #0d0f16;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.rowText {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 10px 14px;
+}
+
+/* The same pill as the ticket's, at the row's smaller scale. */
+.rowBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    min-width: 80px;
+    height: 14px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #fff;
+    color: #000;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    font-family: var(--font-heading);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+:global(.dark) .rowBadge {
+    background: #0b0d12;
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+/* Two whole-word lines, no ellipsis (GRANI AND THE KNIGHTS'... lost its last
+   word). Over the 87 groups the longest title is 38 chars and the longest word
+   Zwillingstürme (14), against a ~1,062 px column at 1554 and 168 px at 375,
+   so 2 lines always fit. */
+.rowTitle {
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 15px;
+    line-height: 18.9px;
+    letter-spacing: -0.2px;
+    text-transform: uppercase;
+    color: var(--foreground);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: normal;
+}
+
+.rowSpec {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted-foreground);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.rowSpec .dot {
+    margin-top: 0;
+}
+
+/* The fraction and its bar. The bar is rendered ONLY above 0%, because an
+   empty 64 px track at the far right of a row is a grey dash with no label,
+   and that is exactly what it read as. */
+.rowMeter {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 5px;
+    padding-right: 4px;
+}
+
+.rowFraction {
+    color: var(--muted-foreground);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.rowBar {
+    width: 64px;
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--foreground) 12%, transparent);
+    overflow: hidden;
+}
+
+.rowBarFill {
+    display: block;
+    height: 100%;
+    background: var(--ticket-c1);
+}
+
+.rowChevron {
+    flex-shrink: 0;
+    align-self: center;
+    width: 16px;
+    height: 16px;
+    margin: 0 12px 0 10px;
+    color: var(--muted-foreground);
+    transition:
+        color 0.2s,
+        transform 0.2s;
+}
+
+.row:hover .rowChevron {
+    color: var(--foreground);
+    transform: translateX(2px);
+}
+
+@media (max-width: 640px) {
+    .rowThumb {
+        width: 104px;
+        height: 74px;
+    }
+    .rowBar {
+        display: none;
+    }
+    .row .rowChevron {
+        margin: 0 8px 0 4px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ticket,
+    .stub,
+    .progressFill {
+        transition: none;
+    }
+    .card:hover .ticket,
+    .card:focus-visible .ticket {
+        transform: none;
+    }
+}
+
+/*
+ * The theme glyph is a sibling of the card button, not a child: nested buttons
+ * are invalid and break tab order. The wrapper has no size of its own, so
+ * nothing reflows. Shown on hover/focus where the pointer can hover, always
+ * where it can't, and always while its theme plays so the reader can find the
+ * card the bottom bar refers to.
+ */
+.cardWrap {
+    position: relative;
+    /* The glyph is placed in cqw of the TICKET's width, which is the wrapper's. */
+    container-type: inline-size;
+    /* EVERY CARD IS ITS OWN LAYER (2026-09-30), a TRADE taken knowingly. A
+       scroll then moves 87 rastered tiles instead of re-rastering the masked,
+       shadowed tickets: preview 1440 wheel, dropped 8.4 -> 2.7%, GPU 222.3 ->
+       119.1 ms, raster 29.1 -> 4.0 ms (13 -> 100 layers, renderer tile memory
+       222.12 -> 217.30 MB). It is not pixel-identical: the shadow and caption
+       edges blend in their own surface and differ at max 3 (1440 top 14,143
+       px). It needs the whole-pixel shelf above; on a fractional one the
+       layers snap and 407,934 px change. */
+    will-change: transform;
+}
+
+/* The ticket lifts to z-index 5 on hover; the wrapper is its stacking context now. */
+.cardWrap:hover {
+    z-index: 5;
+}
+
+.cardPlay,
+.rowPlay {
+    position: absolute;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    transition:
+        opacity 0.2s,
+        background 0.2s,
+        border-color 0.2s,
+        color 0.2s;
+}
+
+/* On the stub, the only text-free part: at 34 px in the top left it sat on the
+   kind badge, and on a 97 px phone ticket the 44 px touch glyph covered it
+   outright. A 28 px disc centred on the stub (21% wide, ticket 54.4cqw tall);
+   the ::before below keeps a 44 px target on a coarse pointer. */
+.cardPlay {
+    right: calc(10.5cqw - 14px);
+    top: calc(27.2cqw - 14px);
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    opacity: 0;
+    /* Blur only while visible: backdrop-filter layerizes even at opacity 0
+       (100 layers at 1440 vs 14, committed every scroll frame). The delayed
+       0 s transition keeps the blur until the 0.2 s fade out ends. */
+    transition:
+        opacity 0.2s,
+        background 0.2s,
+        border-color 0.2s,
+        color 0.2s,
+        backdrop-filter 0s linear 0.2s;
+}
+
+.cardWrap:hover .cardPlay,
+.cardPlay:focus-visible,
+.cardPlay[data-sounding="true"] {
+    opacity: 1;
+    backdrop-filter: blur(2px);
+    transition:
+        opacity 0.2s,
+        background 0.2s,
+        border-color 0.2s,
+        color 0.2s,
+        backdrop-filter 0s;
+}
+
+.cardPlay:hover {
+    background: rgba(0, 0, 0, 0.74);
+}
+
+.cardPlay:focus-visible,
+.rowPlay:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+.rowWrap {
+    position: relative;
+}
+
+.rowPlay {
+    top: 50%;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    transform: translateY(-50%);
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--muted-foreground);
+}
+
+.rowPlay:hover,
+.rowPlay[data-sounding="true"] {
+    border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+    color: var(--primary-ink);
+}
+
+/* Room for the glyph, taken out of the chevron's own margin so the row's text column is untouched. */
+.rowWrap[data-music] .rowChevron {
+    margin-right: 52px;
+}
+
+/* 44 px target, always shown. The width query is not redundant: `hover: none`
+   is about the pointer, so a 390 px window with a mouse got a 34 px glyph that
+   appeared only on hover. `pointer: coarse` catches a touch screen that also
+   reports hover (audit-002 Z3: 96 of 219 /stories targets at 28x28). */
+@media (hover: none), (pointer: coarse), (max-width: 640px) {
+    .cardPlay {
+        opacity: 1;
+        backdrop-filter: blur(2px);
+    }
+    .cardPlay::before {
+        content: "";
+        position: absolute;
+        inset: -8px;
+    }
+    .rowPlay {
+        right: 8px;
+        width: 44px;
+        height: 44px;
+    }
+    .rowWrap[data-music] .rowChevron {
+        margin-right: 58px;
+    }
+}

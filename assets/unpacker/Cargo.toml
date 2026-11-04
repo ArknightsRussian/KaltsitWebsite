@@ -1,0 +1,43 @@
+[package]
+name = "unpacker"
+version = "0.1.0"
+edition = "2024"
+default-run = "unpacker"
+
+[[bin]]
+name = "generate-fbs"
+path = "src/bin/generate_fbs.rs"
+
+[dependencies]
+aes = "0.8.4"
+anyhow = { version = "1.0.104", features = ["backtrace"] }
+base64 = "0.22.1"
+cbc = "0.1.2"
+cipher = "0.4"
+clap = { version = "4.5.60", features = ["derive"] }
+flatbuffers = "25.12.19"
+# Vendored from google/flatbuffers v25.12.19 `rust/reflection` and built against
+# the patched `vendor/flatbuffers`, so `schema-sync` judges a candidate schema
+# with the same verifier and options the generated decoder uses.
+flatbuffers-reflection = { path = "vendor/flatbuffers_reflection" }
+hex-literal = "1.1.0"
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+indicatif = "0.18.4"
+lz4 = "1.28.1"
+lzma-rs = "0.3.0"
+rayon = "1.11.0"
+regex = "1.12.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+texture2ddecoder = "0.1.2"
+walkdir = "2.5.0"
+
+# Vendored flatbuffers: one added `VerifierOptions` field, `max_alignment`, so
+# the verifier can accept Hypergryph's 4-aligned 8-byte scalars. Inert at its
+# `usize::MAX` default. See vendor/flatbuffers/MYRTLE-PATCH.md.
+[patch.crates-io]
+flatbuffers = { path = "vendor/flatbuffers" }
+
+[profile.release]
+codegen-units = 256

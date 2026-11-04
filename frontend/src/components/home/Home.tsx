@@ -1,0 +1,28 @@
+import { MaintenanceBanner } from "#/components/maintenance/MaintenanceCountdown";
+import { useCommand } from "#/lib/command-context";
+import styles from "./impl/Digest.module.css";
+import HappeningNow from "./impl/HappeningNow";
+import Hero from "./impl/Hero";
+import LatestUpdates from "./impl/LatestUpdates";
+import shared from "./impl/shared.module.css";
+import TopPlayers from "./impl/TopPlayers";
+
+/** The section the hero's scroll cue lands on. */
+const LIVE_SECTION_ID = "happening-now";
+
+export default function Home() {
+    const { open: openCmd } = useCommand();
+
+    return (
+        <div className="relative flex flex-1 flex-col">
+            <Hero onOpenCommand={openCmd} scrollTargetId={LIVE_SECTION_ID} />
+            {/* Renders nothing unless a maintenance is announced or running. */}
+            <MaintenanceBanner className={`${shared.container} mb-4`} />
+            <HappeningNow id={LIVE_SECTION_ID} />
+            <section className={`${shared.container} ${styles.section}`}>
+                <TopPlayers />
+                <LatestUpdates />
+            </section>
+        </div>
+    );
+}

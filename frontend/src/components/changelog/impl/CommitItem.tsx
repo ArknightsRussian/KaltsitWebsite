@@ -1,0 +1,114 @@
+import { ChevronDown, GitCommitHorizontal } from "lucide-react";
+import { Badge } from "#/components/ui/badge";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import type { IChangelogCommit } from "#/lib/api/changelog";
+import { type IFormatters, useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { cn } from "#/lib/utils";
+import type { messages } from "./CommitItem.messages";
+import { commitTypeStyle } from "./commit-types";
+import type { messages as commitTypeMessages } from "./commit-types.messages";
+
+const BODY_PREVIEW_LIMIT = 220;
+
+/** Resolves this file's own keys plus the commit-type labels the styles table points at. */
+type CommitItemT = TypedT<typeof messages & typeof commitTypeMessages>;
+
+function absoluteDate(iso: string, f: IFormatters): string {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return f.date(d, { dateStyle: "medium", timeStyle: "short" });
+}
+
+export function CommitItem({ commit }: { commit: IChangelogCommit }) {
+    const t: CommitItemT = useT("changelog");
+    const f = useFormatters();
+    const style = commitTypeStyle(commit.type);
+    const { Icon } = style;
+    const hasBody = commit.body.length > 0;
+    const longBody = commit.body.length > BODY_PREVIEW_LIMIT;
+
+    return (
+        <li className="group/item relative grid grid-cols-[1.25rem_minmax(0,1fr)] gap-x-3 pb-5 last:pb-0 sm:grid-cols-[1.5rem_minmax(0,1fr)] sm:gap-x-4">
+            <div className="relative flex justify-center">
+                <span aria-hidden="true" className="absolute top-4 -bottom-5 w-px bg-linear-to-b from-border to-border/50 group-last/item:hidden" />
+                <span className="relative z-1 mt-1 size-3.5 rounded-full bg-background ring-3 ring-background">
+                    <span className={cn("block size-full rounded-full ring-2 ring-background", style.dotClass)} />
+                </span>
+            </div>
+
+            <div className="min-w-0 rounded-2xl border border-border bg-card px-3.5 py-3 transition-colors hover:border-border/70 sm:px-4">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <Badge variant="tint" style={{ "--tone": style.tone } as React.CSSProperties}>
+                        <Icon strokeWidth={2} aria-hidden="true" />
+                        {t(style.labelKey)}
+                    </Badge>
+                    {commit.scope ? <span className="inline-flex shrink-0 items-center rounded-md bg-muted px-1.5 py-0.5 font-medium font-mono text-[11px] text-muted-foreground leading-none">{commit.scope}</span> : null}
+                    {commit.breaking ? (
+                        <Badge variant="tint" className="font-semibold" style={{ "--tone": "var(--destructive)" } as React.CSSProperties}>
+                            {t("commit.breaking")}
+                        </Badge>
+                    ) : null}
+                </div>
+
+                <p className="m-0 mt-2 font-sans font-semibold text-[15px] text-foreground leading-snug">{commit.title}</p>
+
+                {hasBody ? (
+                    longBody ? (
+                        <details className="group/body mt-1.5">
+                            <summary className="inline-flex cursor-pointer list-none items-center gap-1 font-sans text-[13px] text-muted-foreground leading-none transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+                                <ChevronDown className="size-3.5 transition-transform duration-200 group-open/body:rotate-180" strokeWidth={2} aria-hidden="true" />
+                                {t("commit.details")}
+                            </summary>
+                            <p className="m-0 mt-2 whitespace-pre-line font-sans text-[13.5px] text-muted-foreground leading-[1.6]">{commit.body}</p>
+                        </details>
+                    ) : (
+                        <p className="m-0 mt-1.5 whitespace-pre-line font-sans text-[13.5px] text-muted-foreground leading-[1.6]">{commit.body}</p>
+                    )
+                ) : null}
+
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 font-sans text-[12.5px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                        {commit.author.avatarURL ? (
+                            <img src={commit.author.avatarURL} alt="" width={18} height={18} loading="lazy" className="size-4.5 shrink-0 rounded-full bg-muted object-cover ring-1 ring-border" />
+                        ) : (
+                            <span className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border">
+                                <GitCommitHorizontal className="size-3" strokeWidth={2} aria-hidden="true" />
+                            </span>
+                        )}
+                        {commit.author.profileURL ? (
+                            <a href={commit.author.profileURL} target="_blank" rel="noreferrer" className="font-medium text-foreground/80 no-underline transition-colors hover:text-primary">
+                                {commit.author.name}
+                            </a>
+                        ) : (
+                            <span className="font-medium text-foreground/80">{commit.author.name}</span>
+                        )}
+                    </span>
+                    <span aria-hidden="true" className="text-border">
+                        ·
+                    </span>
+                    <Tooltip>
+                        <TooltipTrigger render={<time dateTime={commit.date} className="tabular-nums" />}>{f.relative(commit.date)}</TooltipTrigger>
+                        <TooltipPopup>{absoluteDate(commit.date, f)}</TooltipPopup>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={
+                                <a
+                                    href={commit.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label={t("commit.viewOnGitHub", { sha: commit.shortSha })}
+                                    className="ml-auto inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 font-medium font-mono text-[11.5px] text-muted-foreground no-underline transition-colors hover:bg-muted hover:text-foreground"
+                                >
+                                    {commit.shortSha}
+                                </a>
+                            }
+                        />
+                        <TooltipPopup>{t("commit.viewOnGitHub", { sha: commit.shortSha })}</TooltipPopup>
+                    </Tooltip>
+                </div>
+            </div>
+        </li>
+    );
+}

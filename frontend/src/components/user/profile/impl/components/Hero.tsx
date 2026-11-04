@@ -1,0 +1,286 @@
+import { Copy, HashIcon, ImageIcon, Share2 } from "lucide-react";
+import { useState } from "react";
+import { Button } from "#/components/ui/button";
+import { toastManager } from "#/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { type IFormatters, useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { getLevelProgress, type ILevelProgress, MAX_PLAYER_LEVEL } from "#/lib/registry/player-level";
+import { countGameDays } from "#/lib/registry/server-time";
+import { DEFAULT_AVATAR_ID, getAvatarById } from "#/lib/utils";
+import type { ProfileBackground } from "#/types/generated/ProfileBackground";
+import type { IUserProfile } from "#/types/user";
+import { isHidden } from "../header";
+import type { messages } from "./Hero.messages";
+import { HeroArt } from "./HeroArt";
+import { HiddenMarker } from "./HiddenMarker";
+import shared from "./shared.module.css";
+
+interface IHeroProps {
+    profile: IUserProfile;
+    /**
+     * The art behind the header: the saved one, or the background editor's draft in its
+     * preview. `null` or absent draws the plain header (tint and grid).
+     */
+    background?: ProfileBackground | null;
+    /** Opens the background editor. Passed for the owner alone; absent, no control renders. */
+    onChangeBackground?: () => void;
+    /** Opens the header numbers editor. Passed for the owner alone, like `onChangeBackground`. */
+    onEditHeader?: () => void;
+    /** The reader owns the profile: the numbers they hid render for them, marked. */
+    isOwner?: boolean;
+}
+
+/** The header's tint, half of its plain look. */
+function HeroTint() {
+    return (
+        <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+                background: "radial-gradient(ellipse 80% 60% at 60% 40%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 70%), radial-gradient(ellipse 60% 80% at 80% 20%, oklch(0.696 0.17 162 / 0.06), transparent 70%)",
+            }}
+        />
+    );
+}
+
+/** The header's faint grid, the other half. */
+function HeroGrid() {
+    return (
+        <div
+            className="pointer-events-none absolute inset-0 opacity-[0.06]"
+            style={{
+                backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
+                backgroundSize: "44px 44px",
+                maskImage: "radial-gradient(ellipse 60% 50% at 30% 50%, black 0%, transparent 80%)",
+                WebkitMaskImage: "radial-gradient(ellipse 60% 50% at 30% 50%, black 0%, transparent 80%)",
+            }}
+        />
+    );
+}
+
+async function copyToClipboard(text: string, successTitle: string, successDescription: string, errorTitle: string, errorDescription: string) {
+    try {
+        await navigator.clipboard.writeText(text);
+        toastManager.add({
+            id: `copy-${Date.now()}`,
+            title: successTitle,
+            description: successDescription,
+            type: "success",
+        });
+    } catch {
+        toastManager.add({
+            id: `copy-error-${Date.now()}`,
+            title: errorTitle,
+            description: errorDescription,
+            type: "error",
+        });
+    }
+}
+
+export function Hero({ profile, background, onChangeBackground, onEditHeader, isOwner = false }: IHeroProps) {
+    const t: TypedT<typeof messages> = useT("user");
+    const f = useFormatters();
+    const [avatarErrored, setAvatarErrored] = useState(false);
+    const levelProgress = getLevelProgress(profile.level, profile.exp);
+    const avatarSrc = getAvatarById(profile.avatar_id ?? DEFAULT_AVATAR_ID);
+
+    const copyFailed = t("profile.hero.copyFailed.desc");
+
+    const handleShare = () => copyToClipboard(window.location.href, t("profile.hero.share.copied.title"), t("profile.hero.share.copied.desc"), t("profile.hero.share.failed.title"), copyFailed);
+
+    const handleCopyUid = () => copyToClipboard(profile.uid, t("profile.hero.uid.copied.title"), t("profile.hero.copied.desc", { value: profile.uid }), t("profile.hero.uid.failed.title"), copyFailed);
+
+    // The site says "player" throughout (settled in #ui-ux); the game itself calls them Doctors.
+    const displayNickname = profile.nickname ?? `Player ${profile.uid}`;
+    const usernameWithDiscriminator = profile.nick_number ? `${displayNickname}#${profile.nick_number}` : displayNickname;
+    const handleCopyUsername = () => copyToClipboard(usernameWithDiscriminator, t("profile.hero.username.copied.title"), t("profile.hero.copied.desc", { value: usernameWithDiscriminator }), t("profile.hero.username.failed.title"), copyFailed);
+
+    const totalSigninDays = profile.register_ts && profile.last_online_ts ? countGameDays(profile.register_ts, profile.last_online_ts, profile.server) : 0;
+
+    // What the owner hid. A visitor was sent `null` for each of these and the same list, so
+    // a hidden piece is absent for them; the owner sees it with a marker. With no layout
+    // (the kill switch) every flag is false and the header renders as before.
+    const layout = profile.profile_layout ?? null;
+    const levelHidden = isHidden(layout, "level");
+    const registeredHidden = isHidden(layout, "registered");
+    const signInHidden = isHidden(layout, "sign_in");
+    const showRegistered = isOwner || !registeredHidden;
+    const showSignIn = typeof profile.cumulative_signin === "number" && profile.cumulative_signin > 0;
+
+    return (
+        <section className="relative overflow-hidden rounded-2xl border border-[oklch(0.28_0.005_285)] bg-card shadow-sm sm:rounded-3xl">
+            {/* Two slots, as the two decoration layers were before backgrounds, so with none the markup (base-ui's generated ids included) is byte-identical to it. */}
+            {background ? (
+                <HeroArt
+                    key={`${background.kind}:${background.id}:${background.elite ?? ""}`}
+                    background={background}
+                    fallback={
+                        <>
+                            <HeroTint />
+                            <HeroGrid />
+                        </>
+                    }
+                />
+            ) : (
+                <HeroTint />
+            )}
+            {background ? null : <HeroGrid />}
+
+            <div className="relative grid grid-cols-[auto_1fr] items-start gap-4 px-5 pt-5 pb-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-6 sm:px-7 sm:pt-7 sm:pb-6 lg:gap-7 lg:px-8 lg:pt-8 lg:pb-7">
+                <div className="relative">
+                    <div
+                        className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl shadow-[inset_0_1px_0_rgb(255_255_255/0.45),inset_0_-2px_0_rgb(0_0_0/0.18),0_0_0_1px_rgb(255_255_255/0.06),0_8px_24px_rgb(0_0_0/0.12)] sm:h-24 sm:w-24 sm:rounded-[22px] lg:h-30 lg:w-30 lg:rounded-[26px]"
+                        aria-hidden="true"
+                    >
+                        {avatarErrored ? (
+                            <span className="flex size-full items-center justify-center bg-muted">{profile.nickname?.slice(0, 1)}</span>
+                        ) : (
+                            <img
+                                alt={profile.nickname ?? profile.uid}
+                                src={avatarSrc}
+                                onLoad={(e) => {
+                                    if (e.currentTarget.naturalWidth === 0) setAvatarErrored(true);
+                                }}
+                                onError={() => setAvatarErrored(true)}
+                                className="size-full object-cover"
+                            />
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 self-start sm:order-3 sm:pt-1">
+                    <Button variant="outline" size="sm" onClick={handleShare} className="gap-1.5">
+                        <Share2 className="size-3.5" />
+                        <span className="xs:inline hidden sm:inline">{t("profile.hero.share")}</span>
+                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger
+                            render={(triggerProps) => (
+                                <Button {...triggerProps} variant="outline" size="icon" onClick={handleCopyUid} aria-label={t("profile.hero.copyUid")} className="size-8">
+                                    <Copy className="size-3.5" />
+                                </Button>
+                            )}
+                        />
+                        <TooltipPopup>{t("profile.hero.copyUid")}</TooltipPopup>
+                    </Tooltip>
+                    {onEditHeader && (
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={(triggerProps) => (
+                                    <Button {...triggerProps} variant="outline" size="icon" onClick={onEditHeader} aria-label={t("profile.hero.editHeader")} className="size-8">
+                                        <HashIcon className="size-3.5" />
+                                    </Button>
+                                )}
+                            />
+                            <TooltipPopup>{t("profile.hero.editHeader")}</TooltipPopup>
+                        </Tooltip>
+                    )}
+                    {onChangeBackground && (
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={(triggerProps) => (
+                                    <Button {...triggerProps} variant="outline" size="icon" onClick={onChangeBackground} aria-label={t("profile.hero.changeBackground")} className="size-8">
+                                        <ImageIcon className="size-3.5" />
+                                    </Button>
+                                )}
+                            />
+                            <TooltipPopup>{t("profile.hero.changeBackground")}</TooltipPopup>
+                        </Tooltip>
+                    )}
+                </div>
+
+                <div className="col-span-2 flex min-w-0 flex-col sm:order-2 sm:col-span-1">
+                    <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                        <span className="font-medium font-mono text-[11px] text-muted-foreground uppercase leading-none tracking-widest">{profile.uid}</span>
+                        <span className="inline-flex items-center gap-1 rounded-full border border-[oklch(0.28_0.005_285)] bg-muted px-2 py-0.5 font-medium font-mono text-[11px] text-muted-foreground leading-none">{t("profile.hero.serverTag", { server: profile.server })}</span>
+                    </div>
+                    <h1 className="wrap-break-word mb-1 flex flex-wrap items-baseline gap-x-1.5 font-bold font-sans text-2xl leading-[1.1] tracking-tight sm:text-3xl lg:text-[36px] lg:leading-[1.05]">
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={(triggerProps) => (
+                                    <button {...triggerProps} type="button" onClick={handleCopyUsername} aria-label={t("profile.hero.copyUsername")} className="cursor-pointer rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                        {displayNickname}
+                                        {profile.nick_number && <span className="ml-1 font-medium font-mono text-base text-muted-foreground sm:text-lg lg:text-xl">#{profile.nick_number}</span>}
+                                    </button>
+                                )}
+                            />
+                            <TooltipPopup>{t("profile.hero.copyUsername")}</TooltipPopup>
+                        </Tooltip>
+                    </h1>
+                    {profile.resume && <p className="mb-3.5 max-w-prose font-normal font-sans text-muted-foreground text-sm leading-normal sm:text-[14.5px] lg:max-w-135">{profile.resume}</p>}
+                    {levelProgress && <LevelProgressBar progress={levelProgress} marked={isOwner && levelHidden} />}
+                    {(showRegistered || showSignIn) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-medium font-sans text-muted-foreground text-xs leading-none">
+                            {showRegistered && (
+                                <span className="inline-flex items-center gap-2">
+                                    <span className={shared.dotPulse} aria-hidden="true" />
+                                    <span>
+                                        {t("profile.hero.registered")}{" "}
+                                        <b>
+                                            {f.date(new Date((profile.register_ts ?? 0) * 1000), {
+                                                month: "short",
+                                                day: "numeric",
+                                                year: "numeric",
+                                            })}
+                                        </b>
+                                    </span>
+                                    {isOwner && registeredHidden && <HiddenMarker />}
+                                </span>
+                            )}
+                            {showSignIn && (
+                                <span className="inline-flex items-center gap-2">
+                                    {/* The separator belongs between two pieces, so it goes when the date is hidden. */}
+                                    {showRegistered && <span aria-hidden="true" className="size-1.5 rounded-full bg-muted-foreground/40" />}
+                                    <span>
+                                        {t("profile.hero.signedIn")}{" "}
+                                        <b className="text-foreground tabular-nums">
+                                            {f.number(profile.cumulative_signin ?? 0)}
+                                            {/* The total needs the registration date, which a visitor may not have been sent. */}
+                                            {profile.register_ts ? (
+                                                <>
+                                                    {"/"}
+                                                    {f.number(totalSigninDays)}
+                                                </>
+                                            ) : null}
+                                        </b>{" "}
+                                        {t("profile.hero.days")}
+                                    </span>
+                                    {isOwner && signInHidden && <HiddenMarker />}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function LevelProgressBar({ progress, marked }: { progress: ILevelProgress; marked?: boolean }) {
+    const t: TypedT<typeof messages> = useT("user");
+    const f: IFormatters = useFormatters();
+    const { level, isMax, currentExp, requiredExp, ratio } = progress;
+    const percent = Math.round(ratio * 100);
+    const ariaLabel = isMax ? t("profile.hero.level.ariaMax", { level }) : t("profile.hero.level.aria", { level, current: f.number(currentExp), required: f.number(requiredExp), next: level + 1 });
+
+    return (
+        <div className="mb-3.5 w-full max-w-prose lg:max-w-135">
+            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 font-medium font-mono text-[11px] text-muted-foreground uppercase leading-none tracking-widest">
+                <span>
+                    {t("profile.hero.level.lv")} <span className="text-foreground tabular-nums">{level}</span>
+                    {!isMax && (
+                        <>
+                            {"/"}
+                            <span className="text-foreground tabular-nums">120</span>
+                        </>
+                    )}
+                    {marked && <HiddenMarker className="ml-2 align-middle" />}
+                </span>
+                <span className="tabular-nums">{isMax ? t("profile.hero.level.max", { max: MAX_PLAYER_LEVEL }) : t("profile.hero.level.exp", { current: f.number(currentExp), required: f.number(requiredExp) })}</span>
+            </div>
+            <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-label={ariaLabel} className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-linear-to-r from-primary/70 to-primary transition-[width] duration-500 ease-out" style={{ width: `${percent}%` }} />
+            </div>
+        </div>
+    );
+}

@@ -1,0 +1,108 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link, useParams } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { IEnemy } from "#/lib/api/enemies";
+import type { ILevel } from "#/lib/api/level";
+import type { IMaterialItem } from "#/lib/api/materials";
+import { stageIndexQueryOptions, stageVariantsOf } from "#/lib/api/stages";
+import { type TypedRichT, useGamedataServer, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import type { SparseRecord } from "#/lib/records";
+import type { IStage, IZone } from "#/types/stages";
+import { DropsSection } from "./impl/DropsSection";
+import { EnemiesSection } from "./impl/EnemiesSection";
+import { buildStageEnemyStats, computeStageEnemyStats, groupDrops, tallyEnemies } from "./impl/helpers";
+import { DEFAULT_MAP_SETTINGS, MapSettings } from "./impl/MapSettings";
+import { OverviewSection } from "./impl/OverviewSection";
+import { PropertiesSection } from "./impl/PropertiesSection";
+import { TileLegend } from "./impl/primitives";
+import { SpawnSchedule } from "./impl/SpawnSchedule";
+import { StageHeader } from "./impl/StageHeader";
+import type { IStageEnemyStats } from "./impl/types";
+import { WavesSection } from "./impl/WavesSection";
+import { type IMapViewHandle, MapView } from "./map";
+import type { messages } from "./StageDetail.messages";
+
+export function StageDetail({ stage, zone, level, enemyData, materials }: { stage: IStage | null; zone: IZone | null; level: ILevel | null; enemyData: SparseRecord<IEnemy>; materials: Record<string, IMaterialItem | undefined> }) {
+    const { stageId } = useParams({ from: "/stages_/$stageId" });
+    const t: TypedT<typeof messages> = useT("stages");
+    const rt: TypedRichT<typeof messages> = useRichT("stages");
+
+    const tally = useMemo(() => tallyEnemies(level, enemyData), [level, enemyData]);
+    const dropGroups = useMemo(() => (stage ? groupDrops(stage, materials) : []), [stage, materials]);
+    const [mapSettings, setMapSettings] = useState(DEFAULT_MAP_SETTINGS);
+    // The index is cached from the Stage List; a cold load fills the switcher in once it lands.
+    const { data: index } = useQuery(stageIndexQueryOptions(useGamedataServer()));
+    const variants = useMemo(() => (index ? stageVariantsOf(index, stageId) : []), [index, stageId]);
+
+    const mapRef = useRef<IMapViewHandle>(null);
+    const moveMultiplier = level?.options?.moveMultiplier ?? 1;
+    const stageStats = useMemo(() => buildStageEnemyStats(level, enemyData), [level, enemyData]);
+    const statsFor = useCallback((id: string, enemy: IEnemy | null): IStageEnemyStats | null => stageStats[id] ?? computeStageEnemyStats(enemy, undefined, moveMultiplier), [stageStats, moveMultiplier]);
+    const focusEnemy = useCallback((id: string, time?: number) => mapRef.current?.focusSpawn({ enemyId: id, time }), []);
+
+    if (!stage) {
+        return (
+            <div className="mx-auto w-[min(1100px,calc(100%-2rem))] py-20 text-center">
+                <h1 className="m-0 font-bold font-sans text-[22px] text-foreground">{t("detail.notFound.title")}</h1>
+                <p className="mt-2 font-sans text-[13.5px] text-muted-foreground">{rt("detail.notFound.body", { id: <code className="font-mono text-foreground">{stageId}</code> })}</p>
+                <Link to="/stages" className="mt-4 inline-block font-medium font-sans text-[13.5px] text-primary hover:underline">
+                    {t("detail.notFound.back")}
+                </Link>
+            </div>
+        );
+    }
+
+    return (
+        <div className="page-shell [--page-max:1200px]">
+            <nav className="pb-3.5 font-medium font-sans text-[12px] text-muted-foreground leading-none" aria-label={t("detail.breadcrumb")}>
+                <ol className="flex items-center gap-1.5">
+                    <li>
+                        <Link to="/stages" className="transition-colors hover:text-foreground">
+                            {t("detail.breadcrumb.stages")}
+                        </Link>
+                    </li>
+                    <ChevronRight className="h-2.5 w-2.5" aria-hidden="true" />
+                    <li className="truncate text-foreground">{stage.code}</li>
+                </ol>
+            </nav>
+
+            <div className="flex flex-col gap-7">
+                <StageHeader stage={stage} zone={zone ?? undefined} variants={variants} />
+                <OverviewSection level={level} />
+            </div>
+
+            <div className="mt-7 flex flex-col gap-3">
+                {level ? (
+                    <>
+                        <div className="relative overflow-hidden rounded-2xl border border-border bg-[#181818]">
+                            <MapView ref={mapRef} code={stage.code} enemyData={enemyData} level={level} onSettingsChange={setMapSettings} settings={mapSettings} statsFor={statsFor} />
+                        </div>
+                        <TileLegend />
+                        <MapSettings settings={mapSettings} onChange={setMapSettings} />
+                    </>
+                ) : (
+                    <div className="flex min-h-70 items-center justify-center rounded-2xl border border-border border-dashed p-10 text-center">
+                        <p className="m-0 font-sans text-[13px] text-muted-foreground">{t("detail.noMap")}</p>
+                    </div>
+                )}
+            </div>
+
+            <div className="mt-7 flex flex-col gap-7">
+                <SpawnSchedule level={level} enemyData={enemyData} onFocusEnemy={focusEnemy} />
+
+                <div className="grid grid-cols-1 gap-x-5 gap-y-6 lg:grid-cols-2 lg:items-start">
+                    <div className="flex min-w-0 flex-col gap-6">
+                        <DropsSection groups={dropGroups} />
+                        <WavesSection level={level} />
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-6">
+                        <EnemiesSection tally={tally} onFocusEnemy={focusEnemy} statsFor={statsFor} />
+                        <PropertiesSection stage={stage} level={level} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

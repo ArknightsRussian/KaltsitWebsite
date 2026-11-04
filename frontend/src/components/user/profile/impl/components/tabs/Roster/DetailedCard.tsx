@@ -1,0 +1,277 @@
+import { useEffect, useRef, useState } from "react";
+import { eliteIcon, potentialIcon } from "#/components/operators/detail/impl/assets";
+import { ClassIcon } from "#/components/operators/list/impl/components/Icons";
+import { RARITY_COLORS } from "#/components/operators/list/impl/constants";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
+import { Card, CardContent } from "#/components/ui/card";
+import { Dialog } from "#/components/ui/dialog";
+import { Progress } from "#/components/ui/progress";
+import { ScrollArea } from "#/components/ui/scroll-area";
+import { Separator } from "#/components/ui/separator";
+import { useDataSaver } from "#/hooks/use-data-saver";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { professionLabel } from "#/lib/utils";
+import type { IEnrichedSkill, IModule } from "#/types/operators";
+import { DynamicArtOverlay } from "../../../DynamicArtOverlay";
+import type { messages } from "./DetailedCard.messages";
+import { getAttributeStats, getTrustPercent, isMaxed, MAX_LEVEL_BY_RARITY, moduleIconURL, moduleTypeLabel, OBTAINED_DATE, obtainedDate, ownedAvatar, ownedHeroURL, rarityIcon, skillIconURL, specializedIcon } from "./helpers.card";
+import type { messages as cardMessages } from "./helpers.card.messages";
+import { OperatorDialog } from "./OperatorDialog";
+import type { IOwnedEntry } from "./types";
+
+/** The shared card vocabulary is declared in `helpers.card.messages.ts`. */
+type DetailedT = TypedT<typeof messages & typeof cardMessages>;
+
+interface IDetailedCardProps {
+    entry: IOwnedEntry;
+    lastRef?: ((node: HTMLElement | null) => void) | null;
+}
+
+export function DetailedCard({ entry, lastRef }: IDetailedCardProps) {
+    const t: DetailedT = useT("user");
+    const f = useFormatters();
+    const op = entry.static;
+    const star = entry.rarity;
+    const obtained = obtainedDate(entry);
+    const rarityColor = RARITY_COLORS[star] ?? "#ffffff";
+    const maxed = isMaxed(entry);
+    const trustPct = getTrustPercent(entry.favor_point);
+
+    const maxLvlForPhase = op?.phases?.[entry.elite]?.maxLevel ?? MAX_LEVEL_BY_RARITY[star]?.[entry.elite] ?? 90;
+
+    const stats = op ? getAttributeStats(entry, op) : null;
+
+    const [hovered, setHovered] = useState(false);
+    const [levelProgress, setLevelProgress] = useState(0);
+    const [trustProgress, setTrustProgress] = useState(0);
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [dynActive, setDynActive] = useState(false);
+    // Data saver keeps the multi-MB art and its animation for the dialog a press opens.
+    const dataSaver = useDataSaver();
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = cardRef.current;
+        if (!el) return;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) {
+                    timer = setTimeout(() => {
+                        setLevelProgress((entry.level / maxLvlForPhase) * 100);
+                        setTrustProgress((trustPct / 200) * 100);
+                    }, 300);
+                    observer.disconnect();
+                }
+            },
+            { threshold: 0.2 },
+        );
+        observer.observe(el);
+        return () => {
+            observer.disconnect();
+            clearTimeout(timer);
+        };
+    }, [entry.level, maxLvlForPhase, trustPct]);
+
+    const skills = (op?.skills ?? []).map((skill, i) => ({
+        skill,
+        index: i,
+        mastery: entry.masteries.find((m) => m.index === i)?.mastery ?? 0,
+    }));
+
+    const modules = (op?.modules ?? [])
+        .filter((m) => m.typeName1 !== "ORIGINAL")
+        .map((module) => {
+            const rosterMod = entry.modules.find((rm) => rm.id === module.uniEquipId);
+            return {
+                module,
+                level: rosterMod?.level ?? 0,
+                locked: rosterMod?.locked ?? true,
+                isEquipped: entry.current_equip === module.uniEquipId,
+            };
+        })
+        .filter((m) => !m.locked && m.level > 0);
+
+    return (
+        <div ref={lastRef ?? undefined} className="w-full">
+            <Dialog onOpenChange={setDialogOpen} open={dialogOpen}>
+                {/* The card is not a role=button: it holds the Potential, Skills and Modules accordion
+                    triggers, which made each one a control nested inside another. The open button laid
+                    over the art is the keyboard and screen-reader path; the card's own click only widens
+                    the mouse target, and still skips the accordion. */}
+                <Card
+                    ref={cardRef}
+                    className="fade-in slide-in-from-bottom-4 flex w-full animate-in cursor-pointer flex-col gap-0 overflow-hidden border-2 border-muted/30 py-0 pb-1 text-left transition-all duration-300 hover:border-muted hover:shadow-lg"
+                    onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("[data-roster-card-accordion]")) return;
+                        setDialogOpen(true);
+                    }}
+                    onMouseEnter={() => setHovered(true)}
+                    onMouseLeave={() => setHovered(false)}
+                    style={maxed ? { boxShadow: `0 0 20px ${rarityColor}60, 0 0 40px ${rarityColor}40` } : undefined}
+                >
+                    <div className="relative">
+                        <div className="relative aspect-5/4 w-full cursor-pointer overflow-hidden">
+                            {/* `scale-105` sets the CSS `scale` property (Tailwind v4), so the transition must name `scale`, not `transform`. */}
+                            {dataSaver ? (
+                                <img alt={entry.name} src={ownedAvatar(entry.operator_id, entry.skin_id)} className={`h-full w-full object-contain object-top px-6 pt-4 pb-26 transition-[scale] duration-300 ${hovered ? "scale-105" : "scale-100"}`} decoding="async" loading="lazy" />
+                            ) : (
+                                <img alt={entry.name} src={ownedHeroURL(entry)} className={`h-full w-full object-cover object-top transition-[scale,opacity] duration-300 ${hovered ? "scale-105" : "scale-100"} ${dynActive ? "opacity-0" : "opacity-100"}`} decoding="async" loading="lazy" />
+                            )}
+                            {/* The L2D is composited over the same hero art at the game's authored frame and cropped exactly as the image above (cover, top). */}
+                            {!dataSaver && <DynamicArtOverlay elite={entry.elite} operatorCode={entry.operator_id} skinId={entry.skin_id} viewportGated fit={{ mode: "cover", align: "top" }} framing="authored" surface="panel" backdrop={ownedHeroURL(entry)} onActiveChange={setDynActive} />}
+                            <div className={`absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent transition-opacity duration-300 ${hovered ? "opacity-100" : "opacity-90"}`} />
+                            <button type="button" aria-label={t("profile.roster.detailed.openAria", { name: entry.name })} onClick={() => setDialogOpen(true)} className="absolute inset-0 z-1 cursor-pointer focus-visible:-outline-offset-2" />
+                            <div className="absolute right-0 bottom-0 left-0 p-4">
+                                <h3 className={`mt-2 max-w-3/4 text-left font-bold text-white text-xl transition-all duration-300 ${hovered ? "translate-y-0" : "translate-y-1"}`}>{entry.name}</h3>
+                                <div className={`flex items-center justify-between transition-all duration-300 ${hovered ? "translate-y-0" : "translate-y-1"}`}>
+                                    <div className="flex items-center gap-2">
+                                        <img alt={t("profile.roster.card.rarityAlt", { star })} className="h-4.5 w-auto object-contain" decoding="async" height={18} loading="lazy" src={rarityIcon(star)} width={60} />
+                                        {op && (
+                                            <div className="flex flex-row items-center gap-1">
+                                                <ClassIcon profession={op.profession} size={20} />
+                                                <span className="text-sm text-white">{professionLabel(op)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <img alt={t("profile.roster.card.eliteAlt", { elite: entry.elite })} className="h-6 w-6 object-contain" decoding="async" height={24} loading="lazy" src={eliteIcon(entry.elite)} width={24} />
+                                </div>
+                            </div>
+                        </div>
+                        {maxed && (
+                            <div className="absolute top-2 z-10 rounded-r-md px-2 py-0.5 text-center font-semibold text-xs shadow-md" style={{ color: rarityColor }}>
+                                {t("profile.roster.card.maxed")}
+                            </div>
+                        )}
+                    </div>
+                    <CardContent className="min-w-0 flex-1 overflow-hidden px-4 pt-2 pb-2">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium text-sm">{t("profile.roster.card.level")}</span>
+                                    <span className="font-bold text-sm">{entry.level}</span>
+                                </div>
+                                <Progress className="h-1.5 transition-all duration-1000 ease-out" value={levelProgress} />
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium text-sm">{t("profile.roster.card.trust")}</span>
+                                    <span className="font-bold text-sm">{trustPct}%</span>
+                                </div>
+                                <Progress className="h-1.5 transition-all duration-1000 ease-out" value={trustProgress} />
+                            </div>
+                        </div>
+                        <Separator className="my-3" />
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <Stat label={t("profile.roster.card.stat.hp")} value={stats?.maxHp} />
+                            <Stat label={t("profile.roster.card.stat.atk")} value={stats?.atk} />
+                            <Stat label={t("profile.roster.card.stat.def")} value={stats?.def} />
+                            <Stat label={t("profile.roster.card.stat.res")} value={stats?.magicResistance} />
+                            <Stat label={t("profile.roster.card.stat.cost")} value={stats?.cost} />
+                            <Stat label={t("profile.roster.card.stat.block")} value={stats?.blockCnt} />
+                        </div>
+                        {obtained && (
+                            <div className="mt-1 flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">{t("profile.roster.card.obtained")}</span>
+                                <span className="font-medium tabular-nums">{f.date(obtained, OBTAINED_DATE)}</span>
+                            </div>
+                        )}
+                        <Separator className="my-3" />
+                        <div data-roster-card-accordion>
+                            <Accordion className="w-full" multiple>
+                                <AccordionItem className="border-b-0" value="potential">
+                                    <AccordionTrigger className="py-2 font-medium text-sm hover:underline">{t("profile.roster.card.potential")}</AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="flex items-center justify-between py-1">
+                                            <span className="text-sm">{t("profile.roster.detailed.currentPotential")}</span>
+                                            <div className="flex items-center gap-1">
+                                                <img alt={t("profile.roster.card.potentialAlt", { rank: entry.potential + 1 })} className="icon-theme-aware h-6 w-6" decoding="async" height={24} loading="lazy" src={potentialIcon(entry.potential)} width={24} />
+                                                <span className="text-muted-foreground text-sm">+{entry.potential}</span>
+                                            </div>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem className="border-b-0" value="skills">
+                                    <AccordionTrigger className="py-2 font-medium text-sm hover:underline">{t("profile.roster.card.skills")}</AccordionTrigger>
+                                    <AccordionContent>
+                                        <ScrollArea className="max-h-45 w-full">
+                                            {skills.length > 0 ? (
+                                                <div className="w-full space-y-2 overflow-hidden">
+                                                    {skills.map(({ skill, index, mastery }) => (
+                                                        <SkillRow key={skill.skillId} skill={skill} index={index} mastery={mastery} isDefault={entry.default_skill === index} skillLevel={entry.skill_level} />
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-muted-foreground text-sm">{op ? t("profile.roster.card.noSkills") : t("profile.roster.detailed.loadingSkills")}</p>
+                                            )}
+                                        </ScrollArea>
+                                    </AccordionContent>
+                                </AccordionItem>
+                                <AccordionItem className="border-b-0" value="modules">
+                                    <AccordionTrigger className="py-2 font-medium text-sm hover:underline">{t("profile.roster.card.modules")}</AccordionTrigger>
+                                    <AccordionContent>
+                                        {modules.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {modules.map((m) => (
+                                                    <ModuleRow key={m.module.uniEquipId} module={m.module} level={m.level} isEquipped={m.isEquipped} />
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-muted-foreground text-sm">{op ? t("profile.roster.card.noModules") : t("profile.roster.detailed.loadingModules")}</p>
+                                        )}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </div>
+                    </CardContent>
+                </Card>
+                <OperatorDialog entry={entry} />
+            </Dialog>
+        </div>
+    );
+}
+
+function Stat({ label, value }: { label: string; value: number | undefined }) {
+    return (
+        <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{label}</span>
+            <span className={value === undefined ? "font-medium text-muted-foreground" : "font-medium"}>{value ?? "--"}</span>
+        </div>
+    );
+}
+
+function SkillRow({ skill, index, mastery, isDefault, skillLevel }: { skill: IEnrichedSkill; index: number; mastery: number; isDefault: boolean; skillLevel: number }) {
+    const t: DetailedT = useT("user");
+    const name = skill.static?.levels?.[0]?.name ?? t("profile.roster.card.skillFallback", { n: index + 1 });
+    return (
+        <div className={`grid items-center gap-2 rounded-md px-2.5 py-1.5 ${isDefault ? "border border-primary/30 bg-primary/5 shadow-[0_0_8px_rgba(var(--primary),0.15)]" : "bg-muted/30"}`} style={{ gridTemplateColumns: "24px minmax(0, 1fr) auto" }}>
+            <img alt={t("profile.roster.card.skillAlt")} className="h-6 w-6 rounded" decoding="async" height={24} loading="lazy" src={skillIconURL(skill)} width={24} />
+            <span className="truncate font-medium text-xs" title={name}>
+                {name}
+            </span>
+            <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                <span>{t("profile.roster.card.skillLevel", { level: skillLevel })}</span>
+                {mastery > 0 && <img alt={t("profile.roster.card.masteryAlt", { mastery })} className="icon-theme-aware h-4 w-4" decoding="async" height={16} loading="lazy" src={specializedIcon(mastery)} width={16} />}
+            </div>
+        </div>
+    );
+}
+
+function ModuleRow({ module, level, isEquipped }: { module: IModule; level: number; isEquipped: boolean }) {
+    const t: DetailedT = useT("user");
+    return (
+        <div className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 ${isEquipped ? "border border-primary/30 bg-primary/5 shadow-[0_0_8px_rgba(var(--primary),0.15)]" : "bg-muted/30"}`}>
+            <img alt={t("profile.roster.card.moduleAlt")} className="h-6 w-6 shrink-0 object-contain" decoding="async" height={24} loading="lazy" src={moduleIconURL(module)} width={24} />
+            <div className="min-w-0 flex-1">
+                <span className="truncate font-medium text-xs" title={module.uniEquipName}>
+                    {module.uniEquipName}
+                </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+                <span>{moduleTypeLabel(module)}</span>
+                <span>{t("profile.roster.card.moduleLevel", { level })}</span>
+            </div>
+        </div>
+    );
+}

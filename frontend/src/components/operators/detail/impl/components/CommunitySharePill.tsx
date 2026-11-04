@@ -1,0 +1,64 @@
+import { memo } from "react";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { cn } from "#/lib/utils";
+import type { IChoiceShare } from "../useCommunityDefaults";
+import type { messages } from "./CommunitySharePill.messages";
+
+interface ICommunitySharePillProps {
+    /** `undefined` when this option drew no picks, or when the whole
+     *  distribution is below the reporting floor. Both render nothing. */
+    share: IChoiceShare | undefined;
+    /** Size of the cohort the share is drawn from, for the tooltip. */
+    total: number;
+    /** What the denominator is, in the reader's terms. The two differ and the
+     *  difference matters: skills are measured over E2 owners, modules only
+     *  over owners who actually have one equipped. */
+    cohort: string;
+    className?: string;
+}
+
+/**
+ * The share of the community that picked one skill or module, as a compact
+ * percentage with the raw counts on hover. A span is not focusable, so the
+ * counts are also in the pill as screen-reader text.
+ *
+ * Renders nothing rather than "0%" when there is no figure: a zero reads as
+ * "nobody picked this" when it means "we cannot say". Either the cohort is
+ * under the floor of 50 that keeps a rare operator's numbers from describing a
+ * handful of identifiable accounts, or nobody has synced a roster with this
+ * option set.
+ */
+export const CommunitySharePill = memo(function CommunitySharePill({ share, total, cohort, className }: ICommunitySharePillProps) {
+    const t: TypedT<typeof messages> = useT("operators");
+    const f = useFormatters();
+
+    if (!share || total <= 0) return null;
+
+    const pct = share.share * 100;
+    // Whole numbers below 10% would collapse 0.4% and 4.4% into "0%" and "4%";
+    // one decimal under 10 keeps small shares distinguishable without making
+    // the common case noisy.
+    const label = pct < 10 ? `${pct.toFixed(1)}%` : `${Math.round(pct)}%`;
+    const isTop = share.rank === 0;
+    const detail = t("share.tooltip", { users: f.number(share.users), total: f.number(total), cohort, top: isTop ? "yes" : "no" });
+
+    return (
+        <Tooltip>
+            {/* The top pick is foreground on the primary tint: primary text on its own tint measured
+                under 4.5:1 at 10px. The tint alone marks the top pick. */}
+            <TooltipTrigger
+                render={
+                    <span className={cn("inline-flex shrink-0 items-center rounded-full px-1.5 py-px font-mono font-semibold text-[11px] tabular-nums leading-none", isTop ? "bg-primary/15 text-foreground" : "bg-secondary text-muted-foreground", className)}>
+                        {label}
+                        <span className="sr-only">{detail}</span>
+                    </span>
+                }
+            />
+            <TooltipPopup side="top" sideOffset={6}>
+                {detail}
+            </TooltipPopup>
+        </Tooltip>
+    );
+});

@@ -1,0 +1,107 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link, useParams } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
+import { useMemo } from "react";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "#/components/ui/tabs";
+import { enemyDetailQueryOptions } from "#/lib/api/enemies";
+import { type TypedRichT, useGamedataServer, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { EnemyChibiTab } from "../list/impl/components/EnemyChibi";
+import { enrichEnemy } from "../list/impl/enrich";
+import type { messages } from "./Enemies.messages";
+import { AppearsInTab } from "./impl/AppearsInTab";
+import { SoundsTab } from "./impl/SoundsTab";
+import { EnemyHero, OverviewTab, SkillsTab, StatsTab } from "./impl/sections";
+
+export function EnemyDetail() {
+    const t: TypedT<typeof messages> = useT("enemies");
+    const rt: TypedRichT<typeof messages> = useRichT("enemies");
+    const { id } = useParams({ from: "/enemies_/$id" });
+    const server = useGamedataServer();
+    const { data: detail } = useSuspenseQuery(enemyDetailQueryOptions(id, server));
+
+    const enemy = useMemo(() => (detail ? enrichEnemy(detail.enemy, detail.raceData) : null), [detail]);
+    const audio = detail?.audio ?? [];
+
+    if (!enemy) {
+        return (
+            <div className="mx-auto w-[min(1400px,calc(100%-2rem))] py-20 text-center">
+                <h1 className="m-0 font-bold font-sans text-[22px] text-foreground">{t("detail.notFound.title")}</h1>
+                <p className="mt-2 font-sans text-[13.5px] text-muted-foreground">{rt("detail.notFound.body", { id: <code className="font-mono text-foreground">{id}</code> })}</p>
+                <Link to="/enemies" className="mt-4 inline-block font-medium font-sans text-[13.5px] text-primary hover:underline">
+                    {t("detail.notFound.back")}
+                </Link>
+            </div>
+        );
+    }
+
+    return (
+        <div className="page-shell [--page-max:1100px]">
+            <nav className="pb-3.5 font-medium font-sans text-[12px] text-muted-foreground leading-none" aria-label={t("detail.breadcrumb")}>
+                <ol className="flex items-center gap-1.5">
+                    <li>{t("detail.breadcrumb.collection")}</li>
+                    <ChevronRight className="h-2.5 w-2.5" aria-hidden="true" />
+                    <li>
+                        <Link to="/enemies" className="transition-colors hover:text-foreground">
+                            {t("detail.breadcrumb.enemies")}
+                        </Link>
+                    </li>
+                    <ChevronRight className="h-2.5 w-2.5" aria-hidden="true" />
+                    <li className="truncate text-foreground">{enemy.name}</li>
+                </ol>
+            </nav>
+
+            <EnemyHero enemy={enemy} />
+
+            <Tabs defaultValue="overview" className="mt-5 flex flex-col gap-0">
+                <div className="border-border border-b">
+                    {/* Six tabs measure 403 px against a 343 px column at 375 px wide: the strip scrolls sideways instead of pushing Sounds off the page. */}
+                    <TabsList className="mb-3 max-w-full justify-start overflow-x-auto">
+                        <TabsTab value="overview" className="h-8 pointer-coarse:h-11 text-[13px]">
+                            {t("detail.tab.overview")}
+                        </TabsTab>
+                        <TabsTab value="stats" className="h-8 pointer-coarse:h-11 text-[13px]">
+                            {t("detail.tab.stats")}
+                        </TabsTab>
+                        <TabsTab value="skills" className="h-8 pointer-coarse:h-11 text-[13px]">
+                            {t("detail.tab.skills")}
+                        </TabsTab>
+                        <TabsTab value="appears" className="h-8 pointer-coarse:h-11 text-[13px]">
+                            {t("detail.tab.appears")}
+                        </TabsTab>
+                        <TabsTab value="chibi" className="h-8 pointer-coarse:h-11 text-[13px]">
+                            {t("detail.tab.chibi")}
+                        </TabsTab>
+                        {audio.length > 0 && (
+                            <TabsTab value="sounds" className="h-8 pointer-coarse:h-11 text-[13px]">
+                                {t("detail.tab.sounds")}
+                            </TabsTab>
+                        )}
+                    </TabsList>
+                </div>
+                <div className="pt-5">
+                    <TabsPanel value="overview">
+                        <OverviewTab enemy={enemy} />
+                    </TabsPanel>
+                    <TabsPanel value="stats">
+                        <StatsTab enemy={enemy} />
+                    </TabsPanel>
+                    <TabsPanel value="skills">
+                        <SkillsTab enemy={enemy} />
+                    </TabsPanel>
+                    <TabsPanel value="appears">
+                        <AppearsInTab enemyId={enemy.enemyId} />
+                    </TabsPanel>
+                    <TabsPanel value="chibi">
+                        <EnemyChibiTab key={enemy.enemyId} enemyId={enemy.enemyId} />
+                    </TabsPanel>
+                    {audio.length > 0 && (
+                        <TabsPanel value="sounds">
+                            <SoundsTab enemyId={enemy.enemyId} audio={audio} />
+                        </TabsPanel>
+                    )}
+                </div>
+            </Tabs>
+        </div>
+    );
+}

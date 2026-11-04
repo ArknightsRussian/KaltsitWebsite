@@ -1,0 +1,740 @@
+import { queryOptions } from "@tanstack/react-query";
+import { createServerFn } from "@tanstack/react-start";
+import { backendFetch } from "#/lib/fetch";
+// Generated from `backend/src/app/services/{improvements,stats,gacha}.rs`,
+// `backend/src/database/models/*` and `backend/src/core/grade/grade_operators.rs`.
+// To change a field, edit the Rust struct and run `bun run gen:types`.
+import type { AssignedOperator } from "#/types/generated/AssignedOperator";
+import type { BaseAssignmentDto } from "#/types/generated/BaseAssignmentDto";
+import type { BaseImprovements } from "#/types/generated/BaseImprovements";
+import type { DepletedOperatorDto } from "#/types/generated/DepletedOperatorDto";
+import type { EncounteredEnemiesResponse } from "#/types/generated/EncounteredEnemiesResponse";
+import type { EncounteredEnemy } from "#/types/generated/EncounteredEnemy";
+import type { FacilityOutputDto } from "#/types/generated/FacilityOutputDto";
+import type { ImprovementsResponse } from "#/types/generated/ImprovementsResponse";
+import type { ItemCatalog } from "#/types/generated/ItemCatalog";
+import type { ItemEntry } from "#/types/generated/ItemEntry";
+import type { ItemHoldingSummary } from "#/types/generated/ItemHoldingSummary";
+import type { ItemLeaderboardEntry } from "#/types/generated/ItemLeaderboardEntry";
+import type { ItemLeaderboardPage } from "#/types/generated/ItemLeaderboardPage";
+import type { ItemStanding } from "#/types/generated/ItemStanding";
+import type { LeaderboardEntry } from "#/types/generated/LeaderboardEntry";
+import type { LeaderboardMover } from "#/types/generated/LeaderboardMover";
+import type { LeaderboardPage } from "#/types/generated/LeaderboardPage";
+import type { MaxLevelCostResponse } from "#/types/generated/MaxLevelCostResponse";
+import type { MedalGap } from "#/types/generated/MedalGap";
+import type { MedalImprovements } from "#/types/generated/MedalImprovements";
+import type { MedalOperatorLock } from "#/types/generated/MedalOperatorLock";
+import type { MoraleTimelineDto } from "#/types/generated/MoraleTimelineDto";
+import type { MovedOperator } from "#/types/generated/MovedOperator";
+import type { NonProdEffectDto } from "#/types/generated/NonProdEffectDto";
+import type { OperatorGap } from "#/types/generated/OperatorGap";
+import type { OperatorImprovements } from "#/types/generated/OperatorImprovements";
+import type { PerceptionConsumerDto } from "#/types/generated/PerceptionConsumerDto";
+import type { PerceptionPlanDto } from "#/types/generated/PerceptionPlanDto";
+import type { PerceptionSupportDto } from "#/types/generated/PerceptionSupportDto";
+import type { PlayerStanding } from "#/types/generated/PlayerStanding";
+import type { ProgressPair } from "#/types/generated/ProgressPair";
+import type { RoguelikeCollectibles } from "#/types/generated/RoguelikeCollectibles";
+import type { RoguelikeDifficulty } from "#/types/generated/RoguelikeDifficulty";
+import type { RoguelikeThemeImprovement } from "#/types/generated/RoguelikeThemeImprovement";
+import type { RoomAssignmentDto } from "#/types/generated/RoomAssignmentDto";
+import type { RoomLayoutEntry } from "#/types/generated/RoomLayoutEntry";
+import type { RoomRotationDto } from "#/types/generated/RoomRotationDto";
+import type { RosterEntry } from "#/types/generated/RosterEntry";
+import type { RotationDto } from "#/types/generated/RotationDto";
+import type { RotationInfo } from "#/types/generated/RotationInfo";
+import type { RotationMemberDto } from "#/types/generated/RotationMemberDto";
+import type { RotationSetDto } from "#/types/generated/RotationSetDto";
+import type { RotationSetRoomDto } from "#/types/generated/RotationSetRoomDto";
+import type { SandboxCategory } from "#/types/generated/SandboxCategory";
+import type { SandboxImprovements } from "#/types/generated/SandboxImprovements";
+import type { SandboxPart } from "#/types/generated/SandboxPart";
+import type { SandboxTopic } from "#/types/generated/SandboxTopic";
+import type { ScoreDimension } from "#/types/generated/ScoreDimension";
+import type { ScoreHistoryPoint } from "#/types/generated/ScoreHistoryPoint";
+import type { SearchEntry } from "#/types/generated/SearchEntry";
+import type { SearchPage } from "#/types/generated/SearchPage";
+import type { ServerShare } from "#/types/generated/ServerShare";
+import type { ShiftDto } from "#/types/generated/ShiftDto";
+import type { ShiftRoomDto } from "#/types/generated/ShiftRoomDto";
+import type { ShiftRotationDto } from "#/types/generated/ShiftRotationDto";
+import type { ShowcaseView } from "#/types/generated/ShowcaseView";
+import type { SkillLineDto } from "#/types/generated/SkillLineDto";
+import type { StageGap } from "#/types/generated/StageGap";
+import type { StageImprovements } from "#/types/generated/StageImprovements";
+import type { StagePoolImprovements } from "#/types/generated/StagePoolImprovements";
+import type { SupportUnit } from "#/types/generated/SupportUnit";
+import type { SustainabilityDto } from "#/types/generated/SustainabilityDto";
+import type { UpgradeDelta } from "#/types/generated/UpgradeDelta";
+import type { UserScore } from "#/types/generated/UserScore";
+import type { Refine } from "#/types/refine";
+import type { IUserCheckin, IUserProfile } from "#/types/user";
+import { optionalSiteToken } from "./_shared.server";
+import { gamedataKey, resolveGamedataServer } from "./gamedata";
+
+export interface IRosterMastery {
+    index: number;
+    mastery: number;
+}
+
+export interface IRosterModule {
+    id: string;
+    level: number;
+    locked: boolean;
+}
+
+export type IRosterEntry = Refine<RosterEntry, { masteries: IRosterMastery[]; modules: IRosterModule[] }>;
+
+export type IUserScore = UserScore;
+
+// The profile, score and check-in endpoints sit behind the backend's privacy
+// gate (own profile or public one, 403 otherwise), and "own" is decided from
+// the bearer token alone. Send the site token like the roster fetch does, or a
+// private profile 403s its OWNER too.
+export const getUserFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/get-user?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load user: ${res.status}`);
+        }
+        return (await res.json()) as IUserProfile;
+    });
+
+export function userQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "profile", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const getUserRosterFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/roster?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            // 403 = private profile or private Roster tab, 404 = no such user: both
+            // are "no roster", not a failure to retry (the profile loader prefetches it).
+            if (res.status === 404 || res.status === 403) return null;
+            throw new Error(`Failed to load roster: ${res.status}`);
+        }
+        return (await res.json()) as IRosterEntry[];
+    });
+
+export function userRosterQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "roster", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserRosterFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+/** A player's support units (`/get-user-supports`). Gated like the profile itself, never by tab; `null` for a profile the caller may not read. */
+export const getUserSupportsFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/get-user-supports?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            if (res.status === 404 || res.status === 403) return null;
+            throw new Error(`Failed to load supports: ${res.status}`);
+        }
+        return (await res.json()) as SupportUnit[];
+    });
+
+export function userSupportsQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "supports", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserSupportsFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const getUserRosterOperatorFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; operatorId: string }) => data)
+    .handler(async ({ data: { uid, operatorId } }) => {
+        const res = await backendFetch(`/roster/${encodeURIComponent(operatorId)}?uid=${encodeURIComponent(uid)}`, { bearerToken: optionalSiteToken() });
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load roster operator: ${res.status}`);
+        }
+        return (await res.json()) as IRosterEntry;
+    });
+
+export function userRosterOperatorQueryOptions(uid: string, operatorId: string) {
+    return queryOptions({
+        queryKey: ["user", "roster", uid, operatorId],
+        queryFn: () => getUserRosterOperatorFn({ data: { uid, operatorId } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type IInventoryItem = ItemEntry;
+
+export const getUserInventoryFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/inventory?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load inventory: ${res.status}`);
+        }
+        return (await res.json()) as IInventoryItem[];
+    });
+
+export function userInventoryQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "inventory", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserInventoryFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type IEncounteredEnemy = EncounteredEnemy;
+
+export type IEncounteredEnemies = EncounteredEnemiesResponse;
+
+export const getUserEncounteredEnemiesFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/encountered-enemies?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            // 403 = private profile, 404 = no such user: both are "unavailable".
+            if (res.status === 404 || res.status === 403) return null;
+            throw new Error(`Failed to load encountered enemies: ${res.status}`);
+        }
+        return (await res.json()) as IEncounteredEnemies;
+    });
+
+export function userEncounteredEnemiesQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "encountered-enemies", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserEncounteredEnemiesFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const getUserScoreFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/get-user-score?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load user score: ${res.status}`);
+        }
+        return (await res.json()) as IUserScore | null;
+    });
+
+export function userScoreQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "score", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserScoreFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const getUserCheckinFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/get-user-checkin?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load user check-in: ${res.status}`);
+        }
+        return (await res.json()) as IUserCheckin | null;
+    });
+
+/**
+ * The Showcase tab's blocks, favourites resolved against `server`. The owner's copy
+ * marks a block whose grid, tier list or plan is gone as `removed`; a visitor's leaves
+ * it out. An empty showcase when the tab is refused (it is then never asked for) or
+ * the profile is gone.
+ */
+export const getUserShowcaseFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; server?: string }) => data)
+    .handler(async ({ data: { uid, server } }): Promise<ShowcaseView> => {
+        const params = new URLSearchParams({ uid, server: resolveGamedataServer(server) });
+        const res = await backendFetch(`/get-user-showcase?${params.toString()}`, { bearerToken: optionalSiteToken() });
+        if (res.status === 403 || res.status === 404) return { blocks: [] };
+        if (!res.ok) throw new Error(`Failed to load the showcase: ${res.status}`);
+        return (await res.json()) as ShowcaseView;
+    });
+
+/** `viewerId` keys the cache by who is reading: the owner is sent the blocks a visitor is not. */
+export function userShowcaseQueryOptions(uid: string, viewerId: string | null, server?: string) {
+    const resolved = resolveGamedataServer(server);
+    return queryOptions({
+        queryKey: ["user", "showcase", uid, viewerId ?? "anon", ...gamedataKey(resolved)],
+        queryFn: () => getUserShowcaseFn({ data: { uid, server: resolved } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export function userCheckinQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "checkin", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserCheckinFn({ data: { uid, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type IStageRotation = Refine<RotationInfo, { status: "active" | "past" | "future" }>;
+
+export type IStageGap = StageGap;
+
+export type IStagePoolImprovements = StagePoolImprovements;
+
+export type IStageImprovements = StageImprovements;
+
+export type IProgressPair = ProgressPair;
+
+export type IRoguelikeDifficulty = RoguelikeDifficulty;
+
+export type IRoguelikeCollectibles = RoguelikeCollectibles;
+
+export type IRoguelikeThemeImprovement = RoguelikeThemeImprovement;
+
+export type ISandboxPart = SandboxPart;
+
+export type ISandboxCategory = SandboxCategory;
+
+export type ISandboxTopic = SandboxTopic;
+
+export type ISandboxImprovements = SandboxImprovements;
+
+export type IMedalOperatorLock = MedalOperatorLock;
+
+export type IMedalGap = MedalGap;
+
+export type IMedalImprovements = MedalImprovements;
+
+export type IUpgradeDelta = UpgradeDelta;
+
+export type IOperatorGap = OperatorGap;
+
+export type IScoreDimension = ScoreDimension;
+
+export type IOperatorImprovements = OperatorImprovements;
+
+export type IAssignedOperator = AssignedOperator;
+
+export type IRoomAssignment = RoomAssignmentDto;
+
+/**
+ * One line of a room's per-skill breakdown. Values are MARGINALS in this exact
+ * crew - what the room loses if this one skill is removed - so pair riders,
+ * non-stacking rules and faction gates are already folded in. Marginals of
+ * coupled skills deliberately do NOT sum to the room total.
+ */
+export type ISkillLine = SkillLineDto;
+
+export type INonProdEffect = NonProdEffectDto;
+
+export type IBaseAssignment = BaseAssignmentDto;
+
+export type IRotationMember = RotationMemberDto;
+
+export type IRoomRotation = RoomRotationDto;
+
+export type IRotationSetRoom = RotationSetRoomDto;
+
+export type IRotationSet = RotationSetDto;
+
+export type IRotation = RotationDto;
+
+export type IRoomLayoutEntry = RoomLayoutEntry;
+
+/** An operator leaving a cell for another room in the SAME shift. */
+export type IMovedOperator = MovedOperator;
+
+export type IShiftRoom = ShiftRoomDto;
+
+export type IShift = ShiftDto;
+
+export type IShiftRotation = ShiftRotationDto;
+
+/** The rotation run through a time-stepped morale simulation, so the plan is checked against its own rhythm. */
+export type ISustainability = SustainabilityDto;
+
+/** One production room's simulated totals over the sim horizon. */
+export type IFacilityOutput = FacilityOutputDto;
+
+export type IMoraleTimeline = MoraleTimelineDto;
+
+export type IDepletedOperator = DepletedOperatorDto;
+
+/** A support operator to station outside production to feed the resource economy. */
+export type IPerceptionSupport = PerceptionSupportDto;
+
+/** A production operator the resource economy powers, with the bonus it gains. */
+export type IPerceptionConsumer = PerceptionConsumerDto;
+
+/** The base-wide resource economy plan (Rosmontis / Ebenholz "Perception Information"). */
+export type IPerceptionPlan = PerceptionPlanDto;
+
+export type IBaseImprovements = BaseImprovements;
+
+export type IImprovementsResponse = ImprovementsResponse;
+
+export const getUserImprovementsFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/user/improvements?uid=${encodeURIComponent(uid)}`, { bearerToken: token });
+        if (!res.ok) {
+            // 403 = private profile, 404 = no such user: both are "unavailable".
+            if (res.status === 404 || res.status === 403) return null;
+            throw new Error(`Failed to load improvements: ${res.status}`);
+        }
+        return (await res.json()) as IImprovementsResponse;
+    });
+
+export function userImprovementsQueryOptions(uid: string, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "improvements", uid, bearerToken ? "auth" : "anon"],
+        queryFn: () => getUserImprovementsFn({ data: { uid, bearerToken } }),
+        // Improvements depend on roster + score state; refresh sparingly.
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export interface ISearchUsersInput {
+    q?: string;
+    /** `score` (default) | `operators` | `joined` | ... | `class:<PROFESSION>` | `sub:<subProfessionId>`. */
+    sort?: string;
+    /** `asc` | `desc`; absent = the sort's own default (`joined` ascends, every count descends). */
+    dir?: string;
+    /** Comma-separated operator ids that must all be owned. */
+    has?: string;
+    /** One operator id that must sit in the support unit. */
+    support?: string;
+    /** `class:<PROFESSION>` | `sub:<subProfessionId>`: every obtainable operator of that scope is owned. */
+    all?: string;
+    limit?: number;
+    offset?: number;
+}
+
+export type ISearchEntry = SearchEntry;
+
+export type ISearchPage = SearchPage;
+
+export const searchUsersFn = createServerFn({ method: "GET" })
+    .inputValidator((data: ISearchUsersInput) => data)
+    .handler(async ({ data: { q, sort, dir, has, support, all, limit, offset } }) => {
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        if (sort) params.set("sort", sort);
+        if (dir) params.set("dir", dir);
+        if (has) params.set("has", has);
+        if (support) params.set("support", support);
+        if (all) params.set("all", all);
+        if (limit !== undefined) params.set("limit", String(limit));
+        if (offset !== undefined) params.set("offset", String(offset));
+
+        const res = await backendFetch(`/search?${params.toString()}`);
+        if (!res.ok) throw new Error(`Failed to search users: ${res.status}`);
+        return (await res.json()) as ISearchPage;
+    });
+
+export function searchUsersQueryOptions(input: ISearchUsersInput) {
+    return queryOptions({
+        queryKey: ["user", "search", input.q ?? null, input.sort ?? null, input.dir ?? null, input.has ?? null, input.support ?? null, input.all ?? null, input.limit ?? null, input.offset ?? null],
+        queryFn: () => searchUsersFn({ data: input }),
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type ILeaderboardEntry = LeaderboardEntry;
+
+export type ILeaderboardPage = LeaderboardPage;
+
+export interface ILeaderboardInput {
+    sort?: string;
+    server?: string;
+    /** "1 day" | "7 days" | "30 days"; when set, each entry carries `rank_delta`. */
+    movement_interval?: string;
+    /** When true (requires `movement_interval`), only users with non-zero movement are returned. */
+    movement_only?: boolean;
+    /** Free-text filter on nickname / uid (ILIKE). */
+    q?: string;
+    limit?: number;
+    offset?: number;
+}
+
+export const getLeaderboardFn = createServerFn({ method: "GET" })
+    .inputValidator((data: ILeaderboardInput) => data)
+    .handler(async ({ data: { sort, server, movement_interval, movement_only, q, limit, offset } }) => {
+        const params = new URLSearchParams();
+        if (sort) params.set("sort", sort);
+        if (server) params.set("server", server);
+        if (movement_interval) params.set("movement_interval", movement_interval);
+        if (movement_only) params.set("movement_only", "true");
+        if (q) params.set("q", q);
+        if (limit !== undefined) params.set("limit", String(limit));
+        if (offset !== undefined) params.set("offset", String(offset));
+
+        const res = await backendFetch(`/leaderboard?${params.toString()}`);
+        if (!res.ok) throw new Error(`Failed to load leaderboard: ${res.status}`);
+        return (await res.json()) as ILeaderboardPage;
+    });
+
+export function leaderboardQueryOptions(input: ILeaderboardInput = {}) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", input.sort ?? null, input.server ?? null, input.movement_interval ?? null, input.movement_only ?? false, input.q ?? null, input.limit ?? null, input.offset ?? null],
+        queryFn: () => getLeaderboardFn({ data: input }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type LeaderboardMoverDirection = "up" | "down";
+export type LeaderboardMoverInterval = "1 day" | "7 days" | "30 days";
+
+export type ILeaderboardMover = LeaderboardMover;
+
+export interface ILeaderboardMoversInput {
+    direction?: LeaderboardMoverDirection;
+    interval?: LeaderboardMoverInterval;
+    server?: string;
+    limit?: number;
+}
+
+export const getLeaderboardMoversFn = createServerFn({ method: "GET" })
+    .inputValidator((data: ILeaderboardMoversInput) => data)
+    .handler(async ({ data: { direction, interval, server, limit } }) => {
+        const params = new URLSearchParams();
+        if (direction) params.set("direction", direction);
+        if (interval) params.set("interval", interval);
+        if (server) params.set("server", server);
+        if (limit !== undefined) params.set("limit", String(limit));
+
+        const res = await backendFetch(`/leaderboard/movers?${params.toString()}`);
+        if (!res.ok) throw new Error(`Failed to load leaderboard movers: ${res.status}`);
+        return (await res.json()) as ILeaderboardMover[];
+    });
+
+export function leaderboardMoversQueryOptions(input: ILeaderboardMoversInput = {}) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "movers", input.direction ?? null, input.interval ?? null, input.server ?? null, input.limit ?? null],
+        queryFn: () => getLeaderboardMoversFn({ data: input }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type IServerShare = ServerShare;
+
+export interface ILeaderboardDistributionInput {
+    top?: number;
+}
+
+export const getLeaderboardDistributionFn = createServerFn({ method: "GET" })
+    .inputValidator((data: ILeaderboardDistributionInput) => data)
+    .handler(async ({ data: { top } }) => {
+        const params = new URLSearchParams();
+        if (top !== undefined) params.set("top", String(top));
+
+        const res = await backendFetch(`/leaderboard/distribution?${params.toString()}`);
+        if (!res.ok) throw new Error(`Failed to load leaderboard distribution: ${res.status}`);
+        return (await res.json()) as IServerShare[];
+    });
+
+export function leaderboardDistributionQueryOptions(input: ILeaderboardDistributionInput = {}) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "distribution", input.top ?? null],
+        queryFn: () => getLeaderboardDistributionFn({ data: input }),
+        staleTime: 5 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+    });
+}
+
+export type IPlayerStanding = PlayerStanding;
+
+export interface IPlayerStandingInput {
+    uid: string;
+    server: string;
+    window?: number;
+    interval?: LeaderboardMoverInterval;
+}
+
+export const getPlayerStandingFn = createServerFn({ method: "GET" })
+    .inputValidator((data: IPlayerStandingInput) => data)
+    .handler(async ({ data: { uid, server, window, interval } }) => {
+        const params = new URLSearchParams({ uid, server });
+        if (window !== undefined) params.set("window", String(window));
+        if (interval) params.set("interval", interval);
+
+        const res = await backendFetch(`/leaderboard/standing?${params.toString()}`);
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load player standing: ${res.status}`);
+        }
+        return (await res.json()) as IPlayerStanding;
+    });
+
+export type IScoreHistoryPoint = ScoreHistoryPoint;
+
+export const getScoreHistoryFn = createServerFn({ method: "GET" })
+    .inputValidator((uid: string) => uid)
+    .handler(async ({ data: uid }) => {
+        const res = await backendFetch(`/leaderboard/history?uid=${encodeURIComponent(uid)}`);
+        if (!res.ok) throw new Error(`Failed to load score history: ${res.status}`);
+        return (await res.json()) as IScoreHistoryPoint[];
+    });
+
+export function scoreHistoryQueryOptions(uid: string) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "history", uid],
+        queryFn: () => getScoreHistoryFn({ data: uid }),
+        staleTime: 5 * 60 * 1000,
+        gcTime: 15 * 60 * 1000,
+    });
+}
+
+export function playerStandingQueryOptions(input: IPlayerStandingInput) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "standing", input.uid, input.server, input.window ?? null, input.interval ?? null],
+        queryFn: () => getPlayerStandingFn({ data: input }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type IItemLeaderboardEntry = ItemLeaderboardEntry;
+export type IItemLeaderboardPage = ItemLeaderboardPage;
+export type IItemHoldingSummary = ItemHoldingSummary;
+export type IItemCatalog = ItemCatalog;
+export type IItemStanding = ItemStanding;
+
+export interface IItemLeaderboardInput {
+    /** Game item id. Currencies use theirs too: `4002` Originite Prime, `4003` Orundum, `4001` LMD. */
+    item: string;
+    server?: string;
+    /** Free-text filter on nickname / uid (ILIKE); rows keep their rank among all holders. */
+    q?: string;
+    limit?: number;
+    offset?: number;
+}
+
+/** One page of the players holding the most of one item. */
+export const getItemLeaderboardFn = createServerFn({ method: "GET" })
+    .inputValidator((data: IItemLeaderboardInput) => data)
+    .handler(async ({ data: { item, server, q, limit, offset } }) => {
+        const params = new URLSearchParams({ item });
+        if (server) params.set("server", server);
+        if (q) params.set("q", q);
+        if (limit !== undefined) params.set("limit", String(limit));
+        if (offset !== undefined) params.set("offset", String(offset));
+
+        const res = await backendFetch(`/leaderboard/items?${params.toString()}`);
+        if (!res.ok) throw new Error(`Failed to load item leaderboard: ${res.status}`);
+        return (await res.json()) as IItemLeaderboardPage;
+    });
+
+export function itemLeaderboardQueryOptions(input: IItemLeaderboardInput) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "items", input.item, input.server ?? null, input.q ?? null, input.limit ?? null, input.offset ?? null],
+        queryFn: () => getItemLeaderboardFn({ data: input }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+/** Every item at least one visible player holds, most holders first, and
+ * the visible population the holder counts are taken over. */
+export const getItemCatalogFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { server?: string }) => data)
+    .handler(async ({ data: { server } }) => {
+        const params = new URLSearchParams();
+        if (server) params.set("server", server);
+        const qs = params.toString();
+        const res = await backendFetch(`/leaderboard/items/catalog${qs ? `?${qs}` : ""}`);
+        if (!res.ok) throw new Error(`Failed to load item catalog: ${res.status}`);
+        return (await res.json()) as IItemCatalog;
+    });
+
+export function itemCatalogQueryOptions(server?: string) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "items", "catalog", server ?? null],
+        queryFn: () => getItemCatalogFn({ data: { server } }),
+        staleTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+    });
+}
+
+export interface IItemStandingInput {
+    item: string;
+    uid: string;
+    server: string;
+}
+
+/** One player's rank among the holders of one item; `null` when they hold none. */
+export const getItemStandingFn = createServerFn({ method: "GET" })
+    .inputValidator((data: IItemStandingInput) => data)
+    .handler(async ({ data: { item, uid, server } }) => {
+        const params = new URLSearchParams({ item, uid, server });
+        const res = await backendFetch(`/leaderboard/items/standing?${params.toString()}`);
+        if (!res.ok) {
+            if (res.status === 404) return null;
+            throw new Error(`Failed to load item standing: ${res.status}`);
+        }
+        return (await res.json()) as IItemStanding;
+    });
+
+export function itemStandingQueryOptions(input: IItemStandingInput) {
+    return queryOptions({
+        queryKey: ["user", "leaderboard", "items", "standing", input.item, input.uid, input.server],
+        queryFn: () => getItemStandingFn({ data: input }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export type IMaxLevelCost = MaxLevelCostResponse;
+
+/**
+ * Where the max-level walk stops each operator: the level cap, or the level
+ * its modules unlock at (the backend's `LevelTarget`, a query parameter).
+ */
+export type MaxLevelTarget = "max" | "module";
+
+/** The EXP and LMD still needed to bring every owned operator to its target. */
+export const getMaxLevelCostFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { uid: string; target: MaxLevelTarget; bearerToken?: string }) => data)
+    .handler(async ({ data: { uid, target, bearerToken } }) => {
+        const token = bearerToken ?? optionalSiteToken();
+        const res = await backendFetch(`/user/max-level-cost?uid=${encodeURIComponent(uid)}&target=${target}`, { bearerToken: token });
+        if (!res.ok) {
+            throw new Error(`Failed to load max-level cost: ${res.status}`);
+        }
+        return (await res.json()) as IMaxLevelCost;
+    });
+
+export function maxLevelCostQueryOptions(uid: string, target: MaxLevelTarget, bearerToken?: string) {
+    return queryOptions({
+        queryKey: ["user", "max-level-cost", uid, target, bearerToken ? "auth" : "anon"],
+        queryFn: () => getMaxLevelCostFn({ data: { uid, target, bearerToken } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}

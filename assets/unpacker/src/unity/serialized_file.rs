@@ -1,0 +1,186 @@
+use std::io;
+
+use crate::unity::{
+    endian_reader::EndianReader,
+    type_tree::{TypeTreeNode, read_type_tree_blob},
+};
+
+pub struct SerializedFile {
+    pub objects: Vec<ObjectInfo>,
+    pub types: Vec<SerializedType>,
+    pub unity_version: String,
+    pub target_platform: i32,
+    pub enable_type_tree: bool,
+    pub data: Vec<u8>,
+    pub big_endian: bool,
+    /// External file dependencies (`m_Externals`), indexed by a `PPtr`'s
+    /// `m_FileID`: `m_FileID == 0` is this file, `n` is `externals[n-1]`.
+    pub externals: Vec<FileIdentifier>,
+}
+
+/// One entry of a `SerializedFile`'s `m_Externals` dependency table.
+pub struct FileIdentifier {
+    /// The referenced file's path (e.g. a CAB name like `CAB-<hash>`), used to
+    /// locate the bundle that actually holds an externally-referenced object.
+    pub path: String,
+}
+
+impl FileIdentifier {
+    /// The bare CAB name: the last path segment (`"archive:/CAB-x/CAB-x"` → `"CAB-x"`).
+    #[must_use]
+    pub fn cab_name(&self) -> &str {
+        self.path.rsplit('/').next().unwrap_or(&self.path)
+    }
+}
+
+pub struct ObjectInfo {
+    pub path_id: i64,
+    pub byte_start: u64,
+    pub byte_size: u32,
+    pub type_index: usize,
+    pub class_id: i32,
+}
+
+pub struct SerializedType {
+    pub class_id: i32,
+    pub type_tree: Option<TypeTreeNode>,
+}
+
+impl SerializedFile {
+    pub fn parse(data: Vec<u8>) -> Result<Self, io::Error> {
+        let mut r = EndianReader::new(&data, true);
+
+        let _metadata_size = r.read_u32()?;
+        let _file_size = r.read_u32()?;
+        let version = r.read_u32()?;
+
+        let mut data_offset = u64::from(r.read_u32()?);
+        let endian = r.read_u8()?;
+        let _ = r.read_bytes(3)?;
+
+        let big_endian = endian != 0;
+
+        if version >= 22 {
+            let _metadata_size = r.read_u32()?;
+            let _file_size = r.read_u64()?;
+            data_offset = r.read_u64()?;
+            let _ = r.read_u64()?;
+        }
+
+        r.set_big_endian(big_endian);
+
+        let unity_version = r.read_cstring()?;
+        let target_platform = r.read_i32()?;
+        let enable_type_tree = r.read_bool()?;
+        let type_count = r.read_i32()?;
+
+        let mut types = Vec::with_capacity(type_count as usize);
+        for _ in 0..type_count {
+            let class_id = r.read_i32()?;
+
+            let _is_stripped = if version >= 16 { r.read_bool()? } else { false };
+            let _script_type_index = if version >= 17 { r.read_i16()? } else { -1 };
+
+            // `m_ScriptID` (16 bytes) is present for SCRIPT types only: MonoBehaviour
+            // (class 114) since v16, negative class ids before that. Keying it off
+            // `is_stripped`/`script_type_index` instead desynchronizes the reader on any
+            // file carrying STRIPPED non-script types — every subsequent type blob is then
+            // read from the wrong offset and the whole SerializedFile is discarded
+            // (`refs/fx/sharedbattle.ab`, which holds shared FX materials dynchar emitters
+            // reference externally). Matches AssetStudio's `ReadSerializedType`.
+            if (version >= 16 && class_id == 114) || (version < 16 && class_id < 0) {
+                r.read_bytes(16)?; // m_ScriptID
+            }
+            r.read_bytes(16)?; // m_OldTypeHash
+
+            let type_tree = if enable_type_tree {
+                // A stripped type serializes an EMPTY tree; that's not a file-level
+                // error, only a type whose objects can't be deserialized (`read_object`
+                // already reports "no type tree" per object).
+                let tree = read_type_tree_blob(&mut r)?;
+                if version >= 21 {
+                    // Type dependencies array: count (i32) + count * i32
+                    let dep_count = r.read_i32()?;
+                    if dep_count > 0 {
+                        r.read_bytes((dep_count as usize) * 4)?;
+                    }
+                }
+                tree
+            } else {
+                None
+            };
+
+            types.push(SerializedType {
+                class_id,
+                type_tree,
+            });
+        }
+
+        let object_count = r.read_i32()?;
+        let mut objects = Vec::with_capacity(object_count as usize);
+        for _ in 0..object_count {
+            if version >= 14 {
+                r.align(4);
+            }
+            let path_id = r.read_i64()?;
+            let mut byte_start = if version >= 22 {
+                r.read_u64()?
+            } else {
+                u64::from(r.read_u32()?)
+            };
+            byte_start += data_offset; // absolute offset into data
+            let byte_size = r.read_u32()?;
+            let type_index = r.read_i32()? as usize;
+            let class_id = types[type_index].class_id;
+
+            objects.push(ObjectInfo {
+                path_id,
+                byte_start,
+                byte_size,
+                type_index,
+                class_id,
+            });
+        }
+
+        // ScriptTypes (`m_ScriptTypes`) — present since version 11; skipped.
+        if version >= 11 {
+            let script_count = r.read_i32()?;
+            for _ in 0..script_count.max(0) {
+                let _local_file_index = r.read_i32()?;
+                if version >= 14 {
+                    r.align(4);
+                    let _local_id = r.read_i64()?;
+                } else {
+                    let _local_id = i64::from(r.read_i32()?);
+                }
+            }
+        }
+
+        // Externals (`m_Externals`): the dependency table PPtrs point into.
+        let mut externals = Vec::new();
+        if let Ok(ext_count) = r.read_i32() {
+            for _ in 0..ext_count.max(0) {
+                if version >= 6 {
+                    let _temp_empty = r.read_cstring()?;
+                }
+                if version >= 5 {
+                    let _guid = r.read_bytes(16)?;
+                    let _type = r.read_i32()?;
+                }
+                let path = r.read_cstring()?;
+                externals.push(FileIdentifier { path });
+            }
+        }
+
+        Ok(Self {
+            objects,
+            types,
+            unity_version,
+            target_platform,
+            enable_type_tree,
+            data,
+            big_endian,
+            externals,
+        })
+    }
+}

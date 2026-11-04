@@ -1,0 +1,133 @@
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { operatorQueryOptions } from "#/lib/api/operators";
+import { DEFAULT_LOCALE, formatMessage, sourceMessage, useGamedataServer, useT } from "#/lib/i18n";
+import { fullMessageKey, type TypedT } from "#/lib/i18n/messages";
+import type { IEnrichedSkill, IOperatorListItem, IOperatorModule } from "#/types/operators";
+import type { IOperatorListEntry } from "./types";
+import type { messages as detailMessages } from "./useOperatorDetail.messages";
+
+/** The `t` these label helpers need, narrowed to the keys they can render. */
+export type DetailT = TypedT<typeof detailMessages>;
+
+/**
+ * Default `t` for a caller outside an `I18nProvider` - the chart exporter runs
+ * from a callback that already holds the labels it needs. It resolves against
+ * the bundled source catalog, so this file carries no second copy of the text.
+ */
+const sourceT: DetailT = (key, values) => formatMessage(sourceMessage(fullMessageKey("tools", key)) ?? key, DEFAULT_LOCALE, values);
+
+export interface IOperatorDetail {
+    raw: IOperatorListItem | undefined;
+    /** Display name of the skill at the given 1-indexed position. Falls back to `S{n}` if unknown. */
+    skillName: (skillIndex: number) => string;
+    /** Display name of the module at the given 1-indexed position. Returns "No module" for index 0. */
+    moduleName: (moduleIndex: number) => string;
+    /** Short description of a potential rank (potential 1 = no buff). */
+    potentialLabel: (potential: number) => string;
+    /** Skill object for the given 1-indexed position. */
+    skillAt: (skillIndex: number) => IEnrichedSkill | undefined;
+    /** Module object for the given 1-indexed position. */
+    moduleAt: (moduleIndex: number) => IOperatorModule | undefined;
+    /** Maximum operator level for the given promotion phase. Defaults to 90. */
+    maxLevelForPromotion: (promotion: number) => number;
+    /** Number of promotion phases this operator supports. */
+    phaseCount: number;
+}
+
+/**
+ * Look up enrichment data (skill names, module names, potential text) for the
+ * operator that the DPS calculator already knows by id. One `/operators/{id}`
+ * fetch per picked operator, shared by every card showing it, instead of the
+ * whole operator table up front.
+ */
+export function useOperatorDetail(entry: IOperatorListEntry | undefined): IOperatorDetail & { failed: boolean; retry: () => void } {
+    const { data: op, isError, refetch } = useQuery({ ...operatorQueryOptions(entry?.id ?? "", useGamedataServer()), enabled: !!entry });
+    const t: DetailT = useT("tools");
+    // An unknown id resolves to `null`; the detail treats it like one not loaded yet. A failed
+    // fetch is said as one (`failed`), so blank skill and module tiles do not read as "none".
+    return useMemo(() => ({ ...buildDetail(op ?? undefined, entry, t), failed: isError, retry: () => void refetch() }), [op, entry, t, isError, refetch]);
+}
+
+function buildDetail(op: IOperatorListItem | undefined, entry: IOperatorListEntry | undefined, t: DetailT): IOperatorDetail {
+    return {
+        raw: op,
+        skillName(skillIndex) {
+            if (skillIndex <= 0) return t("calc.detail.basicAttack");
+            const fallback = `S${skillIndex}`;
+            const skill = op?.skills?.[skillIndex - 1];
+            const name = skill?.static?.levels?.[0]?.name?.trim();
+            return name && name.length > 0 ? t("calc.detail.designatorWithName", { label: fallback, name }) : fallback;
+        },
+        moduleName(moduleIndex) {
+            if (moduleIndex <= 0) return t("calc.detail.noModule");
+            const pick = resolveModule(op, moduleIndex, entry);
+            // Prefer the in-game designator. `Mod N` is the engine's own index
+            // and means nothing to a reader, so it is only a last resort.
+            const label = moduleDesignator(pick) ?? t("calc.detail.moduleFallback", { index: moduleIndex });
+            const name = pick?.uniEquipName?.trim();
+            return name && name.length > 0 ? t("calc.detail.designatorWithName", { label, name }) : label;
+        },
+        potentialLabel(potential) {
+            const fallback = `P${potential}`;
+            if (potential <= 1) return t("calc.detail.designatorWithName", { label: fallback, name: t("calc.detail.potentialBase") });
+            const rank = op?.potentialRanks?.[potential - 2];
+            const desc = rank?.description?.trim();
+            return desc && desc.length > 0 ? t("calc.detail.designatorWithName", { label: fallback, name: desc }) : fallback;
+        },
+        skillAt(skillIndex) {
+            if (skillIndex <= 0) return undefined;
+            return op?.skills?.[skillIndex - 1];
+        },
+        moduleAt(moduleIndex) {
+            if (moduleIndex <= 0) return undefined;
+            return resolveModule(op, moduleIndex, entry);
+        },
+        maxLevelForPromotion(promotion) {
+            const phase = op?.phases?.[promotion];
+            return phase?.maxLevel ?? 90;
+        },
+        phaseCount: op?.phases?.length ?? 3,
+    };
+}
+
+/** The module fields `resolveModule` and `moduleDesignator` read; the full operator and the index entry both carry them. */
+type IModuleRef = Pick<IOperatorModule, "uniEquipId" | "typeName1" | "typeName2" | "type">;
+
+/** `SUM-X` and friends, or null for the badge and for malformed rows. */
+export function moduleDesignator(mod: Pick<IModuleRef, "typeName1" | "typeName2"> | undefined): string | null {
+    const t1 = mod?.typeName1?.trim();
+    const t2 = mod?.typeName2?.trim();
+    if (!t1 || !t2) return null;
+    return `${t1}-${t2}`;
+}
+
+export function resolveModule<M extends IModuleRef>(op: { modules?: readonly M[] } | undefined, moduleIndex: number, entry: IOperatorListEntry | undefined): M | undefined {
+    if (moduleIndex <= 0) return undefined;
+
+    // Join on identity: the DPS payload names the `uniEquipId` that each module
+    // number resolves to, resolved server-side by the same code the engine
+    // simulates with. Counting positions would answer with whatever the
+    // operator endpoint happens to list at that offset: a different list,
+    // in a different order, from a different request.
+    const slot = entry?.availableModules?.indexOf(moduleIndex) ?? -1;
+    const id = slot >= 0 ? entry?.availableModuleIds?.[slot] : undefined;
+    if (id) {
+        const byId = (op?.modules ?? []).find((m) => m.uniEquipId === id);
+        if (byId) return byId;
+    }
+
+    // Backend too old to send ids: fall back to the positional reading rather
+    // than showing nothing.
+    const optional = (op?.modules ?? []).filter((m) => m.type !== "INITIAL" && m.typeName1?.toUpperCase() !== "ORIGINAL");
+    return optional[moduleIndex - 1];
+}
+
+/**
+ * Compact module label for chart exports: the in-game designator when it can be
+ * resolved, the engine's own index only when it cannot.
+ */
+export function moduleShortLabel(op: { modules?: readonly IModuleRef[] } | undefined, entry: IOperatorListEntry | undefined, moduleIndex: number, t: DetailT = sourceT): string {
+    if (moduleIndex <= 0) return t("calc.detail.noModuleLower");
+    return moduleDesignator(resolveModule(op, moduleIndex, entry)) ?? t("calc.detail.moduleFallbackShort", { index: moduleIndex });
+}

@@ -1,0 +1,60 @@
+"use client";
+
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useRender } from "@base-ui/react/use-render";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
+import type * as React from "react";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { cn } from "#/lib/utils";
+import type { messages } from "./breadcrumb.messages";
+
+export function Breadcrumb({ ...props }: React.ComponentProps<"nav">): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("common");
+
+    return <nav aria-label={t("breadcrumb.label")} data-slot="breadcrumb" {...props} />;
+}
+
+export function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">): React.ReactElement {
+    return <ol className={cn("wrap-break-word flex flex-wrap items-center gap-1.5 text-muted-foreground text-sm sm:gap-2.5", className)} data-slot="breadcrumb-list" {...props} />;
+}
+
+export function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">): React.ReactElement {
+    return <li className={cn("inline-flex items-center gap-1.5", className)} data-slot="breadcrumb-item" {...props} />;
+}
+
+export function BreadcrumbLink({ className, render, ...props }: useRender.ComponentProps<"a">): React.ReactElement {
+    const defaultProps = {
+        className: cn("relative transition-colors pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2 hover:text-foreground", className),
+        "data-slot": "breadcrumb-link",
+    };
+
+    return useRender({
+        defaultTagName: "a",
+        props: mergeProps<"a">(defaultProps, props),
+        render,
+    });
+}
+
+export function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">): React.ReactElement {
+    return <span aria-current="page" className={cn("font-normal text-foreground", className)} data-slot="breadcrumb-page" {...props} />;
+}
+
+export function BreadcrumbSeparator({ children, className, ...props }: React.ComponentProps<"li">): React.ReactElement {
+    return (
+        <li aria-hidden="true" className={cn("opacity-80 [&>svg]:size-4", className)} data-slot="breadcrumb-separator" role="presentation" {...props}>
+            {children ?? <ChevronRight />}
+        </li>
+    );
+}
+
+export function BreadcrumbEllipsis({ className, ...props }: React.ComponentProps<"span">): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("common");
+
+    return (
+        <span className={className} data-slot="breadcrumb-ellipsis" {...props}>
+            <MoreHorizontal aria-hidden="true" className="size-4" />
+            <span className="sr-only">{t("breadcrumb.more")}</span>
+        </span>
+    );
+}

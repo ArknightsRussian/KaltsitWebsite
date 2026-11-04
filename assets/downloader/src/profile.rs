@@ -1,0 +1,281 @@
+/// Index files (`hot_update_list.idx`, the resource-manifest `<md5>.idx`) are
+/// kept by every profile — they drive incremental pulls and dependency
+/// resolution.
+fn is_idx(name: &str) -> bool {
+    std::path::Path::new(name)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("idx"))
+}
+
+/// Bundles the Stage Viewer needs: every stage's level scene (for the map/enemy
+/// renderer and clickability) plus the map-preview thumbnails and zone/event/IS
+/// banner art.
+///
+/// The `operators` profile omits all of these, so newer events (e.g. a
+/// just-released side story) and mode art never arrive on an incremental pull.
+#[must_use]
+pub fn keep_for_stages(name: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        // Stage level scenes -> gamedata/levels (all modes + events).
+        "scenes/activities/",
+        "scenes/obt/",
+        // Map-preview thumbnails (main / event / SSS / Annihilation / IS `ro*` /
+        // CC / Paradox / Rune / RA-in-arts).
+        "arts/ui/stage_mappreview_h2_",
+        // Reclamation Algorithm previews live in the sprite pack instead.
+        "spritepack/sandbox_1_stage_mappreview_",
+        // Zone / event / mode banner key-art.
+        "spritepack/ui_home_act_banner_zone_",
+        "spritepack/ui_zone_home_theme_",
+        // Integrated Strategies season KV banners (avg image bundles).
+        "avg/imgs/avg_img_rogue_",
+        "avg/imgs/asp_rl",
+    ];
+    is_idx(name) || PREFIXES.iter().any(|p| name.starts_with(p))
+}
+
+/// Everything `unpacker extract --gamedata` reads and nothing else: the `anon/`
+/// bundles, which hold every gamedata `TextAsset` (the `FlatBuffer` tables and the
+/// level data), plus the `.idx` manifests.
+///
+/// `anon/` is opaque — the bundle names are hashes — so the resource manifest
+/// `<md5>.idx` is what maps a `TextAsset` back to its `gamedata/...` path; the
+/// unpacker refuses to run `--gamedata` without it. Nothing outside `anon/`
+/// contributes to a gamedata extraction, so this is the whole set: ~150 files
+/// and ~330 MB on CN, against ~90 GB for `full`.
+#[must_use]
+pub fn keep_for_gamedata(name: &str) -> bool {
+    is_idx(name) || name.starts_with("anon/")
+}
+
+/// Bundles the Release Planner (`/tools/release`, `docs/release/`) serves as art.
+///
+/// Gacha banner strips, event home-entry key art and per-event UI kits,
+/// skin shop portraits, and skin brand key visuals and logos. The client keeps
+/// only the CURRENT set of banners and home entries in these packs, so what a
+/// pull yields is "running plus recently retro-listed", never the archive;
+/// the pull still has to happen for it to be served at all. Sized 2026-09-14
+/// on the local EN raw dir: 6 `act_banner` bundles, 1 `[uc]homeentry`, 45
+/// `ui_zone_home_theme_*`, 39 `activity/[uc]*` kits.
+#[must_use]
+pub fn keep_for_release(name: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        // Gacha banner strips (`picLimited_76_0_1`), shop and zone banners.
+        "spritepack/ui_home_act_banner_",
+        // Event home-entry key art keyed by activity id.
+        "arts/ui/stage/[uc]homeentry",
+        "spritepack/ui_zone_home_theme_",
+        // Per-event UI kits (backgrounds, entry art, mission icons).
+        "activity/",
+        // Archives entry art per story event (`storyEntryPic_{act_id}`), kept
+        // by the client for every story event, unlike the home entry.
+        "spritepack/story_review_chapter_bg_",
+        "spritepack/story_review_mini_activity_bg_",
+        // Loading illustrations: one official piece per event, reached from an
+        // activity through its stages' `LoadingPicId`.
+        "arts/loadingillusts_",
+        // Legacy localised gacha banner hub (early EN strips).
+        "[[en]]/arts/ui/homebanners/",
+        "arts/ui/homebanners/",
+        // Skin shop portraits, brand key visuals and brand logos.
+        "spritepack/arts_shop_skin_portrait_",
+        "spritepack/ui_kv_img_",
+        "spritepack/ui_brand_image_hub_",
+    ];
+    is_idx(name) || PREFIXES.iter().any(|p| name.starts_with(p))
+}
+
+/// Bundles the Story Reader needs: character sprites, images, backgrounds and
+/// effects (`textures/avg`), music and story sound effects, and cutscene video.
+///
+/// Neither `operators` nor `release` keeps any of these, so a region pulled
+/// without this profile has story text but no pictures, sound or video. Traced
+/// 2026-11-02 on the CN `act8d2` story: `avg_book1` <- `avg/imgs/avg_img_misc_0`,
+/// `bg_rhodescom` <- `avg/bg/avg_bkg_h1_bg_rh_0`, `$darkness01_intro` <-
+/// `audio/sound_beta_2/music/beta1_180603/m_dia_darkness01`. Sized on the local
+/// CN raw dir: `avg/` 1.9 GB, music 1.2 GB, `raw/video/` 323 MB, story SFX
+/// 178 MB, `custom_se` 27 MB.
+#[must_use]
+pub fn keep_for_story(name: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        // Sprites, images, backgrounds, effects, animated text and key visuals.
+        "avg/",
+        // BGM, keyed by `audio_data` from `PlayMusic`.
+        "audio/sound_beta_2/music",
+        // `PlaySound` effects, ambience and dialog stingers.
+        "audio/sound_beta_2/avg_se",
+        "audio/sound_beta_2/ambience",
+        "audio/sound_beta_2/dialog",
+        // Per-event sound effects.
+        "audio/custom_se/",
+        // Cutscenes (`.usm`), transcoded into `video/` by the unpacker.
+        "raw/video/",
+    ];
+    is_idx(name) || PREFIXES.iter().any(|p| name.starts_with(p))
+}
+
+#[must_use]
+pub fn keep_for_operators(name: &str) -> bool {
+    const PREFIXES: &[&str] = &[
+        "anon/",
+        "chararts/",
+        "skinpack/",
+        "arts/dynchars/",
+        "arts/dynavatars",
+        "[uc]shaders",
+        "refs/fx/",
+        "spritepack/char_portrait_",
+        "arts/charportraits/",
+        "spritepack/ui_char_avatar_",
+        "spritepack/skill_icons_",
+        "spritepack/ui_equip_",
+        "arts/ui_item_icons_",
+        "arts/items/item_icons_",
+        "spritepack/building_ui_buff_skills_",
+        "spritepack/ui_sub_profession_icon_hub_",
+        "arts/elite_hub",
+        "arts/potential_hub",
+        "spritepack/ui_camp_logo_",
+        "audio/sound_beta_2/player",
+        "audio/sound_beta_2/btl_snd_",
+        "audio/sound_beta_2/voice",
+    ];
+    is_idx(name) || PREFIXES.iter().any(|p| name.starts_with(p))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keep_for_operators;
+
+    #[test]
+    fn keeps_operator_assets_and_ui_icons() {
+        assert!(keep_for_operators("chararts/char_002_amiya.ab"));
+        assert!(keep_for_operators(
+            "arts/dynchars/char_1012_skadi2_boc#4.ab"
+        ));
+        assert!(keep_for_operators("arts/dynavatars_0.ab"));
+        assert!(keep_for_operators("spritepack/skill_icons_h1_0.ab"));
+        assert!(keep_for_operators("anon/foo.ab"));
+        assert!(keep_for_operators("hot_update_list.idx"));
+        assert!(keep_for_operators("arts/ui_item_icons_5.ab"));
+        assert!(keep_for_operators("arts/items/item_icons_no_tiny_hub.ab"));
+        assert!(keep_for_operators(
+            "spritepack/building_ui_buff_skills_h1_0.ab"
+        ));
+        assert!(keep_for_operators(
+            "spritepack/ui_sub_profession_icon_hub_h2_0.ab"
+        ));
+        assert!(keep_for_operators("arts/elite_hub.ab"));
+        assert!(keep_for_operators("arts/potential_hub.ab"));
+        assert!(keep_for_operators("spritepack/ui_camp_logo_0.ab"));
+        assert!(keep_for_operators("audio/sound_beta_2/player_0.ab"));
+        assert!(keep_for_operators("audio/sound_beta_2/btl_snd_0.ab"));
+        assert!(keep_for_operators(
+            "audio/sound_beta_2/voice/char_002_amiya/cn_001.ab"
+        ));
+        assert!(keep_for_operators(
+            "audio/sound_beta_2/voice_cn/char_1052_kalts2/cn_001.ab"
+        ));
+        assert!(!keep_for_operators("arts/ui/[uc]loadingbg.ab"));
+        assert!(!keep_for_operators("audio/sound_beta_2/music_0.ab"));
+        assert!(!keep_for_operators("audio/sound_beta_2/enmy_snd_atk_0.ab"));
+    }
+
+    #[test]
+    fn keeps_release_planner_art() {
+        use super::keep_for_release;
+        assert!(keep_for_release(
+            "spritepack/ui_home_act_banner_gacha_h2_0.ab"
+        ));
+        assert!(keep_for_release(
+            "spritepack/ui_home_act_banner_gacha_en_0.ab"
+        ));
+        assert!(keep_for_release("arts/ui/stage/[uc]homeentry.ab"));
+        assert!(keep_for_release(
+            "spritepack/ui_zone_home_theme_act41sre.ab"
+        ));
+        assert!(keep_for_release("activity/[uc]act54sign.ab"));
+        assert!(keep_for_release("spritepack/arts_shop_skin_portrait_14.ab"));
+        assert!(keep_for_release(
+            "spritepack/story_review_chapter_bg_h1_0.ab"
+        ));
+        assert!(keep_for_release("arts/loadingillusts_3.ab"));
+        assert!(keep_for_release("spritepack/ui_kv_img_8.ab"));
+        assert!(keep_for_release("spritepack/ui_brand_image_hub_0.ab"));
+        assert!(keep_for_release("hot_update_list.idx"));
+        assert!(!keep_for_release("chararts/char_002_amiya.ab"));
+        assert!(!keep_for_release("audio/sound_beta_2/music_0.ab"));
+        assert!(!keep_for_release(
+            "scenes/obt/main/level_main_01-07/level_main_01-07.ab"
+        ));
+    }
+
+    #[test]
+    fn keeps_gamedata_bundles_only() {
+        use super::keep_for_gamedata;
+        assert!(keep_for_gamedata(
+            "anon/24f2b0b8ce0f0dd85ce1d9e0e2b3ba0f.ab"
+        ));
+        assert!(keep_for_gamedata("hot_update_list.idx"));
+        assert!(keep_for_gamedata("4331c32f0651124e96793bfc33b79811.idx"));
+        assert!(!keep_for_gamedata("chararts/char_002_amiya.ab"));
+        assert!(!keep_for_gamedata("audio/sound_beta_2/music_0.ab"));
+        assert!(!keep_for_gamedata(
+            "scenes/obt/main/level_main_01-07/level_main_01-07.ab"
+        ));
+    }
+
+    #[test]
+    fn keeps_stage_viewer_assets() {
+        use super::keep_for_stages;
+        // level scenes (map viewer + clickability)
+        assert!(keep_for_stages(
+            "scenes/activities/act45side/level_act45side_02/level_act45side_02.ab"
+        ));
+        assert!(keep_for_stages(
+            "scenes/obt/roguelike/ro1/level_rogue1_4-5/level_rogue1_4-5.ab"
+        ));
+        // previews
+        assert!(keep_for_stages("arts/ui/stage_mappreview_h2_main_09_0.ab"));
+        assert!(keep_for_stages("arts/ui/stage_mappreview_h2_ro1_n_0.ab"));
+        assert!(keep_for_stages(
+            "spritepack/sandbox_1_stage_mappreview_0.ab"
+        ));
+        // banners
+        assert!(keep_for_stages(
+            "spritepack/ui_zone_home_theme_act48side.ab"
+        ));
+        assert!(keep_for_stages("spritepack/ui_home_act_banner_zone_0.ab"));
+        // IS KV banners
+        assert!(keep_for_stages("avg/imgs/avg_img_rogue_2p2_0.ab"));
+        assert!(keep_for_stages("avg/imgs/asp_rl3_6_0.ab"));
+        assert!(keep_for_stages("hot_update_list.idx"));
+        // not stage-viewer content
+        assert!(!keep_for_stages("chararts/char_002_amiya.ab"));
+        assert!(!keep_for_stages("audio/sound_beta_2/music_0.ab"));
+    }
+
+    #[test]
+    fn keeps_story_assets() {
+        use super::keep_for_story;
+        // the act8d2 trace
+        assert!(keep_for_story("avg/imgs/avg_img_misc_0.ab"));
+        assert!(keep_for_story("avg/bg/avg_bkg_h1_bg_rh_0.ab"));
+        assert!(keep_for_story(
+            "audio/sound_beta_2/music/beta1_180603/m_dia_darkness01.ab"
+        ));
+        assert!(keep_for_story("avg/characters/avg_char_002_amiya_1.ab"));
+        assert!(keep_for_story("avg/[uc]common.ab"));
+        assert!(keep_for_story("audio/sound_beta_2/avg_se_10.ab"));
+        assert!(keep_for_story("audio/sound_beta_2/ambience.ab"));
+        assert!(keep_for_story("audio/sound_beta_2/dialog.ab"));
+        assert!(keep_for_story("audio/custom_se/act1autochess.ab"));
+        assert!(keep_for_story("raw/video/01.usm"));
+        assert!(keep_for_story("hot_update_list.idx"));
+        // not story content
+        assert!(!keep_for_story("chararts/char_002_amiya.ab"));
+        assert!(!keep_for_story("audio/sound_beta_2/voice/char_002_amiya.ab"));
+        assert!(!keep_for_story("audio/sound_beta_2/btl_snd_0.ab"));
+        assert!(!keep_for_story("scenes/obt/main/level_main_01-07.ab"));
+    }
+}

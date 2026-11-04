@@ -1,0 +1,263 @@
+use std::fmt::Write as _;
+
+use ::serenity::builder::{CreateEmbed, CreateEmbedAuthor};
+use ::serenity::model::Timestamp;
+use poise::CreateReply;
+
+use crate::api;
+use crate::config::EndpointsConfig;
+use crate::types::{Context, Error};
+use crate::ui::{COLOR_BAD, COLOR_OK, COLOR_WARN};
+use crate::utils::{commafy, pct};
+
+/// Which backend to query for subcommands that hit a single backend (health, stats, leaderboard).
+#[derive(Debug, Clone, Copy, poise::ChoiceParameter)]
+pub enum Target {
+    #[name = "local"]
+    Local,
+    #[name = "public"]
+    Public,
+}
+
+impl Target {
+    #[must_use]
+    pub fn backend(self, e: &EndpointsConfig) -> &str {
+        match self {
+            Self::Local => &e.local_backend,
+            Self::Public => &e.public_backend,
+        }
+    }
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Public => "public",
+        }
+    }
+}
+
+/// Inspect the configured Myrtle API.
+///
+/// Subcommands: `status` (every configured endpoint) and `stats` (the local backend).
+#[poise::command(
+    slash_command,
+    guild_only,
+    subcommands("status", "stats"),
+    subcommand_required
+)]
+pub async fn api(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Ping every configured endpoint and report reachability and latency.
+#[poise::command(slash_command, guild_only)]
+pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
+    let data = ctx.data();
+    let result = api::status::status(&data.http_client, &data.config.endpoints).await;
+
+    let endpoints = [
+        &result.local_backend,
+        &result.local_frontend,
+        &result.public_backend,
+        &result.public_frontend,
+    ];
+    let reachable = endpoints.iter().filter(|e| e.reachable).count();
+    let color = match reachable {
+        n if n == endpoints.len() => COLOR_OK,
+        0 => COLOR_BAD,
+        _ => COLOR_WARN,
+    };
+
+    let embed = CreateEmbed::new()
+        .title(format!("API status - {reachable}/{} up", endpoints.len()))
+        .colour(color)
+        .field(
+            "Local backend",
+            format_endpoint(&result.local_backend),
+            false,
+        )
+        .field(
+            "Local frontend",
+            format_endpoint(&result.local_frontend),
+            false,
+        )
+        .field(
+            "Public backend",
+            format_endpoint(&result.public_backend),
+            false,
+        )
+        .field(
+            "Public frontend",
+            format_endpoint(&result.public_frontend),
+            false,
+        )
+        .timestamp(Timestamp::now());
+
+    ctx.send(CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
+
+/// Shows the platform statistics from the local backend.
+#[poise::command(slash_command, guild_only)]
+pub async fn stats(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer().await?;
+    let data = ctx.data();
+    let target = Target::Local;
+    let base_url = target.backend(&data.config.endpoints);
+
+    let Ok(s) = api::stats::stats(&data.http_client, base_url).await else {
+        let embed = CreateEmbed::new()
+            .author(CreateEmbedAuthor::new("myrtle.moe").url("https://myrtle.moe"))
+            .title("Stats unavailable")
+            .description(format!(
+                "Couldn't reach the **{}** backend. Please try again shortly.",
+                target.label()
+            ))
+            .colour(COLOR_BAD)
+            .timestamp(Timestamp::now());
+        ctx.send(CreateReply::default().embed(embed)).await?;
+        return Ok(());
+    };
+
+    let by_server = {
+        let rows = [
+            ("EN", s.users.by_server.en),
+            ("JP", s.users.by_server.jp),
+            ("KR", s.users.by_server.kr),
+            ("CN", s.users.by_server.cn),
+            ("BILI", s.users.by_server.bili),
+            ("TW", s.users.by_server.tw),
+        ];
+        let mut t = format!("```\n{:<6}{:>11}\n", "Server", "Players");
+        for (name, count) in rows {
+            let _ = writeln!(t, "{name:<6}{:>11}", commafy(count));
+        }
+        t.push_str("```");
+        t
+    };
+
+    let game_data = {
+        let g = &s.game_data;
+        let rows = [
+            ("Operators", g.operators),
+            ("Skills", g.skills),
+            ("Modules", g.modules),
+            ("Skins", g.skins),
+            ("Stages", g.stages),
+            ("Zones", g.zones),
+            ("Enemies", g.enemies),
+        ];
+        let mut t = String::from("```\n");
+        for (name, count) in rows {
+            let _ = writeln!(t, "{name:<10}{:>9}", commafy(count));
+        }
+        t.push_str("```");
+        t
+    };
+
+    let embed = CreateEmbed::new()
+        .author(CreateEmbedAuthor::new("myrtle.moe").url("https://myrtle.moe"))
+        .title("Statistics")
+        .colour(COLOR_OK)
+        .field(
+            "Users",
+            format!(
+                "**{}** total\n`{}` public profiles\n`+{}` this week\n`+{}` this month",
+                commafy(s.users.total),
+                commafy(s.users.public_profiles),
+                commafy(s.users.signups7d),
+                commafy(s.users.signups30d),
+            ),
+            true,
+        )
+        .field(
+            "Gacha",
+            format!(
+                "**{}** pulls · {} contributors\n★6: {} (`{}%`)\n★5: {} (`{}%`)\n★4: {} (`{}%`)",
+                commafy(s.gacha.total_pulls),
+                commafy(s.gacha.contributing_users),
+                commafy(s.gacha.six_star_count),
+                pct(s.gacha.six_star_count, s.gacha.total_pulls),
+                commafy(s.gacha.five_star_count),
+                pct(s.gacha.five_star_count, s.gacha.total_pulls),
+                commafy(s.gacha.four_star_count),
+                pct(s.gacha.four_star_count, s.gacha.total_pulls),
+            ),
+            true,
+        )
+        .field(
+            "Tier Lists & Rosters",
+            format!(
+                "**{}** tier lists (`{}` active)\n`{}` versions · `{}` placements\n**{}** rosters",
+                commafy(s.tier_lists.total),
+                commafy(s.tier_lists.active),
+                commafy(s.tier_lists.total_versions),
+                commafy(s.tier_lists.total_placements),
+                commafy(s.rosters.total),
+            ),
+            true,
+        )
+        .field("Registrations by server", by_server, false)
+        .field("Game database", game_data, false)
+        .timestamp(Timestamp::now());
+
+    ctx.send(CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
+
+fn format_endpoint(s: &api::status::EndpointStatus) -> String {
+    if s.reachable {
+        format!(
+            "**OK {}** - {} ms\n<{}>",
+            s.status_code.unwrap_or(0),
+            s.response_time_ms.unwrap_or(0),
+            s.url,
+        )
+    } else {
+        format!("**unreachable**\n<{}>", s.url)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_endpoint;
+    use crate::api::status::EndpointStatus;
+
+    #[test]
+    fn reachable_endpoints_show_status_and_latency() {
+        let s = EndpointStatus {
+            url: "https://api.example/health".into(),
+            reachable: true,
+            status_code: Some(200),
+            response_time_ms: Some(87),
+        };
+        assert_eq!(
+            format_endpoint(&s),
+            "**OK 200** - 87 ms\n<https://api.example/health>"
+        );
+    }
+
+    #[test]
+    fn missing_numbers_read_as_zero() {
+        let s = EndpointStatus {
+            url: "u".into(),
+            reachable: true,
+            status_code: None,
+            response_time_ms: None,
+        };
+        assert_eq!(format_endpoint(&s), "**OK 0** - 0 ms\n<u>");
+    }
+
+    #[test]
+    fn unreachable_endpoints_show_only_the_url() {
+        let s = EndpointStatus {
+            url: "u".into(),
+            reachable: false,
+            status_code: Some(500),
+            response_time_ms: Some(3),
+        };
+        assert_eq!(format_endpoint(&s), "**unreachable**\n<u>");
+    }
+}

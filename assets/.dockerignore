@@ -1,0 +1,11 @@
+ArkAssets/
+output/
+node_modules/
+binaries/
+
+**/target/
+**/.cargo/
+
+.git/
+.DS_Store
+Thumbs.db

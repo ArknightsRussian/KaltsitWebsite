@@ -1,0 +1,21 @@
+.claude
+Decoded
+CLAUDE.md
+.env
+**/.DS_Store
+ArkAssets
+frontend-old
+README-prompt.md
+docs/
+vps-update.sh
+vps-info.sh
+vps-start.sh
+backend/.dps-updater-state.json
+.playwright-mcp
+# IL2CPP recovery working dir (APKs, dumps, frida-server) — see assets/il2cpp-recover.sh
+il2cpp-work/
+assets/il2cpp-work/
+
+# Local scratch work (renders, captures, one-off instruments), never published
+scratchpad/
+backend/sync-dumps/

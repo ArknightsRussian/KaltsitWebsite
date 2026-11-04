@@ -1,0 +1,43 @@
+FROM rust:1-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev pkg-config libssl-dev git ca-certificates \
+    build-essential unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+
+RUN curl -LO https://github.com/google/flatbuffers/releases/download/v25.12.19/Linux.flatc.binary.g++-13.zip \
+    && unzip Linux.flatc.binary.g++-13.zip -d /usr/local/bin/ \
+    && chmod +x /usr/local/bin/flatc \
+    && rm Linux.flatc.binary.g++-13.zip
+
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+COPY . .
+
+RUN --mount=type=cache,target=/app/downloader/target \
+    cd downloader && cargo build && \
+    cp target/debug/downloader /usr/local/bin/
+
+RUN --mount=type=cache,target=/app/unpacker/target \
+    cd unpacker && cargo build && \
+    cp target/debug/unpacker /usr/local/bin/
+
+RUN cp download.sh unpack.sh generate_fbs.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/download.sh /usr/local/bin/unpack.sh /usr/local/bin/generate_fbs.sh
+
+RUN mkdir -p binaries && \
+    cp /usr/local/bin/downloader binaries/downloader && \
+    cp /usr/local/bin/unpacker binaries/unpacker
+
+RUN ldconfig
+
+RUN mkdir -p /data/ArkAssets /data/output
+VOLUME ["/data/ArkAssets", "/data/output"]
+
+CMD ["sh", "-c", "echo 'Run with: download.sh or unpack.sh'"]
+

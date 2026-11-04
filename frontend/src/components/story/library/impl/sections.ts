@@ -1,0 +1,331 @@
+/**
+ * How `/stories` is cut into sections, which pill a group answers to, and what
+ * badge its card wears. Pure over its inputs, so the whole page's structure is
+ * testable without a DOM.
+ *
+ * THE SECTIONS ARE THE GAME'S OWN. `stage_table.Storylines` is a list of 14
+ * themed shelves on EN (`mainLine` "For Tomorrow" plus 13 `ssLine_*`), and the
+ * backend resolves each shelf's locations to `StoryGroup.id`s through
+ * `StorylineStorySets` (`docs/story-reader.md` section 2). 81 of the 87
+ * non-record groups sit on at least one shelf and 17 sit on several, so the
+ * shelves are NOT a partition. A shelf's rail mixes its own stories
+ * (`STORY_SET`, `Storyline.ownGroupIds`) with `BEFORE` / `AFTER` pointers at
+ * stories that live elsewhere. The mainline ARCS show every group their rail
+ * lists, pointers included, so Darknights Memoir still reads as the read-first
+ * inside SHATTER OF A VISION (owner ruling 2026-10-15). Every other shelf shows
+ * only the groups whose HOME it is ({@link homeShelves}), so a themed shelf
+ * never repeats another's story: Lone Trail sits under Those Who Take The
+ * Future alone, not also under Snow and Silver Steel, which points at it. A
+ * pointed-at event therefore appears twice on the page, once in the arc and
+ * once on its home shelf; {@link sectionGroups} keeps the first for the flat
+ * list and the sheet's order.
+ *
+ * A backend older than the `storylines` field sends none, and then
+ * {@link fallbackSections} cuts the page by main-chapter order, then by event
+ * release year, then records. The page says which cut it is showing.
+ */
+
+import { homeShelves } from "#/lib/story/book/scopes";
+import { iconIsLogo, iconIsWide, sectionIconSource } from "./art";
+import type { LibGroup, LibIndex, LibRecord, LibStoryline } from "./derive";
+
+/** The in-game label a card's badge prints. */
+export type StoryKind = "main" | "event" | "intermezzo" | "vignette" | "record";
+
+/** The filter pills, left to right. */
+export type FilterKey = "all" | "main" | "events" | "side" | "records";
+
+export const FILTER_ORDER: readonly FilterKey[] = ["all", "main", "events", "side", "records"] as const;
+
+export type ViewMode = "grid" | "list";
+
+/**
+ * The badge a group wears.
+ *
+ * `side` splits on the game's own Archives shelf: `displayType BRANCHLINE` is
+ * an INTERMEZZO (3 on EN: Darknights Memoir, A Walk in the Dust, Under Tides)
+ * and everything else in `side` is an EVENT. The other 47 side groups are NOT
+ * all `SIDESTORY`: 34 are, and 13 carry `displayType NONE` because
+ * `activity_table` has no row for them, so testing for `SIDESTORY` would leave
+ * those 13 with no pill at all.
+ *
+ * `is`, `reclamation` and `sideContent` are 0 groups on EN and read as events.
+ */
+export function kindOf(group: Pick<LibGroup, "category" | "displayType">): StoryKind {
+    if (group.category === "record") return "record";
+    if (group.category === "main") return "main";
+    if (group.category === "vignette") return "vignette";
+    if (group.displayType === "BRANCHLINE") return "intermezzo";
+    return "event";
+}
+
+/** Whether a kind answers to a pill. "Side stories" is the vignettes plus the intermezzi, the two short-form shelves. */
+export function matchesFilter(kind: StoryKind, filter: FilterKey): boolean {
+    switch (filter) {
+        case "all":
+            return true;
+        case "main":
+            return kind === "main";
+        case "events":
+            return kind === "event";
+        case "side":
+            return kind === "vignette" || kind === "intermezzo";
+        case "records":
+            return kind === "record";
+    }
+}
+
+/**
+ * The one pill every group in a section answers to, or `null` where it mixes.
+ *
+ * It is the LEAD-IN WORD of the muted line under a section heading ("Main
+ * story · Ch. 4-8 · 6 chapters"), and it is derived rather than written per
+ * section so the mainline arcs are not a special case: their groups are all
+ * `main`, so they say "Main story" for the same reason a vignette shelf says
+ * "Side stories".
+ *
+ * A shelf holding events beside vignettes answers `null` and its line carries
+ * the count alone, because naming one of the two kinds over a heading would be
+ * a claim about the other. The pill keys are reused verbatim rather than a new
+ * set of words, so a section and the filter row can never disagree about what
+ * "Side stories" covers.
+ */
+export function sectionFilterKey(groups: readonly Pick<LibGroup, "category" | "displayType">[]): Exclude<FilterKey, "all"> | null {
+    let found: Exclude<FilterKey, "all"> | null = null;
+    for (const group of groups) {
+        const key = FILTER_ORDER.find((f) => f !== "all" && matchesFilter(kindOf(group), f)) as Exclude<FilterKey, "all"> | undefined;
+        if (!key) return null;
+        if (found === null) found = key;
+        else if (found !== key) return null;
+    }
+    return found;
+}
+
+/** The muted line under a section heading, from the parts it has. An absent part drops out rather than leaving a stray separator. */
+export function underLine(parts: readonly (string | null | undefined)[]): string {
+    return parts.filter((part): part is string => typeof part === "string" && part !== "").join(" · ");
+}
+
+export type SectionKind = "arc" | "storyline" | "other" | "records" | "year" | "main";
+
+export interface ISection {
+    /** Stable across renders and used as the jump-list anchor id. */
+    id: string;
+    title: string;
+    kind: SectionKind;
+    groups: LibGroup[];
+    /** The operator records section only: 315 cards do not belong open. */
+    collapsed: boolean;
+    /** The shelf this section came off, or the section id when no shelf made it. It is what the glyph is hashed from, so it must not be a translated string. */
+    lineId: string;
+    /** The arc's own `StorylineArc.iconUrl` where it has one, else the shelf's `Storyline.iconUrl`; absent on a section the wire names no icon for, which then draws a lucide glyph. */
+    iconUrl?: string;
+    /** True when {@link ISection.iconUrl} is an ARC icon, which is a 184x52 wide banner and is sized by height rather than dropped into a square slot. */
+    iconWide?: boolean;
+    /** True when {@link ISection.iconUrl} is the shelf's 108x108 LOGO, which fills a larger square than the 44x36 abbreviation. */
+    iconLogo?: boolean;
+    /** `StorylineArc.chapterRange` on an arc and `Storyline.chapterRange` on a shelf. Absent leaves the majority-rule derivation over the section's own groups. */
+    chapterRange?: { from: number; to: number };
+}
+
+/** The records section carries record cards, which are operators, not groups. */
+export interface ISectionedLibrary {
+    sections: ISection[];
+    records: LibRecord[];
+    /** True when the wire carried no `storylines` and {@link fallbackSections} cut the page. */
+    fallback: boolean;
+}
+
+const OTHER_ID = "other-events";
+export const RECORDS_ID = "operator-records";
+
+/**
+ * The page's sections in the game's own order: the mainline shelf's four arcs,
+ * then the side shelves, then the groups no shelf lists, then the operator
+ * records.
+ *
+ * An arc shows every group its rail lists, a group on two arcs under the
+ * first; a shelf section shows the groups whose home shelf it is
+ * ({@link homeShelves}). Only a group no section shows falls to "other".
+ */
+export function buildSections(groups: readonly LibGroup[], storylines: readonly LibStoryline[]): ISection[] {
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    const homes = homeShelves(storylines);
+    const taken = new Set<string>();
+    const inArc = new Set<string>();
+    const sections: ISection[] = [];
+
+    const pick = (ids: readonly string[], seen: Set<string>, keep: (id: string) => boolean): LibGroup[] => {
+        const out: LibGroup[] = [];
+        for (const id of ids) {
+            if (seen.has(id) || !keep(id)) continue;
+            const group = byId.get(id);
+            if (!group || group.category === "record") continue;
+            seen.add(id);
+            out.push(group);
+        }
+        return out;
+    };
+    // An arc keeps its BEFORE / AFTER pointers; a shelf keeps only its home groups.
+    const takeArc = (ids: readonly string[]): LibGroup[] => pick(ids, inArc, () => true);
+    const take = (ids: readonly string[], lineId: string): LibGroup[] => pick(ids, taken, (id) => homes.get(id) === lineId);
+
+    for (const line of [...storylines].sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id))) {
+        if (line.arcs.length > 0) {
+            for (const arc of [...line.arcs].sort((a, b) => a.sort - b.sort)) {
+                const picked = takeArc(arc.groupIds);
+                // The ARC's own icon beats the shelf's: `act_0`..`act_3` name the run
+                // the heading is over, where the shelf glyph repeats on all four.
+                const icon = sectionIconSource(arc.iconUrl, line.logoUrl, line.iconUrl);
+                if (picked.length > 0)
+                    sections.push({ id: `arc-${line.id}-${arc.sort}`, title: arc.name, kind: "arc", groups: picked, collapsed: false, lineId: line.id, iconUrl: icon.kind === "glyph" ? undefined : icon.url, iconWide: iconIsWide(icon), iconLogo: iconIsLogo(icon), chapterRange: arc.chapterRange ?? undefined });
+            }
+            // A shelf can list a group outside every arc; it still belongs to the shelf.
+            const rest = take(
+                line.groupIds.filter((id) => !inArc.has(id)),
+                line.id,
+            );
+            const icon = sectionIconSource(undefined, line.logoUrl, line.iconUrl);
+            if (rest.length > 0) sections.push({ id: `line-${line.id}`, title: line.name, kind: "storyline", groups: rest, collapsed: false, lineId: line.id, iconUrl: icon.kind === "glyph" ? undefined : icon.url, iconLogo: iconIsLogo(icon), chapterRange: line.chapterRange });
+            continue;
+        }
+        const picked = take(line.groupIds, line.id);
+        const icon = sectionIconSource(undefined, line.logoUrl, line.iconUrl);
+        if (picked.length > 0) sections.push({ id: `line-${line.id}`, title: line.name, kind: "storyline", groups: picked, collapsed: false, lineId: line.id, iconUrl: icon.kind === "glyph" ? undefined : icon.url, iconLogo: iconIsLogo(icon), chapterRange: line.chapterRange });
+    }
+
+    const rest = groups.filter((g) => g.category !== "record" && !taken.has(g.id) && !inArc.has(g.id)).sort((a, b) => b.startTime - a.startTime || a.id.localeCompare(b.id));
+    if (rest.length > 0) sections.push({ id: OTHER_ID, title: "", kind: "other", groups: rest, collapsed: false, lineId: OTHER_ID });
+    return sections;
+}
+
+/**
+ * The cut used while the backend sends no `storylines`: the main chapters in
+ * chapter order, then everything else by release YEAR newest first, then the
+ * records. `startTime` is -1 on a group the table does not date, and those sit
+ * in a final undated section rather than under a wrong year.
+ */
+export function fallbackSections(groups: readonly LibGroup[]): ISection[] {
+    const sections: ISection[] = [];
+    const mains = groups.filter((g) => g.category === "main").sort((a, b) => mainOrdinal(a.id) - mainOrdinal(b.id) || a.id.localeCompare(b.id));
+    if (mains.length > 0) sections.push({ id: "main-story", title: "", kind: "main", groups: mains, collapsed: false, lineId: "main-story" });
+
+    const rest = groups.filter((g) => g.category !== "record" && g.category !== "main");
+    const years = new Map<number, LibGroup[]>();
+    for (const group of rest) {
+        const year = group.startTime > 0 ? new Date(group.startTime * 1000).getUTCFullYear() : 0;
+        const bucket = years.get(year);
+        if (bucket) bucket.push(group);
+        else years.set(year, [group]);
+    }
+    for (const [year, bucket] of [...years].sort((a, b) => (a[0] === 0 ? 1 : b[0] === 0 ? -1 : b[0] - a[0]))) {
+        sections.push({
+            id: year === 0 ? "undated" : `year-${year}`,
+            title: year === 0 ? "" : String(year),
+            kind: "year",
+            groups: bucket.sort((a, b) => b.startTime - a.startTime || a.id.localeCompare(b.id)),
+            collapsed: false,
+            lineId: year === 0 ? "undated" : `year-${year}`,
+        });
+    }
+    return sections;
+}
+
+function mainOrdinal(id: string): number {
+    const n = Number.parseInt(id.replace("main_", ""), 10);
+    return Number.isNaN(n) ? Number.MAX_SAFE_INTEGER : n;
+}
+
+/**
+ * The whole page: sections from the game's shelves when the wire carries them,
+ * the fallback cut when it does not, filtered by the pill and the search box,
+ * with empty sections dropped.
+ */
+export function sectionLibrary(index: LibIndex, filter: FilterKey, keep: (group: LibGroup) => boolean, keepRecord: (record: LibRecord) => boolean): ISectionedLibrary {
+    const storyGroups = index.groups.filter((g) => g.category !== "record");
+    const lines = index.storylines ?? [];
+    const fallback = lines.length === 0;
+    const all = fallback ? fallbackSections(storyGroups) : buildSections(storyGroups, lines);
+
+    const sections = all.map((section) => ({ ...section, groups: section.groups.filter((g) => matchesFilter(kindOf(g), filter) && keep(g)) })).filter((section) => section.groups.length > 0);
+
+    const records = matchesFilter("record", filter) ? index.records.filter(keepRecord) : [];
+    return { sections, records, fallback };
+}
+
+/**
+ * The short code a card prints under its title: the chapter's own third name
+ * (`EPISODE 00`) on the mainline, else the operation prefix its stories share
+ * (`CB-1` -> `CB`), else the uppercased group id. It never returns an empty
+ * string and it never returns a placeholder word.
+ *
+ * THE FIRST CODE IS NOT ALWAYS AN OPERATION CODE. `story_review_table` writes
+ * the literal `ENTRY` as the `storyCode` of an act's first-enter entry, and
+ * `derive.groupCode` returns the first non-empty code verbatim, so "Code of
+ * Brawl" (`act5d0`) printed "ENTRY · 2020 · 27 entries" and "Heart of Surging
+ * Flame" (`act3d0`) printed "ENTRY · 2020 · 15 entries" where the acts are CB
+ * and OF. An operation code is recognised by its HYPHEN: over the 451 EN groups
+ * `ENTRY` is the only code in the whole corpus with no hyphen in it, 2 of 2
+ * occurrences, and all 72 other prefixes come off a hyphenated code. The same
+ * count holds on CN (2 of 2 hyphen-less, both `ENTRY`, same two groups), so the
+ * word is a constant in the table rather than a translated string, and the
+ * hyphen test does not need a word list to survive a server change.
+ *
+ * The trade this ships knowingly: a server that one day writes a REAL code with
+ * no hyphen in it falls back to the group id rather than printing that code. No
+ * such code exists on EN or CN today, and the id is a true handle where `ENTRY`
+ * was not.
+ *
+ * Kept here rather than in `derive.groupCode` so the five other surfaces that
+ * call `groupCode` (the chapter modal, the hero, the continue card, the reading
+ * order and the illustrations tab) keep the behaviour they were verified with.
+ */
+export function cardCode(group: Pick<LibGroup, "id" | "zone" | "stories">): string {
+    const third = group.zone?.nameThird?.trim();
+    if (third) return third;
+    for (const story of group.stories) {
+        const code = story.code?.trim();
+        if (!code?.includes("-")) continue;
+        const prefix = code.split("-")[0]?.trim();
+        if (prefix) return prefix.toUpperCase();
+    }
+    return group.id.toUpperCase();
+}
+
+/**
+ * The jump list, one chip per rendered section plus the records when they are
+ * shown. `count` is what the section is currently showing, not what it holds,
+ * because the pills and the search box both shrink it.
+ */
+export function jumpChips(library: ISectionedLibrary, recordsTitle: string): { id: string; title: string; count: number }[] {
+    const chips = library.sections.map((s) => ({ id: s.id, title: s.title, count: s.groups.length }));
+    if (library.records.length > 0) chips.push({ id: RECORDS_ID, title: recordsTitle, count: library.records.length });
+    return chips;
+}
+
+/**
+ * THE CHAPTER SHEET'S NEIGHBOURS, in the order the page is showing.
+ *
+ * `order` is the list the browse page renders, the shelves flattened in their
+ * own order (the same order the jump bar walks), or the one sorted list when a
+ * sort has flattened them. The ends do NOT wrap: the first chapter has no
+ * previous one and the last no next, and the sheet disables that chevron. A
+ * group the list does not hold (a search or a filter hid it after the sheet
+ * opened) has neither, rather than a guess.
+ */
+export function chapterNeighbours<T extends { id: string }>(order: readonly T[], id: string): { prev: T | null; next: T | null } {
+    const at = order.findIndex((g) => g.id === id);
+    if (at < 0) return { prev: null, next: null };
+    return { prev: order[at - 1] ?? null, next: order[at + 1] ?? null };
+}
+
+/** Every section's cards in section order, each group ONCE at its first appearance: a group an arc points at also sits on its home shelf, and the sorted list must not print it twice. */
+export function sectionGroups(sections: readonly { groups: readonly LibGroup[] }[]): LibGroup[] {
+    const seen = new Set<string>();
+    return sections.flatMap((s) => s.groups).filter((g) => !seen.has(g.id) && Boolean(seen.add(g.id)));
+}
+
+/** The order the browse page shows its chapters in: the sorted list when a sort has flattened the shelves, else every shelf's cards in shelf order, a group repeated on the page stepping from its first appearance. */
+export function browseOrder(sections: readonly { groups: readonly LibGroup[] }[], flat: readonly LibGroup[] | null): readonly LibGroup[] {
+    return flat ?? sectionGroups(sections);
+}

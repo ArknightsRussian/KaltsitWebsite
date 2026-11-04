@@ -1,0 +1,200 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { CheckIcon, Link2OffIcon, LogOutIcon, MailIcon, RefreshCwIcon, UserRoundIcon } from "lucide-react";
+import { usePlayerName } from "#/components/header/impl/use-player-name";
+import { Badge } from "#/components/ui/badge";
+import { Button } from "#/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
+import { OperatorAvatar } from "#/components/ui/operator-avatar";
+import { useMaintenance } from "#/hooks/use-maintenance";
+import { useOperatorName } from "#/hooks/use-operator-name";
+import { operatorsIndexQueryOptions } from "#/lib/api/operators";
+import { formatServerWithPublisher } from "#/lib/auth/login";
+import { useGamedataServer, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { formatSpan, isGameDown } from "#/lib/maintenance";
+import { formatRelativeShort } from "#/lib/utils";
+import type { IUserProfile } from "#/types/user";
+import type { messages as dataMessages } from "./DataPanel.messages";
+import type { messages as profileMessages } from "./ProfilePanel.messages";
+import { SettingRow } from "./SettingsShell";
+
+interface IAccountPanelProps {
+    user: IUserProfile;
+    onResync: () => void;
+    syncing: boolean;
+    onSignOut: () => void;
+    signingOut: boolean;
+    onDisconnect: () => void;
+    disconnecting: boolean;
+}
+
+/**
+ * The single account section: the identity header, ONE re-sync, the assistant
+ * operator (the one game-synced fact the public profile does not show), and the
+ * data and linked-account cards.
+ *
+ * No read-only `<Input>` boxes restating the header: with no `onChange` they read
+ * as "type here" and do nothing.
+ */
+export function AccountPanel({ user, onResync, syncing, onSignOut, signingOut, onDisconnect, disconnecting }: IAccountPanelProps) {
+    // The re-sync labels and the data/linked-account copy keep the keys of the two
+    // panels this one merged, so no translation is invalidated.
+    const t: TypedT<typeof profileMessages & typeof dataMessages> = useT("settings");
+    const display = usePlayerName()(user.nickname);
+    const nickNum = user.nick_number ? `#${user.nick_number}` : "";
+    // While the game is down a sync would only be refused; say so instead of offering it.
+    const maintenance = useMaintenance();
+    const paused = maintenance !== null && isGameDown(maintenance.stage);
+    const pausedNote = !paused ? null : maintenance.secondsLeft !== null ? t("data.sync.paused", { time: formatSpan(maintenance.secondsLeft) }) : t("data.sync.pausedNoEnd");
+
+    return (
+        <div className="flex flex-col gap-4">
+            <Card>
+                <div className="flex flex-col gap-4 p-4 sm:grid sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-5 sm:p-6">
+                    <div className="flex items-center gap-4 sm:contents">
+                        <div className="relative size-14 shrink-0 overflow-hidden rounded-full border-2 border-primary/30 bg-linear-to-br from-primary to-primary/60 text-primary-foreground sm:size-16">
+                            <span className="absolute inset-0 flex items-center justify-center font-bold text-[20px] sm:text-[22px]">
+                                <OperatorAvatar charId={user.secretary_skin_id ?? user.secretary} name={display} />
+                            </span>
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-1.5">
+                            <div className="flex min-w-0 items-baseline gap-1.5">
+                                <span className="truncate font-semibold text-[17px] text-foreground leading-tight tracking-[-0.01em] sm:text-[18px]">{display}</span>
+                                {nickNum ? <span className="font-mono text-[12px] text-muted-foreground">{nickNum}</span> : null}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <Badge variant="outline" size="sm">
+                                    {t("profile.uid", { uid: user.uid })}
+                                </Badge>
+                                {user.level != null ? (
+                                    <Badge variant="outline" size="sm">
+                                        {t("profile.level.value", { level: user.level })}
+                                    </Badge>
+                                ) : null}
+                                <Badge variant="outline" size="sm">
+                                    {formatServerWithPublisher(user.server)}
+                                </Badge>
+                                <Badge variant="success" size="sm">
+                                    <CheckIcon className="size-3" />
+                                    {t("profile.synced", { when: formatRelativeShort(user.updated_at) })}
+                                </Badge>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t("data.sync.title")}</CardTitle>
+                    <CardDescription>{t("data.sync.desc")}</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    <SettingRow
+                        title={t("data.sync.rowTitle")}
+                        description={pausedNote ?? t("data.sync.rowDesc")}
+                        control={
+                            <Button size="sm" onClick={onResync} disabled={syncing || paused} loading={syncing} className="w-full sm:w-auto">
+                                <RefreshCwIcon className="size-3.5" />
+                                {syncing ? t("resync.pending") : t("resync.now")}
+                            </Button>
+                        }
+                    />
+                    <SettingRow
+                        title={t("profile.assistant.title")}
+                        description={t("profile.assistant.desc")}
+                        control={
+                            <div className="flex items-center gap-2.5">
+                                <div className="inline-flex size-9 items-center justify-center overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--primary)_14%,var(--card))] text-muted-foreground">
+                                    {user.secretary ? <OperatorAvatar charId={user.secretary_skin_id ?? user.secretary} name={display} /> : <UserRoundIcon className="size-4" />}
+                                </div>
+                                <AssistantName charId={user.secretary} />
+                            </div>
+                        }
+                    />
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t("data.yourData.title")}</CardTitle>
+                    <CardDescription>{t("data.yourData.desc")}</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    <SettingRow
+                        title={t("data.viewProfile.title")}
+                        description={t("data.viewProfile.desc")}
+                        control={
+                            <Button variant="outline" size="sm" render={<Link to="/user/$id" params={{ id: user.uid }} />}>
+                                {t("data.viewProfile.action")}
+                            </Button>
+                        }
+                    />
+                    <SettingRow
+                        title={t("data.export.title")}
+                        description={t("data.export.desc")}
+                        control={
+                            // biome-ignore lint/a11y/useAnchorContent: anchor children are slotted in by Button via render prop
+                            <Button variant="outline" size="sm" render={<a href="mailto:privacy@myrtle.moe?subject=Data%20export%20request" />}>
+                                <MailIcon className="size-3.5" />
+                                {t("data.export.action")}
+                            </Button>
+                        }
+                    />
+                </CardContent>
+            </Card>
+
+            {/* No status badge here: neither the session nor the profile says whether a game
+                token is stored, so a badge could only be hardcoded, and the old "Active" one
+                stayed green after Disconnect. The description states the rule instead. */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t("data.linked.title")}</CardTitle>
+                    <CardDescription>{t("data.linked.desc")}</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                    <SettingRow
+                        title={t("data.signOut.title")}
+                        description={t("data.signOut.desc")}
+                        control={
+                            <Button variant="outline" size="sm" onClick={onSignOut} disabled={signingOut} loading={signingOut}>
+                                <LogOutIcon className="size-3.5" />
+                                {t("data.signOut.action")}
+                            </Button>
+                        }
+                    />
+                    <SettingRow
+                        title={t("data.disconnect.title")}
+                        description={t("data.disconnect.desc")}
+                        control={
+                            <Button variant="destructive-outline" size="sm" onClick={onDisconnect} disabled={disconnecting} loading={disconnecting}>
+                                <Link2OffIcon className="size-3.5" />
+                                {t("data.disconnect.action")}
+                            </Button>
+                        }
+                    />
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+/**
+ * The assistant's display name from the operators index, with the char id in a
+ * tooltip. The raw id shows only while the index loads or when it has no entry
+ * (a CN-only operator), so the row never reads blank.
+ */
+function AssistantName({ charId }: { charId: string | null | undefined }) {
+    const server = useGamedataServer();
+    const operatorName = useOperatorName();
+    const { data: operators } = useQuery({ ...operatorsIndexQueryOptions(server), enabled: Boolean(charId) });
+    if (!charId) return <span className="text-[13px] text-muted-foreground">-</span>;
+    const op = operators?.find((o) => o.id === charId);
+    if (!op) return <span className="font-mono text-[13px] text-muted-foreground">{charId}</span>;
+    return (
+        <span className="text-foreground text-sm" title={charId}>
+            {operatorName(op)}
+        </span>
+    );
+}

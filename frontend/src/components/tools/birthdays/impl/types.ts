@@ -1,0 +1,27 @@
+import type { IOperatorIndexEntry, OperatorProfession } from "#/types/operators";
+
+/** Every operator field the birthday calendar reads, all on the `/operators/index` entry. */
+export type IBirthdayOperator = Pick<IOperatorIndexEntry, "id" | "name" | "rarity" | "profession" | "professionName" | "nationId" | "nationName" | "dateOfBirth">;
+
+export type IOperatorBirthday = { operator: IBirthdayOperator; known: false; raw: string } | { operator: IBirthdayOperator; known: true; raw: string; month: number; day: number };
+
+export type BirthdayView = "calendar" | "list" | "upcoming";
+
+export type CalendarScale = "day" | "3day" | "week" | "month";
+
+export interface IBirthdayFilters {
+    query: string;
+    /** Numeric rarities (1-6) the operator must match one of, when non-empty. */
+    rarities: Set<number>;
+    /** Profession ids the operator must match one of, when non-empty. */
+    professions: Set<OperatorProfession>;
+    /** `nationId`s the operator must match one of, when non-empty. */
+    nations: Set<string>;
+}
+
+/** A focused calendar day. `month` is 1-12. */
+export interface ISelectedDay {
+    year: number;
+    month: number;
+    day: number;
+}

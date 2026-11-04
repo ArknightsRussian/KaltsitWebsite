@@ -1,0 +1,659 @@
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useQuery } from "@tanstack/react-query";
+import { Calendar, Download, FileText, Maximize2, MessageCircle, Palette, RotateCcw, Sparkles, Square, Video, ZoomIn, ZoomOut } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "#/components/ui/dialog";
+import { Skeleton } from "#/components/ui/skeleton";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { useTheme } from "#/hooks/use-theme";
+import { chibiByOperatorQueryOptions, type IChibiSpineFiles, isCompleteSpineFiles } from "#/lib/api/chibis";
+import { operatorGamedataServer } from "#/lib/api/gamedata";
+import { type ISkin, operatorSkinsQueryOptions } from "#/lib/api/skins";
+import { useGamedataServer, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { values } from "#/lib/records";
+import { cn, downloadBlob } from "#/lib/utils";
+import { hasWebGL } from "#/lib/webgl";
+import type { IOperatorListItem } from "#/types/operators";
+import { useCnUpdatesContext } from "../../cnUpdates";
+import { sanitizeFilename } from "../../helpers";
+import { buildOperatorSkinList, chibiSkinKey, type IUISkin } from "../../skins";
+import type { messages as skinMessages } from "../../skins.messages";
+import { CnTag } from "../CnMarkers";
+import { DynamicChibiViewer } from "../chibi/ChibiViewer.lazy";
+import { DEFAULT_SPINE_FIT } from "../chibi/skin-data";
+import type { ISceneIllustHandle } from "../dynillust/SceneIllust";
+import { SceneIllustPlayer } from "../dynillust/SceneIllust.lazy";
+import type { messages } from "./SkinsContent.messages";
+
+interface ISkinsContentProps {
+    operator: IOperatorListItem;
+}
+
+/** Own keys plus the stand-ins `skins.ts` fills in. */
+type SkinsT = TypedT<typeof messages & typeof skinMessages>;
+
+export const SkinsContent = memo(function SkinsContent({ operator }: ISkinsContentProps) {
+    const t: SkinsT = useT("operators");
+    const localeServer = useGamedataServer();
+    const server = operatorGamedataServer(operator.server, localeServer);
+    const { data: skinsResponse, isLoading: skinsLoading } = useQuery(operatorSkinsQueryOptions(operator.id ?? "", server));
+    // An operator CN has changed also shows the outfits only CN has, from CN's skin table.
+    const cnUpdates = useCnUpdatesContext();
+    const { data: cnSkinsResponse } = useQuery({ ...operatorSkinsQueryOptions(operator.id ?? "", "cn"), enabled: !!cnUpdates && server !== "cn" });
+    // Chibi spine data is art, not text, so it stays on the operator's own
+    // art tree rather than following the locale.
+    const { data: ownChibi } = useQuery(chibiByOperatorQueryOptions(operator.id ?? "", operator.server));
+    const { data: cnChibi } = useQuery({ ...chibiByOperatorQueryOptions(operator.id ?? "", "cn"), enabled: !!cnUpdates && !!operator.id && operator.server !== "cn" });
+
+    const isBranchForm = !!operator.tmplDefault && operator.id !== operator.tmplDefault;
+    const skins: IUISkin[] = useMemo(() => {
+        const charSkins = skinsResponse?.charSkins ?? {};
+        // For Amiya, every skin's `charId` is the base; `tmplId` identifies
+        // the form. Match by tmplId when present so each form only shows its
+        // own skins. Falls back to charId for regular operators.
+        const ownSkin = (s: ISkin) => (s.tmplId ? s.tmplId === operator.id : s.charId === operator.id);
+        const operatorSkins: ISkin[] = values(charSkins).filter(ownSkin);
+        const cnSkins: ISkin[] | undefined = cnUpdates && cnSkinsResponse ? values(cnSkinsResponse.charSkins ?? {}).filter(ownSkin) : undefined;
+        return buildOperatorSkinList({
+            skinsFromBackend: operatorSkins,
+            operatorId: operator.id ?? "",
+            operatorSkin: operator.skin,
+            operatorPortrait: operator.portrait,
+            phasesLength: operator.phases.length,
+            artistFallback: operator.artists?.[0],
+            isBranchForm,
+            server: operator.server,
+            cnSkins,
+            t,
+        });
+    }, [skinsResponse, cnSkinsResponse, cnUpdates, operator.id, operator.skin, operator.portrait, operator.phases.length, operator.artists?.[0], isBranchForm, operator.server, t]);
+
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const selected = useMemo(() => skins.find((s) => s.id === selectedId) ?? skins[0] ?? null, [skins, selectedId]);
+
+    // A CN-only outfit's chibi and dynamic art exist only in CN's tree, so its record and server come from CN.
+    const fromCn = !!selected?.fromCn && !!cnChibi;
+    const chibiCharacter = fromCn ? cnChibi : ownChibi;
+    const artServer = fromCn ? "cn" : operator.server;
+
+    const chibiSkin = useMemo(() => {
+        if (!chibiCharacter || !selected) return null;
+        const key = chibiSkinKey(selected.id);
+        return chibiCharacter.skins.find((s) => s.name === key) ?? chibiCharacter.skins[0] ?? null;
+    }, [chibiCharacter, selected]);
+
+    // Dynamic (L2D) art for the selected outfit. Matched strictly (no
+    // fallback-to-first-skin like the chibi above) so it never plays another
+    // outfit's animation; the default skin's dynamic art is the E2
+    // illustration, so it's only used on the E2 art entry.
+    const dynamicFiles = useMemo(() => {
+        if (!chibiCharacter || !selected) return null;
+        const key = chibiSkinKey(selected.id);
+        if (key === "default" && !selected.id.endsWith("_e2")) return null;
+        const keyLower = key.toLowerCase();
+        const skinEntry = chibiCharacter.skins.find((s) => s.name.toLowerCase() === keyLower);
+        const dyn = skinEntry?.animationTypes.dynamic;
+        return isCompleteSpineFiles(dyn) ? dyn : null;
+    }, [chibiCharacter, selected]);
+
+    // Playing dynamic art is a global preference (localStorage) set from the
+    // Appearance menu, not a per-page toggle. The L2D skeleton frames itself to
+    // its own animation bounds (it's a different crop/composition than the static
+    // charart, so the two can't be reliably overlaid; the reference aklive2d
+    // renderer likewise shows no static). The static image is the load placeholder
+    // and fades out once the animation is ready.
+    const { dynamicArtwork } = useTheme();
+    const dynSkel = dynamicFiles?.skel ?? null;
+    // Which dynamic skin has finished loading, so the static fades only once the
+    // CURRENT skin's animation is ready (switching skins clears it automatically).
+    const [readySkel, setReadySkel] = useState<string | null>(null);
+    // The live renderer plays whenever a dynamic scene exists; skins without one
+    // simply keep their static illustration (the player errors out quietly), as does a
+    // browser without WebGL, where the renderer cannot be built at all.
+    const showDynamic = dynamicArtwork && !!dynamicFiles && hasWebGL();
+    const dynamicReady = !!dynSkel && readySkel === dynSkel;
+    // While the fullscreen viewer is open its renderer is the only one running: the card's
+    // player is unmounted underneath it (two scene renderers at once, one of them at the
+    // dialog's size, is what heated the machine), and the card's static art shows again
+    // until the remounted player reports ready.
+    const [fullscreenOpen, setFullscreenOpen] = useState(false);
+    const onFullscreenChange = useCallback((open: boolean) => {
+        setFullscreenOpen(open);
+        if (open) setReadySkel(null);
+    }, []);
+
+    if (skinsLoading)
+        return (
+            <div className="min-w-0 overflow-hidden p-4 md:p-6">
+                <div className="mb-6">
+                    <Skeleton className="h-7 w-32" />
+                    <Skeleton className="mt-2 h-4 w-64" />
+                </div>
+                <div className="grid gap-5 lg:grid-cols-[1fr,280px]">
+                    <div className="flex flex-col gap-4">
+                        <Skeleton className="aspect-4/3 w-full rounded-xl md:aspect-16/11" />
+                        <Skeleton className="h-32 w-full rounded-xl" />
+                    </div>
+                    <div className="flex w-full gap-2.5 overflow-x-hidden lg:flex-col">
+                        {[0, 1, 2, 3].map((i) => (
+                            <Skeleton key={i} className="h-20 w-72 shrink-0 rounded-lg lg:w-full" />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+    return (
+        <div className="min-w-0 overflow-hidden p-4 md:p-6">
+            <div className="mb-6">
+                <h2 className="font-semibold text-foreground text-xl">{t("outfits.title")}</h2>
+                <p className="text-muted-foreground text-sm">{t("outfits.subtitle")}</p>
+            </div>
+            <div className="grid min-w-0 gap-5 lg:grid-cols-[1fr,280px]">
+                <div className="flex min-w-0 flex-col gap-4">
+                    {selected && (
+                        <div className="relative aspect-4/3 overflow-hidden rounded-xl border border-border bg-linear-to-b from-secondary/30 via-secondary/10 to-secondary/40 md:aspect-16/11">
+                            {/* The static skin art is a load placeholder that fades out once the
+                                animation is ready; the L2D then draws the same art as its backdrop
+                                (aligned behind the spine) so the full painted vista fills in even
+                                when the dynamic asset omits it (sky/interior). */}
+                            <img alt={selected.name} className={cn("absolute inset-0 h-full w-full object-contain transition-opacity duration-500", showDynamic && dynamicReady && !fullscreenOpen && "opacity-0")} decoding="async" loading="eager" src={selected.image} />
+                            {showDynamic && dynamicFiles && !fullscreenOpen && <SceneIllustPlayer files={dynamicFiles} server={artServer} framing="authored" surface="panel" backdrop={selected.image} onReady={() => setReadySkel(dynSkel)} />}
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/70 via-black/40 to-transparent" />
+                            <SkinViewerDialog imageSrc={selected.image} skinName={selected.name} dynamic={showDynamic && dynamicFiles ? { files: dynamicFiles, server: artServer } : null} onOpenChange={onFullscreenChange}>
+                                <button type="button" aria-label={t("outfits.fullscreen")} className="absolute top-3 right-3 inline-flex items-center justify-center rounded-md border border-white/20 bg-black/40 p-1.5 text-white backdrop-blur-md transition-colors hover:bg-black/60">
+                                    <Maximize2 className="h-4 w-4" />
+                                </button>
+                            </SkinViewerDialog>
+                            <div className="absolute inset-x-0 bottom-0 p-4 md:p-5">
+                                <div className="font-mono text-[10px] text-white/70 uppercase tracking-wider">{selected.kicker}</div>
+                                <div className="mt-0.5 flex items-center gap-2 font-semibold text-2xl text-white drop-shadow-md">
+                                    <span lang={selected.fromCn ? "zh" : undefined}>{selected.name}</span>
+                                    {selected.fromCn && <CnTag className="bg-black/40 text-[10px]" />}
+                                </div>
+                                {selected.displaySkin?.drawerList?.join(", ") && <div className="mt-0.5 text-white/70 text-xs">{t("skins.artist", { artist: selected.displaySkin?.drawerList?.join(", ") })}</div>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="flex w-full gap-2.5 overflow-x-auto pb-2 lg:max-h-[calc(100vh-30rem)] lg:flex-col lg:overflow-y-auto lg:overflow-x-visible lg:pr-1 lg:pb-0">
+                    {skins.map((skin) => (
+                        <button
+                            key={skin.id}
+                            type="button"
+                            onClick={() => setSelectedId(skin.id)}
+                            className={cn("flex w-72 shrink-0 items-stretch gap-3 rounded-lg border bg-card p-2.5 text-left transition-colors lg:w-full", selected?.id === skin.id ? "border-primary ring-1 ring-primary/40" : "border-border hover:border-primary/40")}
+                        >
+                            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-secondary/30">
+                                <img
+                                    alt={skin.name}
+                                    className="h-full w-full object-cover"
+                                    decoding="async"
+                                    loading="lazy"
+                                    src={skin.thumbnail}
+                                    // The reduced `b` variant is missing for a few outfits; fall back to the full art once.
+                                    onError={(e) => {
+                                        if (e.currentTarget.src !== skin.image) e.currentTarget.src = skin.image;
+                                    }}
+                                />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{skin.kicker}</div>
+                                <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                                    <span className="truncate font-semibold text-foreground text-sm" lang={skin.fromCn ? "zh" : undefined}>
+                                        {skin.name}
+                                    </span>
+                                    {skin.fromCn && <CnTag />}
+                                </div>
+                                <div className="mt-0.5 truncate text-muted-foreground text-xs">{skin.sub}</div>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+            {selected &&
+                (() => {
+                    const description = selected.displaySkin?.description ?? (selected.isDefault ? t("skins.defaultDescription") : selected.kicker);
+                    const obtained = selected.displaySkin?.obtainApproach ?? (selected.isDefault || selected.id.endsWith("_e2") ? t("skins.unlockedByDefault") : null);
+                    const dialog = selected.displaySkin?.dialog;
+                    const usage = selected.displaySkin?.usage;
+                    const colors = [...new Set((selected.displaySkin?.colorList ?? []).filter((c) => c?.startsWith("#")))];
+
+                    return (
+                        <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card/60">
+                            {description && (
+                                <div className="border-border/60 border-b bg-linear-to-br from-secondary/20 via-transparent to-transparent px-5 py-4 md:px-6 md:py-5">
+                                    <div className="flex items-center gap-2">
+                                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{t("outfits.field.description")}</span>
+                                    </div>
+                                    <p className="mt-2 text-foreground/90 text-sm italic leading-relaxed">{description}</p>
+                                </div>
+                            )}
+                            <div className="grid gap-x-8 gap-y-5 px-5 py-4 md:grid-cols-2 md:px-6 md:py-5">
+                                {obtained && (
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{t("outfits.field.obtained")}</span>
+                                        </div>
+                                        <p className="mt-1.5 text-foreground text-sm leading-relaxed">{obtained}</p>
+                                    </div>
+                                )}
+                                {usage && (
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{t("outfits.field.usage")}</span>
+                                        </div>
+                                        <p className="mt-1.5 text-foreground text-sm leading-relaxed">{usage}</p>
+                                    </div>
+                                )}
+                                {colors.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{t("outfits.field.colors")}</span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {colors.map((color) => (
+                                                <Tooltip key={color}>
+                                                    <TooltipTrigger render={(props) => <span className="h-7 w-7 cursor-pointer rounded-md border border-border/60 shadow-sm transition-transform hover:scale-110" style={{ backgroundColor: color }} {...props} />} />
+                                                    <TooltipPopup>
+                                                        <span className="font-mono text-xs">{color.toUpperCase()}</span>
+                                                    </TooltipPopup>
+                                                </Tooltip>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {dialog && (
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span className="font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{t("outfits.field.dialog")}</span>
+                                        </div>
+                                        <p className="mt-1.5 text-foreground text-sm leading-relaxed">{dialog}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+            {chibiCharacter && <DynamicChibiViewer chibi={chibiCharacter} skin={chibiSkin} server={artServer} />}
+        </div>
+    );
+});
+
+interface ISkinViewerDialogProps {
+    imageSrc: string;
+    skinName: string;
+    /** When set, the fullscreen viewer plays the animated L2D (authored framing)
+     * instead of the static zoom/pan image. */
+    dynamic?: { files: IChibiSpineFiles; server?: "en" | "cn" } | null;
+    /** Told when the dialog opens and closes, so the host can pause what sits beneath it. */
+    onOpenChange?: (open: boolean) => void;
+    children: React.ReactNode;
+}
+
+/** Keep the view inside the zoomed content: the pan may travel only as far as the scaled box
+ *  overflows the container, so the box's edge (and the black beneath it) never comes into
+ *  view. At 100 percent and below there is nothing outside the container and the pan is zero
+ *  (the L2D's camera shows more scene below 100 percent, centred). */
+function clampPan(pan: { x: number; y: number }, scale: number, width: number, height: number): { x: number; y: number } {
+    const lx = Math.max(0, ((scale - 1) * width) / 2);
+    const ly = Math.max(0, ((scale - 1) * height) / 2);
+    return { x: Math.min(Math.max(pan.x, -lx), lx), y: Math.min(Math.max(pan.y, -ly), ly) };
+}
+
+const MIN_ZOOM = 0.5;
+/** The L2D's 100 percent is the computed fit of the whole painting (see `fitView`), so
+ *  below it there is only dead margin; the static art keeps its own floor. */
+const MIN_ZOOM_DYNAMIC = 1;
+const MAX_ZOOM = 5;
+/** How often the dialog re-reads the renderer's fit while open, in ms (the fit follows the
+ *  entrance hand-off and a resize; the read is a few multiplications). */
+const FIT_POLL_MS = 500;
+
+const ZOOM_STEP = 0.25;
+const ZOOM_WHEEL_SENSITIVITY = 0.0015;
+const BASE_SCALE = 1.15;
+
+interface ITransform {
+    zoom: number;
+    pan: { x: number; y: number };
+}
+
+const INITIAL_TRANSFORM: ITransform = { zoom: 1, pan: { x: 0, y: 0 } };
+/** How long the fullscreen viewer records the animation for one download. */
+const RECORD_SECONDS = 10;
+/** A pointer that travels further than this between down and up was a pan, not a tap. */
+const TAP_SLOP_PX = 4;
+/** Containers the browser can record; the first supported one names the file's extension. */
+const RECORD_MIME_TYPES = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+
+const clampZoom = (z: number, min = MIN_ZOOM) => Math.min(Math.max(z, min), MAX_ZOOM);
+
+export const SkinViewerDialog = memo(function SkinViewerDialog({ imageSrc, skinName, dynamic, onOpenChange: onOpenChangeProp, children }: ISkinViewerDialogProps) {
+    const t: TypedT<typeof messages> = useT("operators");
+    const [transform, setTransform] = useState<ITransform>(INITIAL_TRANSFORM);
+    const containerElRef = useRef<HTMLDivElement | null>(null);
+    /** The static art carries BASE_SCALE over the contained image; the L2D's 100 percent is
+     *  exactly the renderer's fit of the composition (see `fitView`), so at 100 percent the
+     *  whole composition is on screen and a drag moves nothing. */
+    const baseScale = dynamic ? 1 : BASE_SCALE;
+    const baseScaleRef = useRef(baseScale);
+    baseScaleRef.current = baseScale;
+    const minZoom = dynamic ? MIN_ZOOM_DYNAMIC : MIN_ZOOM;
+    const minZoomRef = useRef(minZoom);
+    minZoomRef.current = minZoom;
+    /** The renderer's fit for the whole painting: the L2D's 100 percent (see `fitView`). */
+    const [fit, setFit] = useState<{ zoom: number; panX: number; panY: number; width: number; height: number } | null>(null);
+    const fitRef = useRef(fit);
+    fitRef.current = fit;
+    const clamped = useCallback((t: ITransform): ITransform => {
+        const el = containerElRef.current;
+        if (!el) return t;
+        const f = fitRef.current;
+        // The L2D's content is the painting at its fitted size, scaled by the displayed zoom;
+        // the static art's content is the scaled box. Either way the pan may travel only as far
+        // as the content overflows the container.
+        const pan = f
+            ? {
+                  x: Math.min(Math.max(t.pan.x, -Math.max(0, (f.width * baseScaleRef.current * t.zoom - el.clientWidth) / 2)), Math.max(0, (f.width * baseScaleRef.current * t.zoom - el.clientWidth) / 2)),
+                  y: Math.min(Math.max(t.pan.y, -Math.max(0, (f.height * baseScaleRef.current * t.zoom - el.clientHeight) / 2)), Math.max(0, (f.height * baseScaleRef.current * t.zoom - el.clientHeight) / 2)),
+              }
+            : clampPan(t.pan, baseScaleRef.current * t.zoom, el.clientWidth, el.clientHeight);
+        return pan.x === t.pan.x && pan.y === t.pan.y ? t : { ...t, pan };
+    }, []);
+    const [isPanning, setIsPanning] = useState(false);
+    const panStartRef = useRef({ x: 0, y: 0 });
+    const panOffsetRef = useRef({ x: 0, y: 0 });
+    const wheelCleanupRef = useRef<(() => void) | null>(null);
+    /** Set once a pointer has moved past the tap slop, so the click that ends a pan does not
+     *  reach the L2D's tap handler. */
+    const movedRef = useRef(false);
+    const [handle, setHandle] = useState<ISceneIllustHandle | null>(null);
+    // The L2D is zoomed and panned by the renderer's CAMERA, not by scaling its box: the
+    // canvas keeps the dialog's size and resolution, zooming in stays sharp, and zooming out
+    // shows more of the scene instead of a smaller picture with black around it.
+    // The displayed zoom is RELATIVE TO THE FIT: 100 percent is the camera at which the whole
+    // painting fits the container (computed by the renderer from the painted bounds and the
+    // live layout), and the user's pan rides on top of the pan that centres it.
+    useEffect(() => {
+        if (!handle) return;
+        const f = fit;
+        const z = baseScale * transform.zoom;
+        handle.setCamera(f ? { zoom: f.zoom * z, panX: f.panX * z + transform.pan.x, panY: f.panY * z + transform.pan.y } : { zoom: z, panX: transform.pan.x, panY: transform.pan.y });
+    }, [handle, transform, fit, baseScale]);
+    useEffect(() => {
+        if (!handle) {
+            setFit(null);
+            return;
+        }
+        const read = () => {
+            const next = handle.fitView();
+            setFit((prev) => (!next || !prev ? next : Math.abs(next.zoom - prev.zoom) < 1e-4 && Math.abs(next.panX - prev.panX) < 0.5 && Math.abs(next.panY - prev.panY) < 0.5 ? prev : next));
+        };
+        read();
+        const t = setInterval(read, FIT_POLL_MS);
+        return () => clearInterval(t);
+    }, [handle]);
+    const [recordingLeft, setRecordingLeft] = useState<number | null>(null);
+    const recorderRef = useRef<MediaRecorder | null>(null);
+
+    const reset = useCallback(() => setTransform(INITIAL_TRANSFORM), []);
+
+    const zoomBy = useCallback(
+        (delta: number) => {
+            setTransform((prev) => {
+                const next = clampZoom(prev.zoom + delta, minZoomRef.current);
+                return next === prev.zoom ? prev : clamped({ ...prev, zoom: next });
+            });
+        },
+        [clamped],
+    );
+
+    const setContainerRef = useCallback(
+        (el: HTMLDivElement | null) => {
+            wheelCleanupRef.current?.();
+            wheelCleanupRef.current = null;
+            containerElRef.current = el;
+            if (!el) return;
+            const onWheel = (e: WheelEvent) => {
+                e.preventDefault();
+                const rect = el.getBoundingClientRect();
+                const fx = e.clientX - rect.left - rect.width / 2;
+                const fy = e.clientY - rect.top - rect.height / 2;
+                const factor = Math.exp(-e.deltaY * ZOOM_WHEEL_SENSITIVITY);
+                setTransform((prev) => {
+                    const nextZoom = clampZoom(prev.zoom * factor, minZoomRef.current);
+                    if (nextZoom === prev.zoom) return prev;
+                    const ratio = nextZoom / prev.zoom;
+                    return clamped({
+                        zoom: nextZoom,
+                        pan: {
+                            x: fx + (prev.pan.x - fx) * ratio,
+                            y: fy + (prev.pan.y - fy) * ratio,
+                        },
+                    });
+                });
+            };
+            el.addEventListener("wheel", onWheel, { passive: false });
+            wheelCleanupRef.current = () => el.removeEventListener("wheel", onWheel);
+        },
+        [clamped],
+    );
+
+    const onPointerDown = useCallback(
+        (e: React.PointerEvent) => {
+            e.preventDefault();
+            (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            movedRef.current = false;
+            setIsPanning(true);
+            panStartRef.current = { x: e.clientX, y: e.clientY };
+            panOffsetRef.current = { x: transform.pan.x, y: transform.pan.y };
+        },
+        [transform.pan],
+    );
+
+    const onPointerMove = useCallback(
+        (e: React.PointerEvent) => {
+            if (!isPanning) return;
+            const dx = e.clientX - panStartRef.current.x;
+            const dy = e.clientY - panStartRef.current.y;
+            if (Math.hypot(dx, dy) > TAP_SLOP_PX) movedRef.current = true;
+            setTransform((prev) =>
+                clamped({
+                    ...prev,
+                    pan: { x: panOffsetRef.current.x + dx, y: panOffsetRef.current.y + dy },
+                }),
+            );
+        },
+        [isPanning, clamped],
+    );
+
+    const onPointerUp = useCallback(() => setIsPanning(false), []);
+    /** A pan ends with a click on whatever the pointer was captured on; swallow it. */
+    const onClickCapture = useCallback((e: React.MouseEvent) => {
+        if (!movedRef.current) return;
+        e.stopPropagation();
+        e.preventDefault();
+    }, []);
+    const onDoubleClick = useCallback(() => {
+        setTransform((prev) => (prev.zoom === 1 ? { ...prev, zoom: 2 } : INITIAL_TRANSFORM));
+    }, []);
+
+    const onDownload = useCallback(async () => {
+        try {
+            const res = await fetch(imageSrc);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${sanitizeFilename(skinName)}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Failed to download skin image", e);
+        }
+    }, [imageSrc, skinName]);
+
+    // Recording: the live WebGL canvas is captured as a media stream for RECORD_SECONDS (or
+    // until the button is pressed again) and saved in the first container the browser can
+    // encode. What is recorded is exactly what is on screen, entrance, particles and all.
+    const stopRecording = useCallback(() => {
+        recorderRef.current?.stop();
+    }, []);
+    const startRecording = useCallback(() => {
+        const canvas = handle?.canvas;
+        if (!canvas || recorderRef.current || typeof MediaRecorder === "undefined") return;
+        const mimeType = RECORD_MIME_TYPES.find((m) => MediaRecorder.isTypeSupported(m));
+        if (!mimeType) return;
+        const stream = canvas.captureStream(60);
+        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
+        recorder.onstop = () => {
+            recorderRef.current = null;
+            setRecordingLeft(null);
+            for (const track of stream.getTracks()) track.stop();
+            const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+            downloadBlob(new Blob(chunks, { type: mimeType }), `${sanitizeFilename(skinName)}.${ext}`);
+        };
+        recorderRef.current = recorder;
+        recorder.start(250);
+        setRecordingLeft(RECORD_SECONDS);
+    }, [handle, skinName]);
+    useEffect(() => {
+        if (recordingLeft == null) return;
+        if (recordingLeft <= 0) {
+            stopRecording();
+            return;
+        }
+        const t = setTimeout(() => setRecordingLeft((n) => (n == null ? null : n - 1)), 1000);
+        return () => clearTimeout(t);
+    }, [recordingLeft, stopRecording]);
+
+    const onOpenChange = useCallback(
+        (open: boolean) => {
+            if (!open) {
+                reset();
+                stopRecording();
+            }
+            onOpenChangeProp?.(open);
+        },
+        [reset, stopRecording, onOpenChangeProp],
+    );
+
+    return (
+        <Dialog onOpenChange={onOpenChange}>
+            <DialogTrigger render={children as React.ReactElement<Record<string, unknown>>} />
+            <DialogContent className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col overflow-hidden p-0 sm:max-w-[95vw]" showCloseButton bottomStickOnMobile={false}>
+                <DialogTitle className="sr-only">{skinName}</DialogTitle>
+
+                <div className="absolute top-3 left-3 z-10 flex items-center gap-1 rounded-lg border border-border/50 bg-background/80 p-1 shadow-sm backdrop-blur-sm">
+                    <ToolButton onClick={() => zoomBy(-ZOOM_STEP)} disabled={transform.zoom <= minZoom} label={t("outfits.zoomOut")}>
+                        <ZoomOut className="h-4 w-4" />
+                    </ToolButton>
+                    <Tooltip disabled={!fit}>
+                        <TooltipTrigger render={<span className="min-w-12 select-none text-center font-mono text-muted-foreground text-xs" data-camera={dynamic ? `${transform.zoom},${Math.round(transform.pan.x)},${Math.round(transform.pan.y)}` : undefined} />}>{Math.round(transform.zoom * 100)}%</TooltipTrigger>
+                        <TooltipPopup>{fit ? t("outfits.zoomTitle", { camera: (fit.zoom * baseScale).toFixed(3), width: Math.round(fit.width * baseScale), height: Math.round(fit.height * baseScale) }) : null}</TooltipPopup>
+                    </Tooltip>
+                    <ToolButton onClick={() => zoomBy(ZOOM_STEP)} disabled={transform.zoom >= MAX_ZOOM} label={t("outfits.zoomIn")}>
+                        <ZoomIn className="h-4 w-4" />
+                    </ToolButton>
+                    <div className="mx-1 h-4 w-px bg-border" />
+                    <ToolButton onClick={reset} label={t("outfits.resetView")}>
+                        <RotateCcw className="h-3.5 w-3.5" />
+                    </ToolButton>
+                    {dynamic ? (
+                        <>
+                            <div className="mx-1 h-4 w-px bg-border" />
+                            <ToolButton onClick={() => void handle?.interact()} disabled={!handle} label={t("outfits.interact")}>
+                                <Sparkles className="h-3.5 w-3.5" />
+                            </ToolButton>
+                            <ToolButton onClick={recordingLeft == null ? startRecording : stopRecording} disabled={!handle} label={recordingLeft == null ? t("outfits.record", { seconds: RECORD_SECONDS }) : t("outfits.recordStop", { seconds: recordingLeft })}>
+                                {recordingLeft == null ? (
+                                    <Video className="h-3.5 w-3.5" />
+                                ) : (
+                                    <span className="flex items-center gap-1 font-mono text-xs">
+                                        <Square className="h-3 w-3 fill-current text-red-500" />
+                                        {recordingLeft}
+                                    </span>
+                                )}
+                            </ToolButton>
+                        </>
+                    ) : (
+                        <ToolButton onClick={onDownload} label={t("outfits.download")}>
+                            <Download className="h-3.5 w-3.5" />
+                        </ToolButton>
+                    )}
+                </div>
+
+                {/* One pan-and-zoom surface for both the static art and the L2D. The static art is
+                    a CSS transform on its box; the L2D takes the same zoom and pan as a camera inside
+                    the renderer (see the effect above), so its box is never transformed. A click that
+                    ends a pan is swallowed by `onClickCapture`. The static art alone carries
+                    BASE_SCALE, which makes the contained image fill the dialog. */}
+                <div
+                    ref={setContainerRef}
+                    role="application"
+                    className={cn("relative h-full w-full cursor-grab select-none overflow-hidden", isPanning && "cursor-grabbing")}
+                    onDoubleClick={onDoubleClick}
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    onPointerCancel={onPointerUp}
+                    onClickCapture={onClickCapture}
+                >
+                    <div
+                        className={cn("absolute inset-0", !dynamic && !isPanning && "transition-transform duration-150 ease-out")}
+                        style={dynamic ? undefined : { transform: `scale(${baseScale * transform.zoom}) translate(${transform.pan.x / (baseScale * transform.zoom)}px, ${transform.pan.y / (baseScale * transform.zoom)}px)` }}
+                    >
+                        {dynamic ? (
+                            // Fullscreen L2D with the game's authored (`_adjustes`) framing:
+                            // the large, roughly-square viewport where the full-scene
+                            // composition looks right (unlike the narrow card). It opens on the
+                            // `contain` fit, the whole composition: the renderer's `height` default
+                            // under authored framing crops the sides of a wide dialog, which reads as
+                            // "starts way too zoomed-in".
+                            <SceneIllustPlayer files={dynamic.files} server={dynamic.server} framing="authored" fit={DEFAULT_SPINE_FIT} backdrop={imageSrc} onHandle={setHandle} />
+                        ) : (
+                            <img alt={skinName} className="h-full w-full object-contain" decoding="async" draggable={false} src={imageSrc} />
+                        )}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+});
+
+function ToolButton({ children, onClick, disabled, label }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; label: string }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger
+                render={(props) => (
+                    <button
+                        {...mergeProps<"button">(props, {
+                            type: "button",
+                            onClick,
+                            disabled,
+                            "aria-label": label,
+                            className: "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50",
+                        })}
+                    >
+                        {children}
+                    </button>
+                )}
+            />
+            <TooltipPopup side="bottom">{label}</TooltipPopup>
+        </Tooltip>
+    );
+}

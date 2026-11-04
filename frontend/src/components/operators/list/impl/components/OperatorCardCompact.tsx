@@ -1,0 +1,66 @@
+import { Link } from "@tanstack/react-router";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "#/components/ui/preview-card";
+import { useDataSaver } from "#/hooks/use-data-saver";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { getAvatarById, parseOperatorName, rarityToNumber, subProfessionLabel } from "#/lib/utils";
+import { RARITY_COLORS } from "../constants";
+import type { IOperatorView, StatMetric } from "../types";
+import { CnUpdateBadge } from "./CnUpdateBadge";
+import { CampIcon, ClassIcon } from "./Icons";
+import type { messages } from "./OperatorCardCompact.messages";
+import { OperatorPreview } from "./OperatorPreview";
+import { OwnershipBadge } from "./OwnershipBadge";
+
+interface IOperatorCardCompactProps {
+    operator: IOperatorView;
+    /** Which community rate the badge shows. Set on /operators and
+     *  persisted per viewer; independent of the sort key. */
+    statMetric: StatMetric;
+}
+
+export function OperatorCardCompact({ operator, statMetric }: IOperatorCardCompactProps) {
+    const t: TypedT<typeof messages> = useT("operators");
+    const rarityColor = RARITY_COLORS[rarityToNumber(operator.rarity)] ?? "#ffffff";
+    const operatorId = operator.id ?? "";
+    const operatorName = operator.name ?? t("card.unknownOperator");
+    const { displayName, subtitle } = parseOperatorName(operatorName);
+    const factionLogoId = operator.nationId || operator.teamId || operator.groupId || "rhodes";
+    const dataSaver = useDataSaver();
+
+    return (
+        <HoverCard>
+            <HoverCardTrigger
+                render={
+                    <Link to="/operators/$id" params={{ id: operator.id ?? "" }} preload={dataSaver ? false : undefined} className="group relative flex flex-col rounded bg-card pt-1 pr-2 pb-1 pl-1.5 transition-transform hover:scale-102">
+                        <div className="ml-px flex h-4.25 flex-col justify-center text-left sm:h-5">
+                            {subtitle && <span className="text-[0.625rem] text-foreground leading-normal sm:text-xs sm:leading-loose">{subtitle}</span>}
+                            <span className="truncate text-[0.625rem] text-foreground leading-tight sm:text-xs sm:leading-4.25">{displayName}</span>
+                        </div>
+                        <div className="relative box-content aspect-square h-20 overflow-hidden sm:h-30" style={{ borderBottom: `4px solid ${rarityColor}` }}>
+                            {/* One wrapping row, as on the grid card: two corner-pinned pills overlapped in the 80px phone tile. */}
+                            {operator.ownership || operator.cnChanges ? (
+                                <div className="pointer-events-none absolute inset-x-0.5 top-0.5 z-10 flex flex-wrap items-start gap-0.5 [&>*]:pointer-events-auto">
+                                    {operator.ownership && <OwnershipBadge info={operator.ownership} metric={statMetric} color={rarityColor} />}
+                                    {operator.cnChanges && <CnUpdateBadge changes={operator.cnChanges} className="ms-auto" />}
+                                </div>
+                            ) : null}
+                            <div className="pointer-events-none absolute -translate-x-3 -translate-y-2">
+                                <CampIcon groupId={factionLogoId} className="opacity-5 transition-opacity group-hover:opacity-10" size={140} />
+                            </div>
+                            <img alt={operatorName} className="relative h-full w-full object-contain" height={120} loading="lazy" src={getAvatarById(operatorId)} width={120} />
+
+                            <div className="absolute right-0 bottom-0 h-4 w-4 opacity-70 group-hover:opacity-100 sm:h-5 sm:w-5">
+                                <ClassIcon profession={operator.profession} size={80} />
+                            </div>
+                        </div>
+                        <div className="mt-0.5 truncate text-center text-[0.5625rem] text-muted-foreground leading-tight sm:text-xs">{subProfessionLabel({ subProfessionId: operator.subProfessionId.toLowerCase(), subProfessionName: operator.subProfessionName })}</div>
+                    </Link>
+                }
+            />
+            <HoverCardContent className="w-max max-w-85 p-0">
+                <OperatorPreview operator={operator} ownership={operator.ownership} cnChanges={operator.cnChanges} />
+            </HoverCardContent>
+        </HoverCard>
+    );
+}

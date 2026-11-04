@@ -1,0 +1,140 @@
+import { eliteIcon, operatorElite0 } from "#/components/operators/detail/impl/assets";
+import { ClassIcon } from "#/components/operators/list/impl/components/Icons";
+import { RARITY_COLORS } from "#/components/operators/list/impl/constants";
+import { Card, CardContent } from "#/components/ui/card";
+import { Progress } from "#/components/ui/progress";
+import { Separator } from "#/components/ui/separator";
+import { useDataSaver } from "#/hooks/use-data-saver";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { getAvatarById, professionLabel } from "#/lib/utils";
+import { parseOperatorName, rarityIcon } from "./helpers.card";
+import type { messages as cardMessages } from "./helpers.card.messages";
+import type { IUnownedEntry, ViewMode } from "./types";
+import type { messages } from "./UnownedCard.messages";
+
+/** The shared card vocabulary is declared in `helpers.card.messages.ts`. */
+type UnownedT = TypedT<typeof messages & typeof cardMessages>;
+
+interface IUnownedCardProps {
+    entry: IUnownedEntry;
+    viewMode: ViewMode;
+    lastRef?: ((node: HTMLElement | null) => void) | null;
+}
+
+export function UnownedCard({ entry, viewMode, lastRef }: IUnownedCardProps) {
+    // Compact reserves the same badge overhang `CompactCard` does, so an owned and
+    // an unowned card occupy identical space in the same track.
+    return (
+        <div ref={lastRef ?? undefined} className={viewMode === "detailed" ? undefined : "pt-0.5 pr-2.5 pb-2.5 pl-2.5"}>
+            {viewMode === "detailed" ? <UnownedDetailed entry={entry} /> : <UnownedCompact entry={entry} />}
+        </div>
+    );
+}
+
+function UnownedCompact({ entry }: { entry: IUnownedEntry }) {
+    const rarityColor = RARITY_COLORS[entry.rarity] ?? "#ffffff";
+    const { displayName, subtitle } = parseOperatorName(entry.name);
+    const nameIsLong = displayName.split(" ").length > 1 && displayName.length >= 16;
+
+    return (
+        <div
+            className="fade-in slide-in-from-bottom-2 relative flex h-min w-full animate-in flex-col rounded bg-card"
+            style={{
+                padding: "4px 6px",
+                boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.1)",
+            }}
+        >
+            <div className="ml-px flex h-4.25 min-w-0 flex-col justify-center overflow-hidden text-left sm:h-5">
+                {subtitle && <span className="z-10 truncate text-[0.4375rem] text-foreground leading-normal sm:text-[0.5625rem] sm:leading-loose">{subtitle}</span>}
+                <span className="z-10 truncate text-foreground" style={{ fontSize: nameIsLong ? "9px" : "12px", lineHeight: nameIsLong ? "9px" : "17px" }}>
+                    {displayName}
+                </span>
+            </div>
+
+            {/* Only the art dims for "not owned": a whole-card opacity took the name down with it. */}
+            <div className="relative box-content aspect-square w-full opacity-60 grayscale" style={{ borderBottom: `4px solid ${rarityColor}` }}>
+                <img alt={entry.name} className="h-full w-full object-contain" decoding="async" height={120} loading="lazy" src={getAvatarById(entry.operator_id)} width={120} />
+            </div>
+        </div>
+    );
+}
+
+function UnownedDetailed({ entry }: { entry: IUnownedEntry }) {
+    const t: UnownedT = useT("user");
+    const star = entry.rarity;
+    const profession = entry.meta.profession;
+    const heroSrc = operatorElite0(entry.operator_id, entry.static?.skin ?? null, entry.static?.portrait ?? null);
+    const dataSaver = useDataSaver();
+
+    return (
+        <Card className="fade-in slide-in-from-bottom-4 group flex w-full animate-in flex-col gap-0 overflow-hidden border-2 border-muted/30 py-0 pb-1 transition-all duration-300 hover:border-muted hover:shadow-lg">
+            <div className="relative">
+                {/* The dim sits on the art alone, so the labels below keep full muted-foreground (7.43, was 2.87 under a card-wide opacity-60). */}
+                <div className="relative h-64 w-full overflow-hidden grayscale">
+                    {dataSaver ? (
+                        <img alt={entry.name} className="h-full w-full object-contain p-6 pb-16 opacity-60 transition-opacity duration-300 group-hover:opacity-80" decoding="async" loading="lazy" src={getAvatarById(entry.operator_id)} />
+                    ) : (
+                        <img alt={entry.name} className="h-full w-full object-contain object-top opacity-60 transition-opacity duration-300 group-hover:opacity-80" decoding="async" loading="lazy" src={heroSrc} />
+                    )}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent opacity-70" />
+                    <div className="absolute right-0 bottom-0 left-0 p-4">
+                        <h3 className="mt-2 max-w-3/4 text-left font-bold text-white text-xl">{entry.name}</h3>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <img alt={t("profile.roster.card.rarityAlt", { star })} className="h-4.5 w-auto object-contain" decoding="async" height={18} loading="lazy" src={rarityIcon(star)} width={60} />
+                                <div className="flex flex-row items-center gap-1">
+                                    <ClassIcon profession={profession} size={20} />
+                                    <span className="text-sm text-white">{professionLabel(entry.meta)}</span>
+                                </div>
+                            </div>
+                            <img alt={t("profile.roster.card.eliteAlt", { elite: 0 })} className="h-6 w-6 object-contain" decoding="async" height={24} loading="lazy" src={eliteIcon(0)} width={24} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="absolute top-2 z-10 rounded-r-md bg-muted/80 px-2 py-0.5 text-center font-semibold text-muted-foreground text-xs shadow-md">{t("profile.roster.unowned.badge")}</div>
+            </div>
+
+            <CardContent className="min-w-0 flex-1 overflow-hidden px-4 pt-2 pb-2">
+                <div className="grid grid-cols-2 gap-4">
+                    <BlankBar label={t("profile.roster.card.level")} />
+                    <BlankBar label={t("profile.roster.card.trust")} />
+                </div>
+
+                <Separator className="my-3" />
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    {(["profile.roster.card.stat.hp", "profile.roster.card.stat.atk", "profile.roster.card.stat.def", "profile.roster.card.stat.res", "profile.roster.card.stat.cost", "profile.roster.card.stat.block"] as const).map((key) => (
+                        <div className="flex items-center justify-between" key={key}>
+                            <span className="text-muted-foreground">{t(key)}</span>
+                            <span className="font-medium text-muted-foreground">--</span>
+                        </div>
+                    ))}
+                </div>
+
+                <Separator className="my-3" />
+
+                <div className="w-full">
+                    {(["profile.roster.card.potential", "profile.roster.card.skills", "profile.roster.card.modules"] as const).map((key) => (
+                        <div className="flex items-center justify-between border-b-0 py-2" key={key}>
+                            <span className="font-medium text-muted-foreground text-sm">{t(key)}</span>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function BlankBar({ label }: { label: string }) {
+    return (
+        <div>
+            <div className="flex items-center justify-between">
+                <span className="font-medium text-sm">{label}</span>
+                <span className="font-bold text-muted-foreground text-sm">--</span>
+            </div>
+            <Progress className="h-1.5" value={0} />
+        </div>
+    );
+}

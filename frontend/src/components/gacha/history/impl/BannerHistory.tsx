@@ -1,0 +1,355 @@
+import { useMemo, useRef, useState } from "react";
+import { Button } from "#/components/ui/button";
+import { FilterChip } from "#/components/ui/filter-chip";
+import { Kicker } from "#/components/ui/kicker";
+import { OperatorAvatar } from "#/components/ui/operator-avatar";
+import { Skeleton } from "#/components/ui/skeleton";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "#/components/ui/tabs";
+import type { IBanner, IClientGachaRecords, IGachaItem } from "#/lib/api/gacha";
+import { type IFormatters, useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { rarityGradient, rarityInk } from "#/lib/utils";
+import type { IOperatorIndexEntry } from "#/types/operators";
+import { BANNER_GROUP_LABEL_KEYS } from "../../constants";
+import type { messages as gachaConstantsMessages } from "../../constants.messages";
+import type { messages } from "./BannerHistory.messages";
+import { DEFAULT_HISTORY_TAB, HISTORY_TABS, type HistoryTab, isTabShown, recordsForTab, totalForTab } from "./historyTabs";
+
+/** Own chrome plus the shared banner-bucket labels. */
+type BannerHistoryT = TypedT<typeof messages & typeof gachaConstantsMessages>;
+
+interface IBannerHistoryProps {
+    records: IClientGachaRecords | null;
+    operatorsById: Map<string, IOperatorIndexEntry>;
+    bannersById: Map<string, IBanner>;
+    isLoading: boolean;
+}
+
+function resolveBannerName(item: IGachaItem, bannersById: Map<string, IBanner>): string {
+    return bannersById.get(item.poolId)?.gachaPoolName || item.poolName || item.poolId;
+}
+
+const RARITY_FILTERS = [6, 5, 4, 3] as const;
+
+const PAGE_SIZE = 50;
+
+// Stable empty identities, so the memos below do not see a new value each render.
+const EMPTY_RECORDS: IGachaItem[] = [];
+const EMPTY_COUNTS = new Map<number, number>();
+
+function fmtDateTime(ts: number, f: IFormatters): string {
+    if (!ts) return "-";
+    return f.date(new Date(ts), {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function PullTable({
+    items,
+    operatorsById,
+    bannersById,
+    total,
+    emptyMessage,
+    onClearFilter,
+    bannerInline = false,
+}: {
+    items: IGachaItem[];
+    operatorsById: Map<string, IOperatorIndexEntry>;
+    bannersById: Map<string, IBanner>;
+    total: number;
+    emptyMessage?: string;
+    onClearFilter?: () => void;
+    /** Repeat the banner under the name below `sm`, where the Banner column is hidden. Set on "All", whose rows mix groups. */
+    bannerInline?: boolean;
+}) {
+    const t: BannerHistoryT = useT("gacha");
+    const f = useFormatters();
+    const [page, setPage] = useState(0);
+    const sorted = useMemo(() => [...items].sort((a, b) => b.at - a.at), [items]);
+    const pageCount = Math.ceil(sorted.length / PAGE_SIZE);
+    const pageItems = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+    if (sorted.length === 0) {
+        // `onClearFilter` is only passed when a filter emptied the table, so the way
+        // out is here even when the chip that would undo it reads 0 on this tab.
+        return (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <p className="m-0 font-sans text-muted-foreground text-sm">{emptyMessage ?? t("history.banners.empty")}</p>
+                {/* min-h-10 is a 40px mouse target; Button's pointer-coarse rule makes it 44px on touch, at any width or zoom. */}
+                {onClearFilter ? (
+                    <Button className="min-h-10" variant="outline" onClick={onClearFilter}>
+                        {t("history.banners.showAllRarities")}
+                    </Button>
+                ) : null}
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="-mx-1 overflow-y-auto px-1 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+                <table className="w-full border-collapse">
+                    <thead className="sticky top-0 z-10 bg-card">
+                        <tr>
+                            <th className="kicker w-10 border-border border-b bg-card px-1.5 py-2 text-left sm:px-2">#</th>
+                            <th className="kicker border-border border-b bg-card px-1.5 py-2 text-left sm:px-2">{t("history.banners.col.operator")}</th>
+                            <th className="kicker hidden border-border border-b bg-card px-2 py-2 text-left sm:table-cell">{t("history.banners.col.banner")}</th>
+                            <th className="kicker hidden border-border border-b bg-card px-2 py-2 text-right md:table-cell">{t("history.banners.col.date")}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pageItems.map((item, i) => {
+                            const star = Number(item.star);
+                            const indexEntry = operatorsById.get(item.charId);
+                            const name = item.charName || indexEntry?.name || item.charId;
+                            const isSixStar = star === 6;
+                            return (
+                                // biome-ignore lint/suspicious/noArrayIndexKey: order is stable
+                                <tr key={`${item.charId}-${item.at}-${i}`} className={`not-last:border-border/50 not-last:border-b ${isSixStar ? "bg-amber-500/5" : ""}`}>
+                                    <td className="px-1.5 py-2 align-middle font-medium font-mono text-[11px] text-muted-foreground tabular-nums sm:px-2">{total - (page * PAGE_SIZE + i)}</td>
+                                    <td className="px-1.5 py-2 align-middle sm:px-2">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <span
+                                                className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md font-bold text-[10px] text-[oklch(0.18_0.04_30/0.85)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4),0_0_0_1px_oklch(0_0_0/0.1)] sm:h-8 sm:w-8"
+                                                style={{ background: rarityGradient(star) }}
+                                            >
+                                                <OperatorAvatar charId={item.charId} name={name} className="block h-full w-full object-cover" />
+                                            </span>
+                                            <div className="min-w-0">
+                                                <div className={`truncate font-sans font-semibold text-[12.5px] leading-snug sm:text-sm ${isSixStar ? "text-rarity-6-ink" : "text-foreground"}`}>{name}</div>
+                                                <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                                                    <span style={{ color: rarityInk(star) }} className="tracking-wider">
+                                                        {"★".repeat(star)}
+                                                    </span>
+                                                    {bannerInline ? <span className="truncate font-sans sm:hidden">{resolveBannerName(item, bannersById)}</span> : null}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="hidden px-2 py-2 align-middle sm:table-cell">
+                                        <span className="block max-w-45 truncate font-sans text-[12px] text-muted-foreground">{resolveBannerName(item, bannersById)}</span>
+                                    </td>
+                                    <td className="hidden whitespace-nowrap px-2 py-2 text-right align-middle font-mono text-[11px] text-muted-foreground tabular-nums md:table-cell">{fmtDateTime(item.at, f)}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {pageCount > 1 ? (
+                <div className="flex items-center justify-between border-border border-t pt-3">
+                    <span className="font-mono text-[11px] text-muted-foreground tabular-nums">{t("history.banners.range", { from: page * PAGE_SIZE + 1, to: Math.min((page + 1) * PAGE_SIZE, sorted.length), total: f.number(sorted.length) })}</span>
+                    <div className="flex items-center gap-1.5">
+                        <Button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} size="sm" variant="outline">
+                            {t("history.banners.prev")}
+                        </Button>
+                        <span className="px-1 font-mono text-[11px] text-muted-foreground tabular-nums">
+                            {page + 1} / {pageCount}
+                        </span>
+                        <Button disabled={page >= pageCount - 1} onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} size="sm" variant="outline">
+                            {t("history.banners.next")}
+                        </Button>
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+export function BannerHistory({ records, operatorsById, bannersById, isLoading }: IBannerHistoryProps) {
+    const t: BannerHistoryT = useT("gacha");
+    const f = useFormatters();
+    const [activeTab, setActiveTab] = useState<HistoryTab>(DEFAULT_HISTORY_TAB);
+    const [activeRarities, setActiveRarities] = useState<Set<number>>(() => new Set(RARITY_FILTERS));
+
+    const activeRecords = useMemo(() => (records ? recordsForTab(records, activeTab) : EMPTY_RECORDS), [records, activeTab]);
+
+    /**
+     * Pull counts per tab per rarity, one pass over the whole history
+     * (`/gacha/stored-records` is unpaginated). Keyed on `records` alone, so a
+     * rarity toggle or a tab switch never re-walks it.
+     */
+    const countsByTabRarity = useMemo(() => {
+        const byTab = new Map<HistoryTab, Map<number, number>>();
+        const all = new Map<number, number>();
+        for (const tab of HISTORY_TABS) {
+            if (tab === "all") continue;
+            const counts = new Map<number, number>();
+            for (const item of records?.[tab].records ?? EMPTY_RECORDS) {
+                const star = Number(item.star);
+                counts.set(star, (counts.get(star) ?? 0) + 1);
+                all.set(star, (all.get(star) ?? 0) + 1);
+            }
+            byTab.set(tab, counts);
+        }
+        // Every count on this panel is a plain tally, so "All" is the sum of the
+        // groups. Pity is the one per-group figure on the page, and it lives in
+        // `PityPanel`, outside these tabs.
+        byTab.set("all", all);
+        return byTab;
+    }, [records]);
+
+    /**
+     * What each tab's badge shows: pulls in that tab that survive the rarity
+     * filter, so the badge always matches the rows the tab would render. Summing
+     * the table above is 5 tabs x 4 rarities regardless of history size.
+     */
+    const filteredTabCounts = useMemo(() => {
+        const totals = new Map<HistoryTab, number>();
+        for (const tab of HISTORY_TABS) {
+            const counts = countsByTabRarity.get(tab);
+            let total = 0;
+            for (const rarity of activeRarities) total += counts?.get(rarity) ?? 0;
+            totals.set(tab, total);
+        }
+        return totals;
+    }, [countsByTabRarity, activeRarities]);
+
+    // Deliberately NOT filtered by rarity: a chip has to keep showing what
+    // selecting it would bring back, or a deselected chip would read 0 forever.
+    const rarityCounts = countsByTabRarity.get(activeTab) ?? EMPTY_COUNTS;
+
+    const filteredRecords = useMemo(() => activeRecords.filter((item) => activeRarities.has(Number(item.star))), [activeRecords, activeRarities]);
+
+    const isFiltered = activeRarities.size !== RARITY_FILTERS.length;
+    const tabLabel = (tab: HistoryTab): string => (tab === "all" ? t("history.banners.tab.all") : t(BANNER_GROUP_LABEL_KEYS[tab]));
+    const activeTabLabel = tabLabel(activeTab);
+    // Both sides of "x of y" come off work already done: the filtered figure from
+    // the counts table, the unfiltered one straight off the bucket. No new walk.
+    const visibleCount = filteredTabCounts.get(activeTab) ?? 0;
+    const activeTabTotal = records ? totalForTab(records, activeTab) : 0;
+
+    // The bare star list, which both the filter summary and the empty state
+    // need: the summary adds "only" to it when just one rarity is on.
+    const rarityStarList = useMemo(
+        () =>
+            RARITY_FILTERS.filter((r) => activeRarities.has(r))
+                .map((r) => `${r}\u2605`)
+                .join(" "),
+        [activeRarities],
+    );
+
+    const rarityFilterLabel = useMemo(() => {
+        const picked = RARITY_FILTERS.filter((r) => activeRarities.has(r));
+        if (picked.length === 0) return t("history.banners.rarity.none");
+        if (picked.length === 1) return t("history.banners.rarity.only", { rarity: picked[0] });
+        return rarityStarList;
+    }, [activeRarities, rarityStarList, t]);
+
+    const rarityGroupRef = useRef<HTMLDivElement>(null);
+
+    const clearRarityFilter = () => {
+        setActiveRarities(new Set(RARITY_FILTERS));
+        // Both controls that call this unmount as a result of it. Without moving
+        // focus first, a keyboard user is dropped onto <body> and loses their
+        // place; the rarity group is what they were operating, so land there.
+        rarityGroupRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    };
+
+    const toggleRarity = (rarity: number) => {
+        setActiveRarities((prev) => {
+            const next = new Set(prev);
+            if (next.has(rarity)) next.delete(rarity);
+            else next.add(rarity);
+            return next;
+        });
+    };
+
+    if (isLoading) {
+        return (
+            <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4.5 sm:p-[22px_24px]">
+                <Skeleton className="h-4 w-28 rounded" />
+                <div className="flex gap-2 border-border border-b pb-0">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+                        <Skeleton key={i} className="h-8 w-20 rounded-t-md" />
+                    ))}
+                </div>
+                <div className="flex flex-col gap-2.5">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+                        <div key={i} className="flex items-center gap-3 not-last:border-border/50 not-last:border-b py-1">
+                            <Skeleton className="h-7 w-7 rounded-md" />
+                            <div className="flex flex-1 flex-col gap-1.5">
+                                <Skeleton className="h-3 w-28 rounded" />
+                                <Skeleton className="h-2 w-16 rounded" />
+                            </div>
+                            <Skeleton className="hidden h-3 w-24 rounded sm:block" />
+                        </div>
+                    ))}
+                </div>
+            </section>
+        );
+    }
+
+    if (!records) return null;
+
+    return (
+        <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4.5 sm:p-[22px_24px]">
+            <header>
+                <Kicker className="mb-1.5">{t("history.banners.kicker")}</Kicker>
+                <h2 className="m-0 font-sans font-semibold text-[20px] text-foreground leading-[1.15] tracking-[-0.02em] sm:text-[22px]">{t("history.banners.title")}</h2>
+            </header>
+
+            {/* Screen-reader copy of what the chips show. Always mounted so the live region exists before its text changes. */}
+            <output className="sr-only">
+                {!isFiltered
+                    ? t("history.banners.status.all")
+                    : activeTab === "all"
+                      ? t("history.banners.status.filteredAll", { rarities: rarityFilterLabel, shown: f.number(visibleCount), total: f.number(activeTabTotal) })
+                      : t("history.banners.status.filtered", { rarities: rarityFilterLabel, shown: f.number(visibleCount), total: f.number(activeTabTotal), tab: activeTabLabel })}
+            </output>
+
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as HistoryTab)} className="gap-4">
+                <TabsList variant="underline" className="w-full justify-start border-border border-b">
+                    {HISTORY_TABS.filter((tab) => isTabShown(records, tab)).map((tab) => {
+                        const count = filteredTabCounts.get(tab) ?? 0;
+                        const isActive = activeTab === tab;
+                        return (
+                            <TabsTab key={tab} value={tab} className="grow-0 gap-1 px-2 text-[12px] sm:gap-1.5 sm:px-3 sm:text-[13px]">
+                                {tabLabel(tab)}
+                                <span className={`inline-flex h-4.5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 font-mono text-[10px] tabular-nums ${isActive ? "bg-primary/15 text-foreground" : "bg-muted text-muted-foreground"}`}>{f.number(count)}</span>
+                            </TabsTab>
+                        );
+                    })}
+                </TabsList>
+
+                <TabsPanel key={activeTab} value={activeTab} className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <span className="kicker">{t("history.banners.rarityLabel")}</span>
+                        {/* flex-wrap only matters below ~320px, where an unbreakable row would clip the last chip out of reach. */}
+                        <div ref={rarityGroupRef} className="flex flex-wrap gap-1.5">
+                            {RARITY_FILTERS.map((rarity) => {
+                                const isActive = activeRarities.has(rarity);
+                                const count = rarityCounts.get(rarity) ?? 0;
+                                // A selected chip stays clickable even at 0 on this tab: otherwise
+                                // filtering to 6* and switching to a tab without any greys out the
+                                // one control that would undo it.
+                                const isDisabled = count === 0 && !isActive;
+                                return <FilterChip key={rarity} active={isActive} aria-label={t("history.banners.rarityChip", { rarity, count })} count={count} disabled={isDisabled} label={`${rarity}★`} onSelect={() => toggleRarity(rarity)} tone={`var(--rarity-${rarity})`} toneInk={rarityInk(rarity)} />;
+                            })}
+                        </div>
+                    </div>
+
+                    <PullTable
+                        key={`${activeTab}-${RARITY_FILTERS.filter((r) => activeRarities.has(r)).join("")}`}
+                        items={filteredRecords}
+                        operatorsById={operatorsById}
+                        bannersById={bannersById}
+                        total={filteredRecords.length}
+                        emptyMessage={
+                            activeRarities.size === 0 ? t("history.banners.emptyNoRarity") : isFiltered ? (activeTab === "all" ? t("history.banners.emptyFilteredAll", { rarities: rarityStarList }) : t("history.banners.emptyFiltered", { rarities: rarityStarList, tab: activeTabLabel })) : t("history.banners.empty")
+                        }
+                        onClearFilter={isFiltered ? clearRarityFilter : undefined}
+                        bannerInline={activeTab === "all"}
+                    />
+                </TabsPanel>
+            </Tabs>
+        </section>
+    );
+}

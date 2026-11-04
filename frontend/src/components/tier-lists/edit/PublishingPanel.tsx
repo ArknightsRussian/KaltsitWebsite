@@ -1,0 +1,109 @@
+import { CheckIcon, ChevronDownIcon, EyeIcon, EyeOffIcon, RocketIcon, TagIcon } from "lucide-react";
+import { useId } from "react";
+import { Button } from "#/components/ui/button";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "#/components/ui/menu";
+import { Switch } from "#/components/ui/switch";
+import type { ITierListFlair } from "#/lib/api/tier-lists";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { cn } from "#/lib/utils";
+import type { messages } from "./PublishingPanel.messages";
+
+const SECTION_LABEL = "kicker inline-flex items-center gap-1.5";
+
+interface IPublishingPanelProps {
+    flair: { id: number; label: string; color: string | null } | null;
+    flairOptions: ITierListFlair[];
+    isListed: boolean;
+    canPublish: boolean;
+    publishingDisabledReason: string | null;
+    onSetFlair: (flairId: number | null) => void;
+    onSetVisibility: (next: boolean) => void;
+    onOpenPublishDialog: () => void;
+    settingFlair: boolean;
+    settingVisibility: boolean;
+}
+
+export function PublishingPanel({ flair, flairOptions, isListed, canPublish, publishingDisabledReason, onSetFlair, onSetVisibility, onOpenPublishDialog, settingFlair, settingVisibility }: IPublishingPanelProps) {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    const visibilityId = useId();
+    const visibilityHintId = `${visibilityId}-hint`;
+
+    return (
+        <div className="rounded-2xl border border-border bg-card p-3 shadow-[0_1px_2px_oklch(0_0_0/0.04)]">
+            <div className="flex items-center justify-between gap-2">
+                <span className="kicker">{t("edit.publishing.heading")}</span>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                    <label htmlFor={`${visibilityId}-flair-trigger`} className={SECTION_LABEL}>
+                        <TagIcon className="h-3 w-3" aria-hidden="true" />
+                        {t("edit.publishing.flair")}
+                    </label>
+                    <Menu>
+                        <MenuTrigger id={`${visibilityId}-flair-trigger`} disabled={settingFlair} render={<Button variant="outline" className="w-full justify-between px-2.5 text-xs sm:text-xs" />}>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                                {flair ? (
+                                    <>
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: flair.color ?? "var(--primary)" }} aria-hidden="true" />
+                                        <span className="truncate">{flair.label}</span>
+                                    </>
+                                ) : (
+                                    <span className="truncate text-muted-foreground">{t("edit.publishing.noFlair")}</span>
+                                )}
+                            </span>
+                            <ChevronDownIcon className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
+                        </MenuTrigger>
+                        <MenuPopup align="start" sideOffset={6} className="min-w-56">
+                            <MenuItem onClick={() => onSetFlair(null)} className={cn(!flair && "bg-accent/60 text-accent-foreground")}>
+                                <span className="flex items-center gap-2">
+                                    <span className="h-1.5 w-1.5 rounded-full border border-border" aria-hidden="true" />
+                                    <span>{t("edit.publishing.noFlair")}</span>
+                                </span>
+                                {!flair && <CheckIcon className="ml-auto h-3.5 w-3.5" aria-hidden="true" />}
+                            </MenuItem>
+                            {flairOptions.map((opt) => {
+                                const selected = flair?.id === opt.id;
+                                return (
+                                    <MenuItem key={opt.id} onClick={() => onSetFlair(opt.id)} className={cn(selected && "bg-accent/60 text-accent-foreground")}>
+                                        <span className="flex items-center gap-2">
+                                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: opt.color ?? "var(--primary)" }} aria-hidden="true" />
+                                            <span>{opt.label}</span>
+                                        </span>
+                                        {selected && <CheckIcon className="ml-auto h-3.5 w-3.5" aria-hidden="true" />}
+                                    </MenuItem>
+                                );
+                            })}
+                        </MenuPopup>
+                    </Menu>
+                    <p className="m-0 font-sans text-[11px] text-muted-foreground leading-snug">{t("edit.publishing.flairHint")}</p>
+                </div>
+
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 px-2.5 py-2">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                        <label htmlFor={visibilityId} className={SECTION_LABEL}>
+                            {isListed ? <EyeIcon className="h-3 w-3" aria-hidden="true" /> : <EyeOffIcon className="h-3 w-3" aria-hidden="true" />}
+                            {t("edit.publishing.visibility")}
+                        </label>
+                        <span className="font-medium font-sans text-[12.5px] text-foreground leading-tight">{isListed ? t("edit.publishing.listed") : t("edit.publishing.hidden")}</span>
+                        <p id={visibilityHintId} className="m-0 font-sans text-[11px] text-muted-foreground leading-snug">
+                            {isListed ? t("edit.publishing.listedHint") : t("edit.publishing.hiddenHint")}
+                        </p>
+                    </div>
+                    <Switch id={visibilityId} checked={isListed} disabled={settingVisibility} aria-describedby={visibilityHintId} onCheckedChange={onSetVisibility} className="mt-1 shrink-0" />
+                </div>
+
+                <Button onClick={onOpenPublishDialog} disabled={!canPublish} title={publishingDisabledReason ?? undefined} className="w-full font-semibold text-xs sm:text-xs">
+                    <RocketIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t("edit.publishing.publish")}
+                </Button>
+                {publishingDisabledReason && (
+                    <p className="m-0 font-sans text-[11px] text-muted-foreground leading-snug" role="note">
+                        {publishingDisabledReason}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}

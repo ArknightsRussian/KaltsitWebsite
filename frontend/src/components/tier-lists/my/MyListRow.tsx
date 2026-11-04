@@ -1,0 +1,120 @@
+import { Link } from "@tanstack/react-router";
+import { CopyIcon, ExternalLinkIcon, LayoutGridIcon, MoreHorizontalIcon, PencilIcon, ShieldCheckIcon, TrashIcon } from "lucide-react";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "#/components/ui/menu";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import type { ITierListBrowseItem } from "#/lib/api/tier-lists";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { CardEntityAvatar, cardEntityKey } from "../CardEntityAvatar";
+import { CardStat } from "../CardStat";
+import type { messages } from "./MyListRow.messages";
+
+interface IMyListRowProps {
+    tl: ITierListBrowseItem;
+    onEdit: (slug: string) => void;
+    onDelete: (slug: string) => void;
+    onCopyLink: (slug: string) => void;
+}
+
+const PREVIEW_OPS = 6;
+
+export function MyListRow({ tl, onEdit, onDelete, onCopyLink }: IMyListRowProps) {
+    const t: TypedT<typeof messages> = useT("tierLists");
+    const f = useFormatters();
+    const previewOps = tl.tiers.flatMap((t) => t.operators).slice(0, PREVIEW_OPS);
+    const totalOps = tl.tiers.reduce((sum, t) => sum + t.operators.length, 0);
+    const overflow = Math.max(0, totalOps - previewOps.length);
+    const isOfficial = tl.listType === "official";
+    const isEmpty = totalOps === 0;
+
+    // Below `sm` the row WRAPS: title and the actions button take the first
+    // line, the preview strip the second. One line did not fit a phone: the six
+    // shrink-0 avatars plus the overflow pill are ~266 px, which left the title
+    // no width, and the shrink-0 flair pill then spilled out of the title link
+    // over the actions button.
+    return (
+        <article className="group relative flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 shadow-[0_1px_2px_oklch(0_0_0/0.04)] transition-[border-color,box-shadow] hover:border-[color-mix(in_srgb,var(--foreground)_22%,var(--border))] hover:shadow-[0_6px_16px_oklch(0_0_0/0.06)] sm:flex-nowrap">
+            <div className="flex shrink-0 items-center gap-0.5 max-sm:order-3 max-sm:w-full">
+                {previewOps.length === 0 ? (
+                    <div className="flex h-9 w-24 items-center justify-center rounded-md border border-border border-dashed bg-muted/30 font-sans text-[10.5px] text-muted-foreground italic">{t("my.row.emptyPreview")}</div>
+                ) : (
+                    <>
+                        {previewOps.map((op) => (
+                            <Tooltip key={cardEntityKey(op)}>
+                                <TooltipTrigger render={<span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted" />}>
+                                    <CardEntityAvatar op={op} />
+                                </TooltipTrigger>
+                                <TooltipPopup>{op.name}</TooltipPopup>
+                            </Tooltip>
+                        ))}
+                        {overflow > 0 && <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-md border border-border bg-muted/60 px-1 font-bold font-mono text-[11px] text-muted-foreground tabular-nums">+{overflow}</span>}
+                    </>
+                )}
+            </div>
+
+            <Link to="/tier-lists/$id" params={{ id: tl.slug }} className="min-w-0 flex-1 no-underline max-sm:order-1">
+                <div className="flex min-w-0 items-center gap-2">
+                    <h3 className="m-0 truncate font-sans font-semibold text-[14px] text-foreground leading-tight tracking-tight transition-colors group-hover:text-primary" title={tl.title}>
+                        {tl.title || t("my.row.untitled")}
+                    </h3>
+                    {isOfficial && (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[oklch(0.92_0.13_85)] px-1.5 py-0.5 font-bold font-mono text-[9px] text-[oklch(0.32_0.12_75)] leading-none shadow-[0_1px_4px_oklch(0.6_0.16_75/0.4)]">
+                            <ShieldCheckIcon className="h-2 w-2" aria-hidden="true" />
+                            {t("my.row.official")}
+                        </span>
+                    )}
+                    {!isOfficial && tl.flairLabel && (
+                        <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 font-bold font-mono text-[9px] leading-none"
+                            style={
+                                tl.flairColor ? { background: `color-mix(in srgb, ${tl.flairColor} 25%, transparent)`, color: tl.flairColor, border: `1px solid color-mix(in srgb, ${tl.flairColor} 50%, transparent)` } : { background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)" }
+                            }
+                        >
+                            <span className="h-1 w-1 rounded-full" style={{ background: tl.flairColor ?? "currentColor" }} aria-hidden="true" />
+                            {tl.flairLabel}
+                        </span>
+                    )}
+                    {isEmpty && <span className="inline-flex shrink-0 items-center rounded-full border border-border border-dashed bg-transparent px-1.5 py-0.5 font-medium font-mono text-[9px] text-muted-foreground leading-none">{t("my.row.draft")}</span>}
+                </div>
+                {tl.description && <p className="m-0 mt-0.5 truncate font-sans text-[11.5px] text-muted-foreground leading-snug">{tl.description}</p>}
+            </Link>
+
+            <div className="hidden shrink-0 items-center gap-4 font-mono text-[11px] text-muted-foreground tabular-nums leading-none sm:flex">
+                <CardStat kind="views" value={f.compact(tl.views)} title={t("my.row.views", { count: f.number(tl.views) })} />
+                <CardStat kind="favorites" value={f.compact(tl.favorites)} title={t("my.row.favorites", { count: f.number(tl.favorites) })} />
+                <span className="w-16 shrink-0 text-right text-[10.5px] text-subtle-foreground">{tl.updated}</span>
+            </div>
+
+            <Menu>
+                <MenuTrigger
+                    aria-label={t("my.row.actions")}
+                    className="pointer-coarse:after:-translate-1/2 relative inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent text-muted-foreground transition-colors pointer-coarse:after:absolute pointer-coarse:after:top-1/2 pointer-coarse:after:left-1/2 pointer-coarse:after:size-11 hover:border-border hover:bg-accent hover:text-foreground max-sm:order-2"
+                >
+                    <MoreHorizontalIcon className="h-4 w-4" />
+                </MenuTrigger>
+                <MenuPopup align="end" sideOffset={6} className="min-w-44">
+                    <MenuItem render={<Link to="/tier-lists/$id" params={{ id: tl.slug }} />}>
+                        <ExternalLinkIcon />
+                        {t("my.row.open")}
+                    </MenuItem>
+                    <MenuItem render={<Link to="/tier-lists/my/$id/edit" params={{ id: tl.slug }} />}>
+                        <LayoutGridIcon />
+                        {t("my.row.editBoard")}
+                    </MenuItem>
+                    <MenuItem onClick={() => onEdit(tl.slug)}>
+                        <PencilIcon />
+                        {t("my.row.editDetails")}
+                    </MenuItem>
+                    <MenuItem onClick={() => onCopyLink(tl.slug)}>
+                        <CopyIcon />
+                        {t("my.row.copyLink")}
+                    </MenuItem>
+                    <MenuItem onClick={() => onDelete(tl.slug)} variant="destructive">
+                        <TrashIcon />
+                        {t("my.row.delete")}
+                    </MenuItem>
+                </MenuPopup>
+            </Menu>
+        </article>
+    );
+}

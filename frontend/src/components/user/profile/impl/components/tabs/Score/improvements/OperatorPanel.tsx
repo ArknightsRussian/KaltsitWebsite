@@ -1,0 +1,396 @@
+import { ChevronDown } from "lucide-react";
+import { memo, useMemo, useState } from "react";
+import { OperatorAvatar } from "#/components/ui/operator-avatar";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import type { IImprovementsResponse, IOperatorGap, IScoreDimension, IUpgradeDelta } from "#/lib/api/user";
+import { type TypedRichT, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { cn } from "#/lib/utils";
+import type { messages } from "./OperatorPanel.messages";
+import { EmptyHint, operatorRarityColor, PANEL_PADDING, SectionHeader, ShowMoreButton, StatTile, TEXT_BADGE, TEXT_BODY, TEXT_KICKER } from "./shared";
+import type { messages as sharedMessages } from "./shared.messages";
+
+/** This panel also renders the show-more chrome declared in `shared.messages.ts`. */
+type PanelT = TypedT<typeof messages & typeof sharedMessages>;
+
+/** A key in `OperatorPanel.messages.ts`, resolved through one of the tables below. */
+type MessageKey = keyof typeof messages & string;
+
+interface IProps {
+    improvements: IImprovementsResponse;
+    accent: string;
+}
+
+const TAG_ORDER = ["ELITE", "MAX_LEVEL", "M3", "SL7", "MOD3", "POT6", "TRUST"] as const;
+type Tag = (typeof TAG_ORDER)[number];
+
+const TAG_LABEL: Record<Tag, MessageKey> = {
+    ELITE: "score.improvements.operator.tag.elite.label",
+    MAX_LEVEL: "score.improvements.operator.tag.maxLevel.label",
+    M3: "score.improvements.operator.tag.m3.label",
+    SL7: "score.improvements.operator.tag.sl7.label",
+    MOD3: "score.improvements.operator.tag.mod3.label",
+    POT6: "score.improvements.operator.tag.pot6.label",
+    TRUST: "score.improvements.operator.tag.trust.label",
+};
+
+const TAG_DESC: Record<Tag, MessageKey> = {
+    ELITE: "score.improvements.operator.tag.elite.desc",
+    MAX_LEVEL: "score.improvements.operator.tag.maxLevel.desc",
+    M3: "score.improvements.operator.tag.m3.desc",
+    SL7: "score.improvements.operator.tag.sl7.desc",
+    MOD3: "score.improvements.operator.tag.mod3.desc",
+    POT6: "score.improvements.operator.tag.pot6.desc",
+    TRUST: "score.improvements.operator.tag.trust.desc",
+};
+
+const TAG_TOOLTIP_DETAIL: Record<Tag, MessageKey> = {
+    ELITE: "score.improvements.operator.tag.elite.detail",
+    MAX_LEVEL: "score.improvements.operator.tag.maxLevel.detail",
+    M3: "score.improvements.operator.tag.m3.detail",
+    SL7: "score.improvements.operator.tag.sl7.detail",
+    MOD3: "score.improvements.operator.tag.mod3.detail",
+    POT6: "score.improvements.operator.tag.pot6.detail",
+    TRUST: "score.improvements.operator.tag.trust.detail",
+};
+
+// Labels for the score-breakdown axes (`IScoreDimension.kind`).
+const DIM_LABEL: Record<string, MessageKey> = {
+    elite: "score.improvements.operator.dim.elite.label",
+    level: "score.improvements.operator.dim.level.label",
+    mastery: "score.improvements.operator.dim.mastery.label",
+    skill_level: "score.improvements.operator.dim.skillLevel.label",
+    module: "score.improvements.operator.dim.module.label",
+    potential: "score.improvements.operator.dim.potential.label",
+    trust: "score.improvements.operator.dim.trust.label",
+};
+
+// These read mid-sentence, after the axis name, so their English is declared
+// lowercase: `toLowerCase()` on a translated string is wrong in several locales.
+const DIM_TOOLTIP: Record<string, MessageKey> = {
+    elite: "score.improvements.operator.dim.elite.tooltip",
+    level: "score.improvements.operator.dim.level.tooltip",
+    mastery: "score.improvements.operator.dim.mastery.tooltip",
+    skill_level: "score.improvements.operator.dim.skillLevel.tooltip",
+    module: "score.improvements.operator.dim.module.tooltip",
+    potential: "score.improvements.operator.dim.potential.tooltip",
+    trust: "score.improvements.operator.dim.trust.tooltip",
+};
+
+const INITIAL_VISIBLE = 18;
+
+// Below this a delta renders as a muted "·" instead of a "+0.00" stamp.
+const SHOW_DELTA_THRESHOLD_PCT = 0.005;
+
+export function OperatorPanel({ improvements, accent }: IProps) {
+    const t: TypedT<typeof messages> = useT("user");
+    const rt: TypedRichT<typeof messages> = useRichT("user");
+    const ops = improvements.operators.below_milestone;
+    const [activeFilter, setActiveFilter] = useState<Tag | null>(null);
+
+    const tagCounts = useMemo(() => {
+        const counts: Record<Tag, number> = { ELITE: 0, MAX_LEVEL: 0, M3: 0, SL7: 0, MOD3: 0, POT6: 0, TRUST: 0 };
+        for (const op of ops) {
+            for (const tag of op.missing) {
+                if (tag in counts) counts[tag as Tag] += 1;
+            }
+        }
+        return counts;
+    }, [ops]);
+
+    // Subscore points each tag would add across the whole roster.
+    const tagGains = useMemo(() => {
+        const gains: Record<Tag, number> = { ELITE: 0, MAX_LEVEL: 0, M3: 0, SL7: 0, MOD3: 0, POT6: 0, TRUST: 0 };
+        for (const op of ops) {
+            for (const d of op.deltas) {
+                if (d.tag in gains) gains[d.tag as Tag] += d.operator_grade_delta * 100;
+            }
+        }
+        return gains;
+    }, [ops]);
+
+    const buckets = useMemo(() => {
+        const filtered = activeFilter ? ops.filter((op) => op.missing.includes(activeFilter)) : ops;
+        const byRarity = new Map<number, IOperatorGap[]>();
+        for (const op of filtered) {
+            const bucket = byRarity.get(op.rarity);
+            if (bucket) bucket.push(op);
+            else byRarity.set(op.rarity, [op]);
+        }
+        return [...byRarity.entries()].sort(([a], [b]) => b - a);
+    }, [ops, activeFilter]);
+
+    // Both roll up every owned op (ELITE/MAX_LEVEL deduped by the backend). The
+    // overall gain is the subscore headroom already scaled by this section's
+    // weight, so it is the figure tied to the user's grade and leads the header.
+    const totalSubscoreGainPct = useMemo(() => ops.reduce((acc, op) => acc + op.subscore_potential_gain * 100, 0), [ops]);
+    const totalOverallGainPct = useMemo(() => ops.reduce((acc, op) => acc + op.total_potential_gain * 100, 0), [ops]);
+
+    if (ops.length === 0) {
+        return (
+            <div className={`${PANEL_PADDING} flex flex-col gap-4`}>
+                <ScoreBreakdown dims={improvements.operators.score_breakdown} accent={accent} />
+                <EmptyHint>{t("score.improvements.operator.empty")}</EmptyHint>
+            </div>
+        );
+    }
+
+    const totalShown = buckets.reduce((acc, [, list]) => acc + list.length, 0);
+
+    return (
+        <div className={`${PANEL_PADDING} flex flex-col gap-4`}>
+            <ScoreBreakdown dims={improvements.operators.score_breakdown} accent={accent} />
+
+            <SectionHeader title={t("score.improvements.operator.title")} count={t("score.improvements.operator.count", { n: ops.length, gain: totalOverallGainPct.toFixed(1) })} accent={accent} />
+
+            {/* Doubles as the filter for the rarity buckets below. */}
+            <div className="flex flex-col gap-2">
+                <span className={cn(TEXT_KICKER, "text-subtle-foreground")}>{t("score.improvements.operator.byType")}</span>
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                    {TAG_ORDER.map((tag) => {
+                        const gain = tagGains[tag];
+                        const sub = gain > 0.01 ? `+${gain.toFixed(1)}%` : t(TAG_DESC[tag]);
+                        return <StatTile key={tag} value={tagCounts[tag]} label={t(TAG_LABEL[tag])} sub={sub} accent={accent} active={activeFilter === tag} onClick={tagCounts[tag] > 0 ? () => setActiveFilter((cur) => (cur === tag ? null : tag)) : undefined} />;
+                    })}
+                </div>
+                {activeFilter && (
+                    <button type="button" onClick={() => setActiveFilter(null)} className={cn("self-start", TEXT_KICKER, "text-muted-foreground transition-colors hover:text-foreground")}>
+                        {t("score.improvements.operator.clearFilter", { n: totalShown })}
+                    </button>
+                )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">{buckets.length === 0 ? <EmptyHint>{t("score.improvements.operator.noMatch")}</EmptyHint> : buckets.map(([rarity, list], idx) => <RarityBucket key={rarity} rarity={rarity} ops={list} defaultOpen={idx === 0} accent={accent} />)}</div>
+
+            <p className={cn(TEXT_BADGE, "text-subtle-foreground leading-relaxed")}>
+                {rt("score.improvements.operator.footnote", {
+                    gain: <span className="text-foreground/80">{t("score.improvements.operator.footnote.headerGain", { gain: totalOverallGainPct.toFixed(1) })}</span>,
+                    unit: <span className="text-foreground/80">{t("score.improvements.operator.footnote.sectionUnit")}</span>,
+                    room: totalSubscoreGainPct.toFixed(1),
+                })}
+            </p>
+        </div>
+    );
+}
+
+/**
+ * "Where your score comes from": the Operators subscore split into its
+ * investment axes, earned vs available per row (both in % of this section).
+ * The earned figures sum to the section score on the card.
+ */
+function ScoreBreakdown({ dims, accent }: { dims: IScoreDimension[] | undefined; accent: string }) {
+    const t: TypedT<typeof messages> = useT("user");
+    const rt: TypedRichT<typeof messages> = useRichT("user");
+    // Tolerate an older backend that doesn't send the breakdown yet.
+    if (!dims?.length) return null;
+    const totalPct = dims.reduce((acc, d) => acc + d.contribution * 100, 0);
+
+    return (
+        <div className="flex flex-col gap-2.5">
+            <SectionHeader title={t("score.improvements.operator.dim.title")} count={t("score.improvements.operator.dim.earned", { pct: totalPct.toFixed(1) })} accent={accent} />
+            <div className="flex flex-col gap-1.5">
+                {dims.map((d) => {
+                    const sharePct = d.weight_share * 100;
+                    const earnedPct = d.contribution * 100;
+                    const completionPct = Math.max(0, Math.min(100, d.completion * 100));
+                    // An axis the backend adds later has no key here; fall back to its raw code.
+                    const labelKey = DIM_LABEL[d.kind];
+                    const label = labelKey ? t(labelKey) : d.kind;
+                    const detailKey = DIM_TOOLTIP[d.kind];
+                    const titleValues = { label, share: sharePct.toFixed(1), completion: completionPct.toFixed(0), earned: earnedPct.toFixed(1) };
+                    return (
+                        <Tooltip key={d.kind}>
+                            <TooltipTrigger render={<button type="button" className="grid w-full cursor-default grid-cols-[5.5rem_1fr_auto] items-center gap-2.5 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2" />}>
+                                <span className={cn(TEXT_BADGE, "truncate text-muted-foreground")}>{label}</span>
+                                <div className="h-1 w-full overflow-hidden rounded-full bg-muted/40">
+                                    <div
+                                        className="h-full rounded-full transition-[width] duration-500 ease-out"
+                                        style={{
+                                            width: `${completionPct}%`,
+                                            background: `linear-gradient(to right, color-mix(in oklch, ${accent} 55%, transparent), ${accent})`,
+                                        }}
+                                    />
+                                </div>
+                                <span className={cn(TEXT_BADGE, "text-foreground/85")}>
+                                    {earnedPct.toFixed(1)} <span className="text-subtle-foreground">/ {sharePct.toFixed(1)}%</span>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipPopup>{detailKey ? t("score.improvements.operator.dim.rowTitleDetail", { ...titleValues, detail: t(detailKey) }) : t("score.improvements.operator.dim.rowTitle", titleValues)}</TooltipPopup>
+                        </Tooltip>
+                    );
+                })}
+            </div>
+            <p className={cn(TEXT_BADGE, "text-subtle-foreground leading-relaxed")}>{rt("score.improvements.operator.dim.footnote", { unit: <span className="text-foreground/80">{t("score.improvements.operator.dim.footnote.unit")}</span> })}</p>
+        </div>
+    );
+}
+
+interface IBucketProps {
+    rarity: number;
+    ops: IOperatorGap[];
+    defaultOpen: boolean;
+    accent: string;
+}
+
+function RarityBucket({ rarity, ops, defaultOpen, accent }: IBucketProps) {
+    const t: PanelT = useT("user");
+    const [open, setOpen] = useState(defaultOpen);
+    const [showAll, setShowAll] = useState(false);
+    const color = operatorRarityColor(rarity);
+
+    const visible = useMemo(() => (showAll ? ops : ops.slice(0, INITIAL_VISIBLE)), [showAll, ops]);
+    const remaining = ops.length - visible.length;
+
+    const bucketGain = useMemo(() => ops.reduce((acc, op) => acc + op.subscore_potential_gain * 100, 0), [ops]);
+
+    return (
+        <div className="overflow-hidden rounded-md border border-border/35 bg-muted/8">
+            <button type="button" onClick={() => setOpen((o) => !o)} className="group flex w-full items-center gap-2 px-2.5 py-1.5 transition-colors hover:bg-muted/20" aria-expanded={open}>
+                <span className={cn("rounded-sm border border-border/40 px-1.5 py-0.5 font-bold", TEXT_BADGE)} style={{ color, background: `color-mix(in oklch, ${color} 10%, transparent)` }}>
+                    {rarity}★
+                </span>
+                <span className={cn(TEXT_BADGE, "text-foreground/85")}>{ops.length}</span>
+                <span className={cn(TEXT_KICKER, "text-subtle-foreground")}>{t("score.improvements.operator.bucket.toUpgrade")}</span>
+                {bucketGain > 0.01 && (
+                    <Tooltip>
+                        <TooltipTrigger render={<span aria-hidden className={cn(TEXT_BADGE, "rounded-sm border border-border/40 bg-background px-1 py-px font-semibold tabular-nums")} style={{ color: `color-mix(in oklch, ${accent} 70%, var(--foreground))` }} />}>+{bucketGain.toFixed(1)}%</TooltipTrigger>
+                        <TooltipPopup>{t("score.improvements.operator.bucket.gainTitle", { rarity, gain: bucketGain.toFixed(1) })}</TooltipPopup>
+                    </Tooltip>
+                )}
+                {bucketGain > 0.01 && (
+                    // Inside the bucket's own toggle button, so the hint cannot be a focusable trigger: its sentence is read as part of the button instead.
+                    <span className="sr-only">{t("score.improvements.operator.bucket.gainTitle", { rarity, gain: bucketGain.toFixed(1) })}</span>
+                )}
+                <span className="ml-auto flex items-center gap-2">
+                    <PreviewStrip ops={ops.slice(0, 5)} color={color} dim={open} />
+                    <ChevronDown aria-hidden className={cn("size-3.5 text-subtle-foreground transition-transform duration-200", open && "rotate-180")} />
+                </span>
+            </button>
+
+            {open && (
+                <div className="border-border/30 border-t bg-background/40 p-2 sm:p-2.5">
+                    {/* No 3-col step: a card holds avatar, name, meta and a wrapping
+                       tag row, and at 3 cols the meta line no longer fits on one line. */}
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                        {visible.map((op) => (
+                            <OperatorRow key={op.operator_id} op={op} color={color} accent={accent} />
+                        ))}
+                    </div>
+                    {remaining > 0 && (
+                        <div className="mt-2">
+                            <ShowMoreButton onClick={() => setShowAll(true)} label={t("score.improvements.showMore", { n: remaining })} />
+                        </div>
+                    )}
+                    {showAll && ops.length > INITIAL_VISIBLE && (
+                        <div className="mt-2">
+                            <ShowMoreButton onClick={() => setShowAll(false)} label={t("score.improvements.showLess")} />
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function PreviewStrip({ ops, color, dim }: { ops: IOperatorGap[]; color: string; dim: boolean }) {
+    if (dim) return null;
+    return (
+        <span className="hidden items-center sm:flex">
+            {ops.map((op, i) => (
+                <span key={op.operator_id} className="-ml-1.5 size-5 overflow-hidden rounded-full border border-background ring-1 ring-border/50 first:ml-0" style={{ background: `color-mix(in oklch, ${color} 12%, transparent)`, zIndex: ops.length - i }} aria-hidden>
+                    <OperatorAvatar charId={op.operator_id} name={op.name} />
+                </span>
+            ))}
+        </span>
+    );
+}
+
+const OperatorRow = memo(function OperatorRow({ op, color, accent }: { op: IOperatorGap; color: string; accent: string }) {
+    const t: TypedT<typeof messages> = useT("user");
+    const sortedTags = TAG_ORDER.filter((t) => op.missing.includes(t));
+
+    // The backend sends one delta per tag in `missing`; a tag without one shows
+    // its plain description.
+    const deltaByTag = useMemo(() => {
+        const map: Record<string, IUpgradeDelta> = {};
+        for (const d of op.deltas) map[d.tag] = d;
+        return map;
+    }, [op.deltas]);
+
+    const subscoreGainPct = op.subscore_potential_gain * 100;
+    const totalScoreGainPct = op.total_potential_gain * 100;
+
+    return (
+        <div className="flex items-start gap-2.5 rounded-md border border-border/30 bg-card/60 px-2.5 py-2">
+            <span className="relative size-9 shrink-0 overflow-hidden rounded-md border border-border/40" style={{ background: `color-mix(in oklch, ${color} 12%, transparent)` }}>
+                <OperatorAvatar charId={op.operator_id} name={op.name} />
+            </span>
+
+            {/* `min-w-0` is required so the truncate/whitespace-nowrap below actually clips. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                    <span className={cn(TEXT_BODY, "min-w-0 flex-1 truncate font-medium")} title={op.name}>
+                        {op.name}
+                    </span>
+                    {subscoreGainPct >= SHOW_DELTA_THRESHOLD_PCT && (
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <button
+                                        type="button"
+                                        className={cn(TEXT_BADGE, "shrink-0 cursor-default rounded-sm border border-border/40 bg-background px-1 py-px text-left font-semibold tabular-nums focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2")}
+                                        style={{ color: `color-mix(in oklch, ${accent} 70%, var(--foreground))` }}
+                                    />
+                                }
+                            >
+                                +{subscoreGainPct.toFixed(2)}
+                            </TooltipTrigger>
+                            <TooltipPopup>{t("score.improvements.operator.row.gainTitle", { name: op.name, section: subscoreGainPct.toFixed(2), overall: totalScoreGainPct.toFixed(2) })}</TooltipPopup>
+                        </Tooltip>
+                    )}
+                </div>
+                {/* `whitespace-nowrap truncate` together prevent the char-by-char wrap and let ellipsis kick in when the card is narrow. */}
+                <span className={cn(TEXT_BADGE, "truncate whitespace-nowrap text-subtle-foreground")}>
+                    E{op.current_elite}·L{op.current_level}
+                    {op.max_mastery >= 0 && `·M${op.max_mastery}`}
+                    {op.max_module_level >= 0 && `·Mod${op.max_module_level}`}
+                    {op.current_trust > 0 && `·T${Math.round(op.current_trust)}`}
+                </span>
+                {/* Tags live on their own row so they wrap freely instead of fighting the name for horizontal space. */}
+                {sortedTags.length > 0 && (
+                    <span className="-ml-0.5 flex flex-wrap items-center gap-1 pt-0.5">
+                        {sortedTags.map((tag) => {
+                            const d = deltaByTag[tag];
+                            const tagDeltaPct = d ? d.operator_grade_delta * 100 : 0;
+                            const showNumber = tagDeltaPct >= SHOW_DELTA_THRESHOLD_PCT;
+                            const tooltip = d
+                                ? t("score.improvements.operator.tag.tooltip", {
+                                      desc: t(TAG_DESC[tag]),
+                                      detail: t(TAG_TOOLTIP_DETAIL[tag]),
+                                      value: showNumber ? t("score.improvements.operator.tag.tooltip.gain", { section: tagDeltaPct.toFixed(2), overall: (d.total_score_delta * 100).toFixed(2) }) : t("score.improvements.operator.tag.tooltip.negligible"),
+                                  })
+                                : t(TAG_DESC[tag]);
+                            return (
+                                <Tooltip key={tag}>
+                                    <TooltipTrigger
+                                        render={
+                                            <button
+                                                type="button"
+                                                className={cn("cursor-default rounded-sm border border-border/40 bg-background px-1 py-px text-left font-semibold focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2", TEXT_BADGE)}
+                                                style={{ color: `color-mix(in oklch, ${color} 65%, var(--foreground))` }}
+                                            />
+                                        }
+                                    >
+                                        {t(TAG_LABEL[tag])}
+                                        {showNumber ? <span className="ml-1 font-mono text-subtle-foreground">+{tagDeltaPct.toFixed(2)}</span> : <span className="ml-1 text-subtle-foreground">·</span>}
+                                    </TooltipTrigger>
+                                    <TooltipPopup>{tooltip}</TooltipPopup>
+                                </Tooltip>
+                            );
+                        })}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+});

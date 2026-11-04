@@ -1,0 +1,204 @@
+/**
+ * THE CHAPTER'S OPERATIONS, in the table's own order.
+ *
+ * A row is an OPERATION, not a script: `derive.groupOperations` merges the
+ * `_beg` and `_end` halves the table stores separately, and 523 of the 525
+ * repeated codes merge, which is why the old list printed "Isolated Island"
+ * twice.
+ *
+ * The surface is NEUTRAL. A 10% palette-token wash plus a full-strength left rule, three hues
+ * down a list of thirty-nine, read as ugly. The phase is a word on a segment, the only colour is
+ * the tick and the hover, and a read row is muted rather than tinted.
+ */
+import { Link } from "@tanstack/react-router";
+import { FilmIcon } from "lucide-react";
+import type React from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
+import { Badge } from "#/components/ui/badge";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { useFormatters, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { isStoryRead, type StoryProgress } from "#/lib/story/progress";
+import { cn } from "#/lib/utils";
+import type { messages } from "./Browse.messages";
+import { groupOperations, type IOperationRow, type IOperationSegment, type LibGroup, type StoryPhase } from "./derive";
+import { rowMarks } from "./marks";
+import { ReadToggle } from "./ReadToggle";
+import type { messages as storiesMessages } from "./StoriesTab.messages";
+
+type BrowseT = TypedT<typeof messages>;
+type StoriesT = TypedT<typeof storiesMessages>;
+
+export const Entries = memo(function Entries({ group, progress, gameRead }: { group: LibGroup; progress: StoryProgress; gameRead: ReadonlySet<string> }): React.ReactElement {
+    const rows = useMemo(() => groupOperations(group.stories), [group.stories]);
+    // A row that skips a render keeps the document it last rendered with, so a
+    // tick reads the LATEST one at click time through this getter instead.
+    const latest = useRef(progress);
+    latest.current = progress;
+    const current = useCallback(() => latest.current, []);
+    return (
+        <ol className="m-0 flex list-none flex-col p-0">
+            {rows.map((row) => (
+                <li key={row.key} className="border-border/60 border-b last:border-b-0">
+                    <OperationRow
+                        row={row}
+                        marks={rowMarks(
+                            row.segments.map((seg) => seg.entry),
+                            progress,
+                            gameRead,
+                        )}
+                        progress={progress}
+                        gameRead={gameRead}
+                        current={current}
+                    />
+                </li>
+            ))}
+        </ol>
+    );
+});
+
+interface IOperationRowProps {
+    row: IOperationRow;
+    /** `rowMarks` of this row's stories: everything the row draws from the document. */
+    marks: string;
+    progress: StoryProgress;
+    gameRead: ReadonlySet<string>;
+    /** The latest document, for a tick pressed on a row that skipped the last render. */
+    current: () => StoryProgress;
+}
+
+/** A row re-renders when ITS marks change, not when any story in the chapter does. `progress` and `gameRead` are left out of the comparison on purpose: `marks` is what the row draws from them, and a tick reads the document through `current`. */
+function sameRow(a: IOperationRowProps, b: IOperationRowProps): boolean {
+    return a.row === b.row && a.marks === b.marks && a.current === b.current;
+}
+
+/**
+ * ONE OPERATION. A merged row is not a link: its two halves are, each with its
+ * own tick, because they are two different places to go. A lone entry has one
+ * place to go and the whole row is that link, the larger target.
+ */
+const OperationRow = memo(function OperationRow({ row, progress, gameRead, current }: IOperationRowProps): React.ReactElement {
+    const t: BrowseT = useT("story");
+    const ts: StoriesT = useT("story");
+    const f = useFormatters();
+    const words = row.segments.reduce<number | null>((sum, seg) => (typeof seg.entry.wordCount === "number" ? (sum ?? 0) + seg.entry.wordCount : sum), null);
+    const video = row.segments.some((seg) => seg.entry.hasVideo);
+    const done = row.segments.every((seg) => isStoryRead(progress, gameRead, seg.entry.id));
+    const solo = row.segments.length === 1 ? row.segments[0] : undefined;
+
+    const face = (
+        <>
+            {row.code ? <span className="w-14 shrink-0 truncate rounded-[6px] border border-border bg-secondary/55 px-1 py-1 text-center font-mono text-[12px] text-muted-foreground tabular-nums">{row.code}</span> : null}
+            <span className="flex min-w-0 flex-1 basis-32 flex-col gap-0.5">
+                <span className={cn("font-medium font-sans text-[16px] leading-snug", done ? "text-foreground/60" : "text-foreground")}>{row.title}</span>
+                <span className="flex flex-wrap items-center gap-x-2 font-sans text-[13px] text-muted-foreground tabular-nums">
+                    {solo?.phase ? <span>{t(`chapter.phase.${solo.phase}`)}</span> : null}
+                    {solo?.phase && words !== null ? <span aria-hidden="true">·</span> : null}
+                    {words !== null ? <span>{t("chapter.words", { words: f.number(words) })}</span> : null}
+                    {video ? (
+                        <span className="flex items-center gap-1">
+                            <FilmIcon className="size-3.5" aria-hidden="true" /> {t("chapter.video")}
+                        </span>
+                    ) : null}
+                </span>
+            </span>
+        </>
+    );
+
+    // The two segments cost about 220 px, which on a 390 px sheet leaves the
+    // title under 130 and wraps a four-word name onto three lines. Under 640
+    // they take their own line instead, indented past the code chip so the row
+    // still reads as one thing. 56 px is the row's floor: a 16 px title over a
+    // 13 px line is 43 px of text, and the rows were 46.9 at their shortest.
+    const shell = "flex min-h-14 w-full flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 text-left transition-colors sm:flex-nowrap sm:px-5";
+
+    if (solo) {
+        if (!solo.entry.hasScript)
+            return (
+                <div className={cn(shell, "opacity-60")}>
+                    {face}
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                        {ts("stories.panel.notExtracted")}
+                    </Badge>
+                </div>
+            );
+        return (
+            <div className={cn(shell, "py-1.5 pe-1.5 sm:pe-2")}>
+                <Link
+                    to="/stories/$storyId"
+                    params={{ storyId: solo.entry.id }}
+                    className="-mx-2 -my-1 flex pointer-coarse:min-h-11 min-w-0 flex-1 basis-32 items-center gap-2.5 rounded-[7px] px-2 py-1 transition-colors hover:bg-secondary/45 focus-visible:bg-secondary/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset max-sm:min-h-11"
+                >
+                    {face}
+                </Link>
+                <ReadToggle story={solo.entry} size="lg" progress={progress} gameRead={gameRead} current={current} />
+            </div>
+        );
+    }
+
+    return (
+        <div className={shell}>
+            {face}
+            <span className="flex shrink-0 items-center gap-2 max-sm:w-full max-sm:ps-17">
+                {row.segments.map((segment) => (
+                    <PhaseSegment key={segment.entry.id} segment={segment} title={row.title} progress={progress} gameRead={gameRead} current={current} />
+                ))}
+            </span>
+        </div>
+    );
+}, sameRow);
+
+/**
+ * ONE HALF OF AN OPERATION: a chip that opens it and a tick that marks it.
+ *
+ * The two used to be one link with the tick drawn inside it, which made the
+ * read verdict unclickable: the only way to say "I read this in the game two
+ * years ago" was to open the script and scroll it. They are siblings now, with
+ * the chip's right edge squared into the tick so the pair still reads as one
+ * control, and the chip keeps the aria-label naming the operation, because
+ * "Before" alone names nothing.
+ */
+function PhaseSegment({ segment, title, progress, gameRead, current }: { segment: IOperationSegment; title: string; progress: StoryProgress; gameRead: ReadonlySet<string>; current: () => StoryProgress }): React.ReactElement {
+    const t: BrowseT = useT("story");
+    const ts: StoriesT = useT("story");
+    const phase: StoryPhase = segment.phase ?? "interlude";
+    const label = t(`chapter.phase.${phase}`);
+    const read = isStoryRead(progress, gameRead, segment.entry.id);
+    // 40 px on a fine pointer from 640 up and 44 px everywhere else. The old chip was 32 px of
+    // 10 px uppercase mono, too small.
+    const shell = "flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-[8px] border px-3 font-medium font-sans text-[13px] transition-colors max-sm:flex-1 sm:pointer-fine:h-10";
+
+    if (!segment.entry.hasScript)
+        return (
+            <Tooltip>
+                <TooltipTrigger render={<span className={cn(shell, "border-border border-dashed text-subtle-foreground")} />}>{label}</TooltipTrigger>
+                <TooltipPopup>{ts("stories.panel.notExtracted")}</TooltipPopup>
+            </Tooltip>
+        );
+
+    return (
+        <span className="flex shrink-0 items-center max-sm:flex-1">
+            <Link
+                to="/stories/$storyId"
+                params={{ storyId: segment.entry.id }}
+                aria-label={t("chapter.segment.aria", { title, phase: label })}
+                className={cn(
+                    shell,
+                    "cursor-pointer rounded-e-none border-e-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    read ? "border-primary/55 bg-primary/12 text-foreground hover:bg-primary/18" : "border-border bg-transparent text-muted-foreground hover:border-primary/45 hover:text-foreground",
+                )}
+            >
+                {label}
+            </Link>
+            <ReadToggle
+                story={segment.entry}
+                size="lg"
+                label={t("chapter.segment.aria", { title, phase: label })}
+                progress={progress}
+                gameRead={gameRead}
+                current={current}
+                className={cn("rounded-s-none rounded-e-[8px] border", read ? "border-primary/55 bg-primary/12 hover:bg-primary/18" : "border-border bg-transparent")}
+            />
+        </span>
+    );
+}

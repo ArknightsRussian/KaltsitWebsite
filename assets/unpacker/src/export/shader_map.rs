@@ -1,0 +1,281 @@
+//! Resolve a material's **external** shader reference to the shader's name.
+//!
+//! Particle materials in dynchar bundles reference their shader by an external
+//! `PPtr` (`m_Shader = {m_FileID, m_PathID}`) into the shared `[uc]shaders.ab`
+//! bundle, so the name isn't present in the dynchar bundle. We pre-scan the
+//! shader bundles once into a `(CAB, path_id) -> name` map, then resolve each
+//! material's ref via its `SerializedFile`'s `externals` table.
+//!
+//! Needed to tell apart the HG "flow" shaders that share one pathID: e.g.
+//! `Torappu/Particles-L2D/Ram/VertexDisturb(CustomData)` drives both `SilverAsh`
+//! the Reignfrost's procedural targeting-ring reticles (external `_MainTex`) and
+//! ordinary slash sprites (in-bundle `_MainTex`).
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+use crate::unity::serialized_file::SerializedFile;
+
+pub type ShaderMap = HashMap<(String, i64), String>;
+
+/// `shader_name -> set of property names its property block DECLARES`.
+///
+/// A material's `m_SavedProperties` is not evidence that its shader reads a
+/// property: Unity keeps every value the material ever carried, so a slot left
+/// over from the shader the asset was authored against survives as residue.
+/// Only the shader's own property block says what is live. Measured across the
+/// dynchar corpus, **630 materials carry a `_MainColor` their shader does not
+/// declare** — enough to steal whole families onto the wrong tint
+/// (`legacy_tint_scale`).
+pub type ShaderPropMap = HashMap<String, HashSet<String>>;
+
+static SHADER_PROPS: OnceLock<ShaderPropMap> = OnceLock::new();
+
+/// `(shader_name, prop_name) -> (min, max)` for every property `ShaderLab` declares as
+/// `Range(min, max)`.
+///
+/// Unity CLAMPS a Range property to its declared limits, so an animation curve driving one
+/// out of range is clamped in the game and must be clamped at export too. `_Amount`, the
+/// dissolve threshold, is `Range(0, 1)`: 266 of the 511 exported `ramDissolveCurve`s dip
+/// BELOW zero, and a negative threshold stops the mask carving entirely.
+pub type ShaderRangeMap = HashMap<(String, String), (f32, f32)>;
+
+static SHADER_RANGES: OnceLock<ShaderRangeMap> = OnceLock::new();
+
+/// Publish the declared Range limits for the process. Called once from `main`.
+pub fn set_shader_ranges(map: ShaderRangeMap) {
+    let _ = SHADER_RANGES.set(map);
+}
+
+/// The `Range(min, max)` limits `shader` declares for `prop`, or `None` when the shader is
+/// unknown, the property is not declared, or it is not a Range. Callers must leave the value
+/// untouched on `None` so an under-staged export cannot silently start clamping.
+#[must_use]
+pub fn shader_range(shader: &str, prop: &str) -> Option<(f32, f32)> {
+    SHADER_RANGES
+        .get()?
+        .get(&(shader.to_string(), prop.to_string()))
+        .copied()
+}
+
+/// Publish the declared-property map for the process. Called once from `main`.
+pub fn set_shader_props(map: ShaderPropMap) {
+    let _ = SHADER_PROPS.set(map);
+}
+
+/// Does `shader` DECLARE `prop`?
+///
+/// `None` when the shader is unknown (no shader bundle staged, or an unresolved
+/// name) so callers can fall back to their previous heuristic rather than
+/// silently flipping behaviour on an incomplete export.
+#[must_use]
+pub fn shader_declares(shader: &str, prop: &str) -> Option<bool> {
+    SHADER_PROPS.get()?.get(shader).map(|ps| ps.contains(prop))
+}
+
+/// Scan a Shader object's bytes for its property-block names.
+///
+/// `SerializedProperty` is `m_Name, m_Description, m_Attributes, m_Type,
+/// m_Flags, m_DefValue[4], m_DefTexture{…}` — we only need `m_Name`, so this
+/// walks the segment for length-prefixed `_`-leading ASCII identifiers. Names
+/// also recur in the compiled constant buffers, which is harmless: a property
+/// appearing in a cbuffer is one the program genuinely binds.
+fn scan_shader_props(data: &[u8], start: usize, size: usize) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let end = (start + size).min(data.len());
+    if start >= end {
+        return out;
+    }
+    let seg = &data[start..end];
+    let mut i = 0usize;
+    while i + 4 < seg.len() {
+        let len = u32::from_le_bytes([seg[i], seg[i + 1], seg[i + 2], seg[i + 3]]) as usize;
+        if (2..=48).contains(&len) && i + 4 + len <= seg.len() && seg[i + 4] == b'_' {
+            let sl = &seg[i + 4..i + 4 + len];
+            if sl.iter().all(|&b| b.is_ascii_alphanumeric() || b == b'_') {
+                out.insert(String::from_utf8_lossy(sl).to_string());
+                i += 4 + len;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Build `shader_name -> declared property names` from every shader bundle among
+/// `files`. Empty when none are staged, which leaves `shader_declares` at `None`
+/// and every caller on its previous behaviour.
+#[must_use]
+pub fn build_shader_props(files: &[PathBuf]) -> (ShaderPropMap, ShaderRangeMap) {
+    let mut map = ShaderPropMap::new();
+    let mut ranges = ShaderRangeMap::new();
+    for path in files.iter().filter(|p| is_shader_bundle(p)) {
+        let Ok(bytes) = std::fs::read(path) else {
+            continue;
+        };
+        let Ok(bundle) = crate::unity::bundle::BundleFile::parse(bytes) else {
+            continue;
+        };
+        for entry in &bundle.files {
+            let Ok(sf) = SerializedFile::parse(entry.data.clone()) else {
+                continue;
+            };
+            for obj in &sf.objects {
+                if obj.class_id != 48 {
+                    continue;
+                }
+                if let Some(name) =
+                    scan_shader_name(&sf.data, obj.byte_start as usize, obj.byte_size as usize)
+                {
+                    let props = scan_shader_props(
+                        &sf.data,
+                        obj.byte_start as usize,
+                        obj.byte_size as usize,
+                    );
+                    map.entry(name).or_default().extend(props);
+                }
+                // RANGE LIMITS need the STRUCTURED property block, which the byte scan above
+                // cannot give: the limits live in `m_DefValue[1]`/`[2]` of each
+                // `SerializedProperty`, not in its name. Only 176 shaders are staged, so the
+                // extra parse is one-time and cheap.
+                if let Ok(v) = crate::unity::object_reader::read_object(&sf, obj)
+                    && let Some(sname) = v
+                        .get("m_ParsedForm")
+                        .and_then(|p| p.get("m_Name"))
+                        .and_then(serde_json::Value::as_str)
+                    && let Some(props) = v
+                        .get("m_ParsedForm")
+                        .and_then(|p| p.get("m_PropInfo"))
+                        .and_then(|p| p.get("m_Props"))
+                        .and_then(serde_json::Value::as_array)
+                {
+                    for pr in props {
+                        // `m_Type` 3 is ShaderLab's Range kind.
+                        if pr.get("m_Type").and_then(serde_json::Value::as_i64) != Some(3) {
+                            continue;
+                        }
+                        let (Some(pname), Some(lo), Some(hi)) = (
+                            pr.get("m_Name").and_then(serde_json::Value::as_str),
+                            pr.get("m_DefValue[1]").and_then(serde_json::Value::as_f64),
+                            pr.get("m_DefValue[2]").and_then(serde_json::Value::as_f64),
+                        ) else {
+                            continue;
+                        };
+                        if hi > lo {
+                            ranges.insert(
+                                (sname.to_string(), pname.to_string()),
+                                (lo as f32, hi as f32),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (map, ranges)
+}
+
+/// Extract a Shader's name (`m_ParsedForm.m_Name`) by scanning the object bytes.
+/// `read_object` overreads on a compiled-shader blob, but the name is a plain
+/// early string of the form `Torappu/...`, `Hidden/...` or `Custom/...`.
+fn scan_shader_name(data: &[u8], start: usize, size: usize) -> Option<String> {
+    let end = (start + size).min(data.len());
+    if start >= end {
+        return None;
+    }
+    let seg = &data[start..end];
+    let is_name = |b: u8| b.is_ascii_graphic() || b == b' ';
+    let mut i = 0usize;
+    while i < seg.len() {
+        if seg[i].is_ascii_uppercase() {
+            let s = &seg[i..];
+            let e = s.iter().position(|&b| !is_name(b)).unwrap_or(s.len());
+            let run = &s[..e];
+            if run.len() >= 10
+                && run.contains(&b'/')
+                && (run.starts_with(b"Torappu")
+                    || run.starts_with(b"Hidden")
+                    || run.starts_with(b"Custom"))
+            {
+                return Some(String::from_utf8_lossy(run).to_string());
+            }
+            i += e.max(1);
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
+/// True for a filename that looks like a shader bundle (`[uc]shaders.ab`,
+/// `[uc]uishaders.ab`, `shaders/other.ab`, …).
+// `name` is already lowercased below, so this is case-insensitive by construction.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
+fn is_shader_bundle(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !name.ends_with(".ab") {
+        return false;
+    }
+    name.contains("shaders")
+        || path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .is_some_and(|d| d.eq_ignore_ascii_case("shaders"))
+}
+
+/// Build a `(CAB, path_id) -> shader_name` map from every shader bundle among
+/// `files`. Empty when none are present (reticle detection then just stays off).
+#[must_use]
+pub fn build_shader_map(files: &[PathBuf]) -> ShaderMap {
+    let mut map = ShaderMap::new();
+    for path in files.iter().filter(|p| is_shader_bundle(p)) {
+        let Ok(bytes) = std::fs::read(path) else {
+            continue;
+        };
+        let Ok(bundle) = crate::unity::bundle::BundleFile::parse(bytes) else {
+            continue;
+        };
+        for entry in &bundle.files {
+            let cab = entry.path.clone();
+            let Ok(sf) = SerializedFile::parse(entry.data.clone()) else {
+                continue;
+            };
+            for obj in &sf.objects {
+                if obj.class_id != 48 {
+                    continue;
+                }
+                if let Some(name) =
+                    scan_shader_name(&sf.data, obj.byte_start as usize, obj.byte_size as usize)
+                {
+                    map.insert((cab.clone(), obj.path_id), name);
+                }
+            }
+        }
+    }
+    map
+}
+
+/// Resolve a material's `m_Shader` `PPtr` (`file_id`, `path_id`) to a shader name,
+/// following the `SerializedFile`'s `externals` table. `file_id == 0` means the
+/// shader is in this same file (dynchars never inline shaders, so unresolved).
+#[must_use]
+pub fn resolve_shader<'a>(
+    externals: &[crate::unity::serialized_file::FileIdentifier],
+    file_id: i64,
+    path_id: i64,
+    map: &'a ShaderMap,
+) -> Option<&'a str> {
+    if file_id <= 0 {
+        return None;
+    }
+    let dep = externals.get((file_id - 1) as usize)?;
+    map.get(&(dep.cab_name().to_string(), path_id))
+        .map(String::as_str)
+}

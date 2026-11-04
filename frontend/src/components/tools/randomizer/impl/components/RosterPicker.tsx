@@ -1,0 +1,308 @@
+import { Check, ChevronDown, FilterX, Info, RotateCcw, Search, X } from "lucide-react";
+import * as React from "react";
+import { Button } from "#/components/ui/button";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "#/components/ui/input-group";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { type TypedRichT, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { compactForSearch } from "#/lib/search/fuzzy";
+import { cn, getAvatarById, RARITY_LABELS } from "#/lib/utils";
+import type { OperatorRarity } from "#/types/operators";
+import { ALL_CLASSES, ALL_RARITIES, CLASS_LABEL } from "../constants";
+import type { IRandomizerOperator, IRandomizerSettings, IRosterIndex } from "../types";
+import type { messages } from "./RosterPicker.messages";
+
+type RosterT = TypedT<typeof messages>;
+type RosterRichT = TypedRichT<typeof messages>;
+
+interface IRosterPickerProps {
+    /** Every operator, so "select all visible" doesn't drop hidden ones from the explicit set. */
+    allOperators: IRandomizerOperator[];
+    /** Operators that pass the operator-tab filters (class / rarity / hide unplayable). */
+    visibleOperators: IRandomizerOperator[];
+    selected: Set<string>;
+    /** True once the user has explicitly modified the roster. False = the default "all" state. */
+    isExplicit: boolean;
+    onChange: (next: Set<string>) => void;
+    onReset: () => void;
+    rosterIndex: IRosterIndex;
+    hasProfile: boolean;
+    settings: IRandomizerSettings;
+    /** The official tier list's title while it narrows the pool, `null` otherwise. */
+    tierFilterTitle: string | null;
+}
+
+const RARITY_SORT: Record<OperatorRarity, number> = { 6: 0, 5: 1, 4: 2, 3: 3, 2: 4, 1: 5 };
+
+export function RosterPicker({ allOperators, visibleOperators, selected, isExplicit, onChange, onReset, rosterIndex, hasProfile, settings, tierFilterTitle }: IRosterPickerProps): React.ReactElement {
+    const t: RosterT = useT("tools");
+    const [query, setQuery] = React.useState("");
+
+    const trimmedQuery = compactForSearch(query);
+    const searchMatches = React.useCallback(
+        (op: IRandomizerOperator) => {
+            if (!trimmedQuery) return true;
+            return compactForSearch(op.name).includes(trimmedQuery);
+        },
+        [trimmedQuery],
+    );
+
+    const visibleSorted = React.useMemo(() => {
+        const list = visibleOperators.filter(searchMatches);
+        list.sort((a, b) => {
+            const r = RARITY_SORT[a.rarity] - RARITY_SORT[b.rarity];
+            if (r !== 0) return r;
+            return a.name.localeCompare(b.name);
+        });
+        return list;
+    }, [visibleOperators, searchMatches]);
+
+    const groupedByRarity = React.useMemo(() => {
+        const groups = new Map<OperatorRarity, IRandomizerOperator[]>();
+        for (const op of visibleSorted) {
+            const arr = groups.get(op.rarity) ?? [];
+            arr.push(op);
+            groups.set(op.rarity, arr);
+        }
+        return Array.from(groups.entries()).sort(([a], [b]) => RARITY_SORT[a] - RARITY_SORT[b]);
+    }, [visibleSorted]);
+
+    const visibleIdSet = React.useMemo(() => new Set(visibleOperators.map((op) => op.id)), [visibleOperators]);
+    const visibleSelectedCount = React.useMemo(() => {
+        let n = 0;
+        for (const id of visibleIdSet) if (selected.has(id)) n++;
+        return n;
+    }, [visibleIdSet, selected]);
+
+    const allVisibleSelected = visibleOperators.length > 0 && visibleSelectedCount === visibleOperators.length;
+    const noVisibleSelected = visibleSelectedCount === 0;
+
+    const onToggle = React.useCallback(
+        (id: string) => {
+            const next = new Set(selected);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            onChange(next);
+        },
+        [selected, onChange],
+    );
+
+    const onSelectAllVisible = React.useCallback(() => {
+        const next = new Set(selected);
+        for (const op of visibleOperators) next.add(op.id);
+        onChange(next);
+    }, [selected, visibleOperators, onChange]);
+
+    const onDeselectAllVisible = React.useCallback(() => {
+        const next = new Set(selected);
+        for (const op of visibleOperators) next.delete(op.id);
+        onChange(next);
+    }, [selected, visibleOperators, onChange]);
+
+    const onSyncProfile = React.useCallback(() => onChange(new Set(rosterIndex.owned)), [rosterIndex.owned, onChange]);
+
+    const filteredClassCount = ALL_CLASSES.length - settings.allowedClasses.length;
+    const filteredRarityCount = ALL_RARITIES.length - settings.allowedRarities.length;
+    const hasActiveFilters = filteredClassCount > 0 || filteredRarityCount > 0 || settings.onlyOwnedOperators || settings.onlyE2Operators || tierFilterTitle !== null;
+
+    const hiddenCount = allOperators.length - visibleOperators.length;
+
+    const [collapsed, setCollapsed] = React.useState<Set<OperatorRarity>>(() => new Set<OperatorRarity>([4, 3, 2, 1]));
+    const toggleCollapsed = React.useCallback((rarity: OperatorRarity) => {
+        setCollapsed((prev) => {
+            const next = new Set(prev);
+            if (next.has(rarity)) next.delete(rarity);
+            else next.add(rarity);
+            return next;
+        });
+    }, []);
+
+    return (
+        <div className="flex h-full flex-col gap-3">
+            {hasActiveFilters && <ActiveFiltersHint settings={settings} hiddenCount={hiddenCount} tierFilterTitle={tierFilterTitle} />}
+
+            <div className="flex items-center gap-2">
+                <InputGroup className="min-w-0 flex-1">
+                    <InputGroupAddon>
+                        <Search aria-hidden="true" />
+                    </InputGroupAddon>
+                    <InputGroupInput value={query} onChange={(e) => setQuery(e.currentTarget.value)} placeholder={t("randomizer.roster.search")} size="sm" />
+                    {query && (
+                        <InputGroupAddon align="inline-end">
+                            <Button onClick={() => setQuery("")} size="icon-xs" variant="ghost" className="text-muted-foreground" aria-label={t("randomizer.roster.clearSearch")}>
+                                <X aria-hidden="true" />
+                            </Button>
+                        </InputGroupAddon>
+                    )}
+                </InputGroup>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-muted-foreground">
+                <div className="flex flex-col gap-0.5">
+                    <span>
+                        <span className="text-foreground">{visibleSelectedCount}</span> / {visibleOperators.length} {hasActiveFilters ? t("randomizer.roster.inView") : t("randomizer.roster.selected")}
+                    </span>
+                    {hasActiveFilters && <span className="text-[10.5px] text-subtle-foreground normal-case tracking-normal">{t("randomizer.roster.totalInRoster", { count: selected.size })}</span>}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                    <Button onClick={onSelectAllVisible} size="xs" variant="ghost" disabled={allVisibleSelected || visibleOperators.length === 0}>
+                        {t("randomizer.roster.all")}
+                    </Button>
+                    <Button onClick={onDeselectAllVisible} size="xs" variant="ghost" disabled={noVisibleSelected}>
+                        {t("randomizer.roster.none")}
+                    </Button>
+                    {isExplicit && (
+                        <Tooltip>
+                            <TooltipTrigger render={<Button onClick={onReset} size="xs" variant="ghost" />}>
+                                <RotateCcw aria-hidden="true" className="size-3" />
+                                {t("randomizer.roster.reset")}
+                            </TooltipTrigger>
+                            <TooltipPopup>{t("randomizer.roster.reset.title")}</TooltipPopup>
+                        </Tooltip>
+                    )}
+                    {hasProfile && rosterIndex.owned.size > 0 && (
+                        <Button onClick={onSyncProfile} size="xs" variant="outline">
+                            {t("randomizer.roster.syncProfile", { count: rosterIndex.owned.size })}
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            <div className="-mx-1 flex flex-1 flex-col gap-3 overflow-y-auto px-1 pb-2">
+                {visibleSorted.length === 0 ? (
+                    <EmptyRoster query={query} hasActiveFilters={hasActiveFilters} onReset={onReset} isExplicit={isExplicit} />
+                ) : (
+                    groupedByRarity.map(([rarity, ops]) => {
+                        const groupSelected = ops.reduce((n, op) => (selected.has(op.id) ? n + 1 : n), 0);
+                        const allGroupSelected = groupSelected === ops.length;
+                        const isCollapsed = collapsed.has(rarity);
+                        const onToggleGroup = () => {
+                            const next = new Set(selected);
+                            if (allGroupSelected) {
+                                for (const op of ops) next.delete(op.id);
+                            } else {
+                                for (const op of ops) next.add(op.id);
+                            }
+                            onChange(next);
+                        };
+                        return (
+                            <div key={rarity} className="flex flex-col gap-1.5">
+                                <div className="flex items-stretch gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleCollapsed(rarity)}
+                                        aria-expanded={!isCollapsed}
+                                        className="group flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    >
+                                        <ChevronDown aria-hidden="true" className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", isCollapsed && "-rotate-90")} />
+                                        <span className="kicker" style={{ color: `var(--rarity-${rarity}-ink)` }}>
+                                            {RARITY_LABELS[rarity]}
+                                        </span>
+                                        <span className="font-mono text-[11px] text-subtle-foreground">{t("randomizer.roster.groupCount", { selected: groupSelected, total: ops.length })}</span>
+                                    </button>
+                                    <Button
+                                        type="button"
+                                        onClick={onToggleGroup}
+                                        size="xs"
+                                        variant="outline"
+                                        className="shrink-0 px-2.5 font-mono text-[11px]"
+                                        aria-label={allGroupSelected ? t("randomizer.roster.groupClear.aria", { rarity: RARITY_LABELS[rarity] }) : t("randomizer.roster.groupAll.aria", { rarity: RARITY_LABELS[rarity] })}
+                                    >
+                                        {allGroupSelected ? t("randomizer.roster.groupClear") : t("randomizer.roster.groupAll")}
+                                    </Button>
+                                </div>
+                                {!isCollapsed && (
+                                    <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6">
+                                        {ops.map((op) => (
+                                            <RosterChip key={op.id} op={op} selected={selected.has(op.id)} onToggle={() => onToggle(op.id)} />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ActiveFiltersHint({ settings, hiddenCount, tierFilterTitle }: { settings: IRandomizerSettings; hiddenCount: number; tierFilterTitle: string | null }) {
+    const t: RosterT = useT("tools");
+    const rt: RosterRichT = useRichT("tools");
+    const excludedClasses = ALL_CLASSES.filter((c) => !settings.allowedClasses.includes(c));
+    const excludedRarities = ALL_RARITIES.filter((r) => !settings.allowedRarities.includes(r));
+
+    const parts: string[] = [];
+    if (excludedRarities.length > 0) parts.push(excludedRarities.map((r) => t("randomizer.roster.rarityChip", { rarity: r })).join(", "));
+    if (excludedClasses.length > 0) parts.push(excludedClasses.map((c) => CLASS_LABEL[c]).join(", "));
+    if (settings.onlyE2Operators) parts.push(settings.e2SixStarOnly ? t("randomizer.roster.filter.e2SixStar") : t("randomizer.roster.filter.e2"));
+    else if (settings.onlyOwnedOperators) parts.push(t("randomizer.roster.filter.owned"));
+    if (tierFilterTitle) parts.push(t("randomizer.roster.filter.tier", { list: tierFilterTitle }));
+
+    return (
+        <div className="flex items-start gap-2 rounded-md border border-border/60 bg-accent/30 px-3 py-2 text-[11.5px] text-muted-foreground leading-snug">
+            <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle-foreground" />
+            <p className="min-w-0">
+                {rt("randomizer.roster.hint", {
+                    count: <span className="text-foreground">{hiddenCount}</span>,
+                    filters: parts.length > 0 ? <span className="text-foreground">{parts.join(" · ")}</span> : <span>{t("randomizer.roster.hintFilters")}</span>,
+                })}
+            </p>
+        </div>
+    );
+}
+
+function EmptyRoster({ query, hasActiveFilters, onReset, isExplicit }: { query: string; hasActiveFilters: boolean; onReset: () => void; isExplicit: boolean }) {
+    const t: RosterT = useT("tools");
+    return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center">
+            <FilterX aria-hidden="true" className="size-6 text-subtle-foreground" />
+            <p className="text-foreground text-sm">{t("randomizer.roster.empty.title")}</p>
+            <p className="max-w-xs text-[12px] text-muted-foreground">{query ? t("randomizer.roster.empty.search") : hasActiveFilters ? t("randomizer.roster.empty.filters") : t("randomizer.roster.empty.none")}</p>
+            {!query && hasActiveFilters && isExplicit && (
+                <Button onClick={onReset} size="xs" variant="outline" className="mt-1">
+                    <RotateCcw aria-hidden="true" className="size-3" />
+                    {t("randomizer.roster.empty.reset")}
+                </Button>
+            )}
+        </div>
+    );
+}
+
+function RosterChip({ op, selected, onToggle }: { op: IRandomizerOperator; selected: boolean; onToggle: () => void }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <button
+                        type="button"
+                        onClick={onToggle}
+                        aria-pressed={selected}
+                        className={cn("group relative aspect-square overflow-hidden rounded-md border bg-secondary/40 outline-none transition-all duration-150", "focus-visible:ring-2 focus-visible:ring-ring", selected ? "border-primary/80 shadow-primary/20 shadow-sm" : "border-border/50 opacity-60 hover:opacity-95")}
+                    />
+                }
+            >
+                <img
+                    src={getAvatarById(op.id)}
+                    alt=""
+                    aria-hidden="true"
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                    }}
+                />
+                <div className="absolute inset-x-0 bottom-0 h-1" style={{ background: `var(--rarity-${op.rarity})` }} />
+                {selected && (
+                    <div className="absolute top-0.5 right-0.5 inline-flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="size-2.5" />
+                    </div>
+                )}
+                <span className="sr-only">{op.name}</span>
+            </TooltipTrigger>
+            <TooltipPopup>{op.name}</TooltipPopup>
+        </Tooltip>
+    );
+}

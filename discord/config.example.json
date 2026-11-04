@@ -1,0 +1,29 @@
+{
+  "endpoints": {
+    "local_backend": "http://localhost:3000",
+    "local_frontend": "http://localhost:5173",
+    "public_backend": "https://api.example.com",
+    "public_frontend": "https://example.com"
+  },
+  "assets": {
+    "servers": [
+      { "label": "EN", "ws_url": "ws://localhost:9160" },
+      { "label": "CN", "ws_url": "ws://localhost:9161" },
+      { "label": "JP", "ws_url": "ws://localhost:9162" },
+      { "label": "KR", "ws_url": "ws://localhost:9163" }
+    ],
+    "reconnect_secs": 5
+  },
+  "tts": {
+    "default_voice": "en-us",
+    "max_chars": 300,
+    "idle_secs": 300,
+    "queue_max": 10,
+    "user_queue_max": 3,
+    "settle_ms": 1500
+  },
+  "service_accounts": {
+    "enabled": true,
+    "poll_secs": 300
+  }
+}

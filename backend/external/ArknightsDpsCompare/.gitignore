@@ -1,0 +1,8 @@
+__pycache__/
+.pylintrc
+config.json
+Database/CN-gamedata/
+Database/EN-gamedata/
+Database/images/*
+media
+!Database/images/default.png

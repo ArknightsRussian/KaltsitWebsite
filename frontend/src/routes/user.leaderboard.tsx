@@ -1,0 +1,71 @@
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
+import { INTERVALS, LEADERBOARD_SORTS, type LeaderboardInterval, type LeaderboardScope, type LeaderboardSort, SERVERS, type ServerCode } from "#/components/user/leaderboard/impl/constants";
+import { isValidItemId } from "#/components/user/leaderboard/impl/inventory.constants";
+import { Leaderboard } from "#/components/user/leaderboard/Leaderboard";
+import { metaT } from "#/lib/meta";
+import { defaultOgURL } from "#/lib/og";
+import { seo } from "#/lib/seo";
+
+interface ILeaderboardSearch {
+    /**
+     * What the table is ranked by. `sort` names a score column; `item`, when
+     * non-empty, is a game item id and overrides `sort`: the table then ranks
+     * by how much of that item each player holds.
+     */
+    item: string;
+    scope: LeaderboardScope;
+    server: ServerCode | "All";
+    interval: LeaderboardInterval;
+    sort: LeaderboardSort;
+    movement: boolean;
+    q: string;
+    page: number;
+}
+
+const LEADERBOARD_DEFAULTS: ILeaderboardSearch = { item: "", scope: "global", server: "All", interval: "1 day", sort: "total_score", movement: false, q: "", page: 1 };
+
+const VALID_SERVERS = new Set<string>(["All", ...SERVERS]);
+const VALID_INTERVALS = new Set<string>(INTERVALS.map((i) => i.value));
+const VALID_SORTS = new Set<string>(LEADERBOARD_SORTS.map((s) => s.value));
+
+export const Route = createFileRoute("/user/leaderboard")({
+    component: RouteComponent,
+    validateSearch: (search: Record<string, unknown>): ILeaderboardSearch => {
+        // The search parser JSON-decodes values, so `?item=4003` arrives as the
+        // number 4003; most item ids are numeric, so coerce before validating.
+        const itemRaw = typeof search.item === "number" ? String(search.item) : search.item;
+        const item = isValidItemId(itemRaw) ? itemRaw : "";
+        const scopeRaw = typeof search.scope === "string" ? search.scope : "";
+        const scope: LeaderboardScope = scopeRaw === "friends" ? "friends" : "global";
+        const serverRaw = typeof search.server === "string" ? search.server.toUpperCase() : "All";
+        const server = (VALID_SERVERS.has(serverRaw) ? serverRaw : "All") as ServerCode | "All";
+        const intervalRaw = typeof search.interval === "string" ? search.interval : "1 day";
+        const interval = (VALID_INTERVALS.has(intervalRaw) ? intervalRaw : "1 day") as LeaderboardInterval;
+        const sortRaw = typeof search.sort === "string" ? search.sort : "total_score";
+        const sort = (VALID_SORTS.has(sortRaw) ? sortRaw : "total_score") as LeaderboardSort;
+        const movement = search.movement === true || search.movement === "true";
+        const rawPage = typeof search.page === "number" ? search.page : typeof search.page === "string" ? Number(search.page) : 1;
+        const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+        const q = typeof search.q === "string" ? search.q : "";
+        return { item, scope, server, interval, sort, movement, q, page };
+    },
+    search: { middlewares: [stripSearchParams(LEADERBOARD_DEFAULTS)] },
+    head: ({ match }) => {
+        const t = metaT(match.context.i18n);
+        const { meta, links } = seo({
+            title: t("userLeaderboard.title"),
+            description: t("userLeaderboard.description"),
+            path: "/user/leaderboard",
+            image: defaultOgURL("user-leaderboard", match.context.i18n),
+            locale: match.context.i18n?.locale,
+        });
+        return {
+            meta: [{ charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" }, ...meta],
+            links,
+        };
+    },
+});
+
+function RouteComponent() {
+    return <Leaderboard />;
+}

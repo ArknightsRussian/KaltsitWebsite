@@ -1,0 +1,1480 @@
+use std::fmt::Write as _;
+use std::num::NonZeroU64;
+
+use crate::db;
+use crate::types::{Context, Data, Error};
+use ::serenity::builder::{
+    CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter, GetMessages,
+};
+use ::serenity::model::channel::{Embed, ReactionType};
+use ::serenity::model::guild::Role;
+use ::serenity::model::id::{ChannelId, GuildId, MessageId};
+use ::serenity::model::user::User;
+use ::serenity::model::{Colour, Timestamp};
+use poise::CreateReply;
+use poise::serenity_prelude as serenity;
+
+/// Manage rich embeds sent by the bot.
+///
+/// Subcommands: `create`, `edit`, `source`.
+/// Requires the Manage Messages permission or this server's mod role.
+#[poise::command(
+    slash_command,
+    guild_only,
+    subcommands("create", "edit", "source"),
+    subcommand_required
+)]
+pub async fn embed(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Create and send a new embed.
+///
+/// Provide individual fields, or a raw `json` payload (e.g. from `/embed source`) for full
+/// control including multiple fields. Fields are layered on top of `json` when both are given.
+#[allow(clippy::too_many_arguments)]
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn create(
+    ctx: Context<'_>,
+    #[description = "Channel to send the embed to (defaults to the current channel)"]
+    channel: Option<serenity::ChannelId>,
+    #[description = "Embed title"] title: Option<String>,
+    #[description = "Embed description / body"] description: Option<String>,
+    #[description = "Hex color, e.g. #5865F2"] color: Option<String>,
+    #[description = "URL the title links to"] url: Option<String>,
+    #[description = "Large image URL"] image: Option<String>,
+    #[description = "Thumbnail image URL"] thumbnail: Option<String>,
+    #[description = "Author name"] author: Option<String>,
+    #[description = "Author icon URL"] author_icon: Option<String>,
+    #[description = "Footer text"] footer: Option<String>,
+    #[description = "Footer icon URL"] footer_icon: Option<String>,
+    #[description = "Add the current timestamp"] timestamp: Option<bool>,
+    #[description = "Raw embed JSON (overridden by any fields above)"] json: Option<String>,
+) -> Result<(), Error> {
+    let has_content = json.is_some()
+        || title.is_some()
+        || description.is_some()
+        || image.is_some()
+        || thumbnail.is_some()
+        || author.is_some()
+        || footer.is_some();
+    if !has_content {
+        return Err("Give the embed some content: a title, description, image, author, footer, or raw json.".into());
+    }
+
+    let base = match json.as_deref() {
+        Some(j) => parse_embed_json(j)?,
+        None => serenity::CreateEmbed::new(),
+    };
+    let embed = apply_fields(
+        base,
+        EmbedFields {
+            title,
+            description,
+            color,
+            url,
+            image,
+            thumbnail,
+            author,
+            author_icon,
+            footer,
+            footer_icon,
+            timestamp,
+        },
+    )?;
+
+    let target = channel.unwrap_or_else(|| ctx.channel_id());
+    let sent = target
+        .send_message(ctx.http(), serenity::CreateMessage::new().embed(embed))
+        .await
+        .map_err(|e| format!("Couldn't send the embed to <#{target}>: {e}"))?;
+
+    let link = message_link(ctx.guild_id(), target, sent.id);
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Embed sent to <#{target}>. {link}"))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Edit an embed the bot already sent.
+///
+/// Identify the message by link, `channel-message` id pair, or raw message id. Provided fields are
+/// layered on top of the existing embed; pass `json` to replace the embed wholesale.
+#[allow(clippy::too_many_arguments)]
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn edit(
+    ctx: Context<'_>,
+    #[description = "Message link, channel-message id, or message id"] message: String,
+    #[description = "Channel the message is in (if not derivable from the link)"] channel: Option<
+        serenity::ChannelId,
+    >,
+    #[description = "Embed title"] title: Option<String>,
+    #[description = "Embed description / body"] description: Option<String>,
+    #[description = "Hex color, e.g. #5865F2"] color: Option<String>,
+    #[description = "URL the title links to"] url: Option<String>,
+    #[description = "Large image URL"] image: Option<String>,
+    #[description = "Thumbnail image URL"] thumbnail: Option<String>,
+    #[description = "Author name"] author: Option<String>,
+    #[description = "Author icon URL"] author_icon: Option<String>,
+    #[description = "Footer text"] footer: Option<String>,
+    #[description = "Footer icon URL"] footer_icon: Option<String>,
+    #[description = "Add the current timestamp"] timestamp: Option<bool>,
+    #[description = "Raw embed JSON (replaces the existing embed)"] json: Option<String>,
+) -> Result<(), Error> {
+    let (link_channel, message_id) = parse_message_ref(&message)
+        .ok_or("Couldn't parse that message reference. Use a message link, `channel-message` id, or message id.")?;
+    let target = channel.or(link_channel).unwrap_or_else(|| ctx.channel_id());
+    ensure_in_this_guild(ctx, &message, target).await?;
+
+    let msg = target
+        .message(ctx.http(), message_id)
+        .await
+        .map_err(|_| format!("Couldn't find message {message_id} in <#{target}>."))?;
+
+    if msg.author.id != ctx.framework().bot_id {
+        return Err("I can only edit embeds on messages I sent myself.".into());
+    }
+
+    let base = if let Some(j) = json.as_deref() {
+        parse_embed_json(j)?
+    } else if let Some(existing) = msg.embeds.into_iter().next() {
+        serenity::CreateEmbed::from(existing)
+    } else {
+        serenity::CreateEmbed::new()
+    };
+    let embed = apply_fields(
+        base,
+        EmbedFields {
+            title,
+            description,
+            color,
+            url,
+            image,
+            thumbnail,
+            author,
+            author_icon,
+            footer,
+            footer_icon,
+            timestamp,
+        },
+    )?;
+
+    target
+        .edit_message(
+            ctx.http(),
+            message_id,
+            serenity::EditMessage::new().embed(embed),
+        )
+        .await
+        .map_err(|e| format!("Couldn't edit that message: {e}"))?;
+
+    let link = message_link(ctx.guild_id(), target, message_id);
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Embed updated. {link}"))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Fetch the JSON source of a message's embed(s).
+///
+/// Identify the message by link, `channel-message` id pair, or raw message id. The output can be
+/// pasted straight back into `/embed create` or `/embed edit` via their `json` field.
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn source(
+    ctx: Context<'_>,
+    #[description = "Message link, channel-message id, or message id"] message: String,
+    #[description = "Channel the message is in (if not derivable from the link)"] channel: Option<
+        serenity::ChannelId,
+    >,
+) -> Result<(), Error> {
+    let (link_channel, message_id) = parse_message_ref(&message)
+        .ok_or("Couldn't parse that message reference. Use a message link, `channel-message` id, or message id.")?;
+    let target = channel.or(link_channel).unwrap_or_else(|| ctx.channel_id());
+    ensure_in_this_guild(ctx, &message, target).await?;
+
+    let msg = target
+        .message(ctx.http(), message_id)
+        .await
+        .map_err(|_| format!("Couldn't find message {message_id} in <#{target}>."))?;
+
+    if msg.embeds.is_empty() {
+        return Err("That message has no embeds.".into());
+    }
+
+    // A lone embed is serialized as a single object so it round-trips into the `json` field;
+    // multiple embeds are serialized as an array.
+    let json = if msg.embeds.len() == 1 {
+        serde_json::to_string_pretty(&msg.embeds[0])?
+    } else {
+        serde_json::to_string_pretty(&msg.embeds)?
+    };
+
+    let block = format!("```json\n{json}\n```");
+    let reply = if block.len() <= 2000 {
+        CreateReply::default().content(block)
+    } else {
+        // Too large for a message body; ship it as a file.
+        CreateReply::default().attachment(serenity::CreateAttachment::bytes(
+            json.into_bytes(),
+            "embed.json",
+        ))
+    };
+    ctx.send(reply.ephemeral(true)).await?;
+    Ok(())
+}
+
+/// Ban an user from the guild.
+///
+/// Optionally provide a reason (recorded in the audit log) and the number of days of recent
+/// messages to delete (0-7).
+/// Requires the Ban Members permission or this server's mod role.
+#[poise::command(slash_command, guild_only, check = "crate::checks::ban_members_check")]
+pub async fn ban_user(
+    ctx: Context<'_>,
+    #[description = "User to ban"] user: User,
+    #[description = "Reason for the ban"] reason: Option<String>,
+    #[description = "Days of messages to delete (0-7)"] delete_message_days: Option<u8>,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+
+    if user.id == ctx.author().id {
+        return Err("You can't ban yourself.".into());
+    }
+    if user.id == ctx.framework().bot_id {
+        return Err("I can't ban myself.".into());
+    }
+    // The owner, member and role lookups are several round-trips; don't race the 3 s
+    // interaction window.
+    ctx.defer_ephemeral().await?;
+    crate::checks::check_hierarchy(ctx, guild, user.id, "ban").await?;
+
+    let dmd = delete_message_days.unwrap_or(0);
+    if dmd > 7 {
+        return Err("`delete_message_days` must be between 0 and 7.".into());
+    }
+
+    match reason.as_deref() {
+        Some(r) => guild
+            .ban_with_reason(ctx.http(), user.id, dmd, r)
+            .await
+            .map_err(|e| format!("Couldn't ban {}: {e}", user.tag()))?,
+        None => guild
+            .ban(ctx.http(), user.id, dmd)
+            .await
+            .map_err(|e| format!("Couldn't ban {}: {e}", user.tag()))?,
+    }
+
+    let suffix = reason
+        .as_deref()
+        .map(|r| format!(" Reason: {r}"))
+        .unwrap_or_default();
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Banned {} ({}).{suffix}", user.tag(), user.id))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Autocomplete the `user` argument of `/unban_user` with the guild's banned users.
+///
+/// Fetches up to 1000 bans per keystroke and filters them by username or id substring. Discord
+/// caps autocomplete responses at 25 entries. Errors and non-guild invocations yield an empty
+/// list — the user can always paste a raw id.
+async fn autocomplete_banned_user(
+    ctx: Context<'_>,
+    partial: &str,
+) -> Vec<serenity::AutocompleteChoice> {
+    let Some(guild) = ctx.guild_id() else {
+        return Vec::new();
+    };
+    let Ok(bans) = guild.bans(ctx.http(), None, None).await else {
+        return Vec::new();
+    };
+    let needle = partial.to_lowercase();
+    bans.into_iter()
+        .filter(|b| {
+            needle.is_empty()
+                || b.user.name.to_lowercase().contains(&needle)
+                || b.user.id.to_string().contains(&needle)
+        })
+        .take(25)
+        .map(|b| {
+            serenity::AutocompleteChoice::new(
+                format!("{} ({})", b.user.tag(), b.user.id),
+                b.user.id.to_string(),
+            )
+        })
+        .collect()
+}
+
+/// Unban a user from the guild.
+///
+/// The `user` field autocompletes against currently banned users; you can also paste a raw user
+/// ID. Optionally provide a reason (recorded in the audit log). Requires the Ban Members
+/// permission or this server's mod role.
+#[poise::command(slash_command, guild_only, check = "crate::checks::ban_members_check")]
+pub async fn unban_user(
+    ctx: Context<'_>,
+    #[description = "Banned user (autocompletes) or a raw user ID"]
+    #[autocomplete = "autocomplete_banned_user"]
+    user: String,
+    #[description = "Reason for the unban (shown in the audit log)"] reason: Option<String>,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+
+    let user_id = user
+        .trim()
+        .parse::<u64>()
+        .map(serenity::UserId::new)
+        .map_err(|_| {
+            format!("'{user}' isn't a valid user ID. Pick from autocomplete or paste a numeric ID.")
+        })?;
+
+    ctx.http()
+        .remove_ban(guild, user_id, reason.as_deref())
+        .await
+        .map_err(|e| format!("Couldn't unban <@{user_id}>: {e}"))?;
+
+    let suffix = reason
+        .as_deref()
+        .map(|r| format!(" Reason: {r}"))
+        .unwrap_or_default();
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Unbanned <@{user_id}> ({user_id}).{suffix}"))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Kick a user from the guild.
+///
+/// Kicks an user from the guild. Requires the `KICK_MEMBERS` permission or this server's
+/// mod role.
+#[poise::command(slash_command, guild_only, check = "crate::checks::kick_members_check")]
+pub async fn kick_user(
+    ctx: Context<'_>,
+    #[description = "User to kick"] user: User,
+    #[description = "Reason for the kick"] reason: Option<String>,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+
+    if user.id == ctx.author().id {
+        return Err("You can't kick yourself.".into());
+    }
+    if user.id == ctx.framework().bot_id {
+        return Err("I can't kick myself.".into());
+    }
+    // The owner, member and role lookups are several round-trips; don't race the 3 s
+    // interaction window.
+    ctx.defer_ephemeral().await?;
+    crate::checks::check_hierarchy(ctx, guild, user.id, "kick").await?;
+
+    match reason.as_deref() {
+        Some(r) => guild
+            .kick_with_reason(ctx.http(), user.id, r)
+            .await
+            .map_err(|e| format!("Couldn't kick {}: {e}", user.tag()))?,
+        None => guild
+            .kick(ctx.http(), user.id)
+            .await
+            .map_err(|e| format!("Couldn't kick {}: {e}", user.tag()))?,
+    }
+
+    let suffix = reason
+        .as_deref()
+        .map(|r| format!(" Reason: {r}"))
+        .unwrap_or_default();
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Kicked {} ({}).{suffix}", user.tag(), user.id))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// How many recent messages /purge will scan when searching for matches.
+const PURGE_SCAN_BUDGET: usize = 1000;
+/// Page size for /purge's message fetch; 100 is Discord's per-request maximum.
+const PURGE_PAGE_SIZE: u8 = 100;
+/// Cap on single-delete fallbacks (>14-day messages) per /purge invocation, since the
+/// single-delete route is heavily rate-limited.
+const PURGE_OLD_CAP: usize = 50;
+
+/// Delete recent messages in this channel, optionally filtered by user, content, or position.
+///
+/// Scans up to 1000 of the most recent messages and removes the first `amount` that match. Bulk
+/// removal covers messages younger than 14 days; older matches fall back to single-delete and
+/// are capped at 50 per invocation. Pinned messages are skipped by default. Requires the Manage
+/// Messages permission or this server's mod role.
+///
+/// `too_many_lines` allowed: the scan / partition / delete / report phases share enough state
+/// (cursor, counters, error tally) that splitting them just scatters the wiring.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn purge(
+    ctx: Context<'_>,
+    #[description = "How many matching messages to delete (1-1000)"] amount: u32,
+    #[description = "Only delete messages from this user"] user: Option<User>,
+    #[description = "Only delete messages containing this substring (case-insensitive)"]
+    contains: Option<String>,
+    #[description = "Only delete messages sent by bots"] bots_only: Option<bool>,
+    #[description = "Start scanning before this message (link, channel-message id, or message id)"]
+    before: Option<String>,
+    #[description = "Stop scanning once we reach this message (exclusive)"] after: Option<String>,
+    #[description = "Skip pinned messages (default true)"] skip_pinned: Option<bool>,
+) -> Result<(), Error> {
+    if amount == 0 || amount > 1000 {
+        return Err("`amount` must be between 1 and 1000.".into());
+    }
+    ctx.defer_ephemeral().await?;
+
+    let channel = ctx.channel_id();
+    let skip_pinned = skip_pinned.unwrap_or(true);
+    let bots_only = bots_only.unwrap_or(false);
+    let needle = contains.as_deref().map(str::to_lowercase);
+
+    let before_id = match before.as_deref() {
+        Some(s) => Some(
+            parse_message_ref(s)
+                .ok_or("Couldn't parse `before` as a message reference.")?
+                .1,
+        ),
+        None => None,
+    };
+    let after_id = match after.as_deref() {
+        Some(s) => Some(
+            parse_message_ref(s)
+                .ok_or("Couldn't parse `after` as a message reference.")?
+                .1,
+        ),
+        None => None,
+    };
+    if let (Some(b), Some(a)) = (before_id, after_id)
+        && b <= a
+    {
+        return Err("`before` must be newer than `after`.".into());
+    }
+
+    let needed = amount as usize;
+
+    let mut matched: Vec<MessageId> = Vec::new();
+    let mut scanned: usize = 0;
+    let mut skipped_pinned: usize = 0;
+    let mut cursor: Option<MessageId> = before_id;
+
+    'outer: while scanned < PURGE_SCAN_BUDGET && matched.len() < needed {
+        let mut req = GetMessages::new().limit(PURGE_PAGE_SIZE);
+        if let Some(c) = cursor {
+            req = req.before(c);
+        }
+        let page = channel
+            .messages(ctx.http(), req)
+            .await
+            .map_err(|e| format!("Couldn't fetch messages: {e}"))?;
+        if page.is_empty() {
+            break;
+        }
+        let next_cursor = page.last().map(|m| m.id);
+
+        for msg in page {
+            scanned += 1;
+            if let Some(a) = after_id
+                && msg.id <= a
+            {
+                break 'outer;
+            }
+            if skip_pinned && msg.pinned {
+                skipped_pinned += 1;
+                continue;
+            }
+            if let Some(u) = user.as_ref()
+                && msg.author.id != u.id
+            {
+                continue;
+            }
+            if bots_only && !msg.author.bot {
+                continue;
+            }
+            if let Some(n) = needle.as_deref()
+                && !msg.content.to_lowercase().contains(n)
+            {
+                continue;
+            }
+            matched.push(msg.id);
+            if matched.len() >= needed {
+                break 'outer;
+            }
+        }
+        cursor = next_cursor;
+    }
+
+    if matched.is_empty() {
+        let mut content = format!("No matching messages found (scanned {scanned})");
+        if skipped_pinned > 0 {
+            let _ = write!(content, ", skipped {skipped_pinned} pinned");
+        }
+        content.push('.');
+        ctx.send(CreateReply::default().content(content).ephemeral(true))
+            .await?;
+        return Ok(());
+    }
+
+    let cutoff = Timestamp::now().unix_timestamp() - 14 * 24 * 60 * 60;
+    let (young, old): (Vec<MessageId>, Vec<MessageId>) = matched
+        .into_iter()
+        .partition(|id| id.created_at().unix_timestamp() > cutoff);
+
+    let mut deleted = 0usize;
+    let mut errors: usize = 0;
+
+    for chunk in young.chunks(100) {
+        let result = match chunk {
+            [only] => channel.delete_message(ctx.http(), *only).await,
+            many => channel.delete_messages(ctx.http(), many).await,
+        };
+        match result {
+            Ok(()) => deleted += chunk.len(),
+            Err(e) => {
+                errors += 1;
+                tracing::warn!("Purge bulk-delete failed in {channel}: {e}");
+            }
+        }
+    }
+
+    let old_total = old.len();
+    let mut old_deleted = 0usize;
+    for id in old.into_iter().take(PURGE_OLD_CAP) {
+        match channel.delete_message(ctx.http(), id).await {
+            Ok(()) => {
+                old_deleted += 1;
+                deleted += 1;
+            }
+            Err(e) => {
+                errors += 1;
+                tracing::warn!("Purge single-delete failed in {channel} for {id}: {e}");
+            }
+        }
+    }
+
+    let mut report = format!("Removed {deleted} message(s).");
+    if old_total > 0 {
+        let _ = write!(
+            report,
+            "\n• older than 14 days: {old_deleted}/{old_total} via single-delete"
+        );
+        if old_total > PURGE_OLD_CAP {
+            let _ = write!(report, " (capped at {PURGE_OLD_CAP})");
+        }
+    }
+    if skipped_pinned > 0 {
+        let _ = write!(report, "\n• skipped {skipped_pinned} pinned");
+    }
+    if errors > 0 {
+        let _ = write!(report, "\n• {errors} delete error(s); see logs");
+    }
+
+    ctx.send(CreateReply::default().content(report).ephemeral(true))
+        .await?;
+    Ok(())
+}
+
+/// Manage this server's moderator role.
+///
+/// Subcommands: `set`, `show`, `remove`. Only the server owner can use them.
+///
+/// The role is an alternative to the Discord permission each elevated command asks for, not a
+/// replacement: members who already hold the permission keep their access whether or not a mod
+/// role is configured.
+#[poise::command(
+    slash_command,
+    guild_only,
+    default_member_permissions = "ADMINISTRATOR",
+    check = "crate::checks::guild_owner_check",
+    subcommands("modrole_set", "modrole_show", "modrole_remove"),
+    subcommand_required
+)]
+pub async fn modrole(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Set the moderator role for this guild, replacing any previous one.
+#[poise::command(slash_command, guild_only, rename = "set")]
+pub async fn modrole_set(
+    ctx: Context<'_>,
+    #[description = "Role whose holders may use every elevated command"] role: serenity::Role,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    db::set_mod_role(&ctx.data().pool, guild, role.id)
+        .await
+        .map_err(|e| format!("Couldn't save the mod role: {e}"))?;
+    ctx.send(
+        CreateReply::default()
+            .content(format!(
+                "Mod role set to <@&{}>. Members with it can now use every elevated command, \
+                 on top of anyone who already holds the matching permission.",
+                role.id
+            ))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Show the current moderator role for this guild.
+#[poise::command(slash_command, guild_only, rename = "show")]
+pub async fn modrole_show(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let content = match db::get_mod_role(&ctx.data().pool, guild)
+        .await
+        .map_err(|e| format!("Couldn't read the mod role: {e}"))?
+    {
+        Some(role_id) => format!("Mod role: <@&{role_id}>"),
+        None => {
+            "No mod role configured. Elevated commands go by Discord permissions alone.".to_string()
+        }
+    };
+    ctx.send(CreateReply::default().content(content).ephemeral(true))
+        .await?;
+    Ok(())
+}
+
+/// Remove the moderator role for this guild.
+#[poise::command(slash_command, guild_only, rename = "remove")]
+pub async fn modrole_remove(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let content = if db::clear_mod_role(&ctx.data().pool, guild)
+        .await
+        .map_err(|e| format!("Couldn't remove the mod role: {e}"))?
+    {
+        "Mod role removed. Elevated commands go by Discord permissions alone again."
+    } else {
+        "No mod role was configured."
+    };
+    ctx.send(CreateReply::default().content(content).ephemeral(true))
+        .await?;
+    Ok(())
+}
+
+/// Manage the role automatically granted to new members of this guild.
+///
+/// Subcommands: `set`, `clear`, `show`.
+/// Requires the Manage Roles permission or this server's mod role.
+#[poise::command(
+    slash_command,
+    guild_only,
+    subcommands("autorole_set", "autorole_clear", "autorole_show"),
+    subcommand_required
+)]
+pub async fn autorole(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Set the auto-role for this guild.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "set",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn autorole_set(
+    ctx: Context<'_>,
+    #[description = "Role to grant new members on join"] role: serenity::Role,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    // The owner, member and role lookups are several round-trips; don't race the 3 s
+    // interaction window.
+    ctx.defer_ephemeral().await?;
+    crate::checks::check_role_binding(ctx, guild, &role).await?;
+    db::set_auto_role(&ctx.data().pool, guild, role.id)
+        .await
+        .map_err(|e| format!("Couldn't save auto-role: {e}"))?;
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Auto-role set to <@&{}>.", role.id))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Clear the auto-role for this guild.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "clear",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn autorole_clear(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    db::clear_auto_role(&ctx.data().pool, guild)
+        .await
+        .map_err(|e| format!("Couldn't clear auto-role: {e}"))?;
+    ctx.send(
+        CreateReply::default()
+            .content("Auto-role cleared.")
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Show the current auto-role for this guild.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "show",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn autorole_show(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let content = match db::get_auto_role(&ctx.data().pool, guild)
+        .await
+        .map_err(|e| format!("Couldn't read auto-role: {e}"))?
+    {
+        Some(role_id) => format!("Auto-role: <@&{role_id}>"),
+        None => "No auto-role configured.".to_string(),
+    };
+    ctx.send(CreateReply::default().content(content).ephemeral(true))
+        .await?;
+    Ok(())
+}
+
+/// Manage antispam bindings.
+///
+/// Subcommands: `set`, `clear`, `show`.
+/// Requires the Manage Messages permission or this server's mod role.
+#[poise::command(
+    slash_command,
+    guild_only,
+    subcommands("antispam_set", "antispam_clear", "antispam_show"),
+    subcommand_required
+)]
+pub async fn antispam(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Set the antispam policy for this guild.
+///
+/// `max_per_message` triggers when a single message contains more than that many user + role
+/// mentions. The optional `window_*` pair adds a rolling-window check (combined ping count
+/// across a user's recent messages). `timeout_secs` is required when `action` is `Timeout`.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "set",
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn antispam_set(
+    ctx: Context<'_>,
+    #[description = "Max pings allowed in a single message"] max_per_message: u32,
+    #[description = "Action to take when a user exceeds the limit"] action: db::AntiSpamAction,
+    #[description = "Rolling-window length in seconds (pair with window_max_pings)"]
+    window_secs: Option<u32>,
+    #[description = "Max pings allowed inside the rolling window"] window_max_pings: Option<u32>,
+    #[description = "Timeout duration in seconds (required when action=Timeout)"]
+    timeout_secs: Option<u32>,
+    #[description = "Members with this role bypass antispam (typically your mod role)"]
+    exempt_role: Option<Role>,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+
+    if window_secs.is_some() != window_max_pings.is_some() {
+        return Err(
+            "`window_secs` and `window_max_pings` must be provided together (or neither).".into(),
+        );
+    }
+    if matches!(action, db::AntiSpamAction::Timeout) && timeout_secs.is_none() {
+        return Err("`timeout_secs` is required when action is `Timeout user`.".into());
+    }
+    if max_per_message == 0 {
+        return Err("`max_per_message` must be at least 1.".into());
+    }
+
+    let policy = db::AntiSpamPolicy {
+        max_per_message,
+        window_secs,
+        window_max_pings,
+        action,
+        timeout_secs,
+        exempt_role_id: exempt_role.as_ref().map(|r| r.id),
+    };
+    db::set_antispam_policy(&ctx.data().pool, guild, &policy)
+        .await
+        .map_err(|e| format!("Couldn't save antispam policy: {e}"))?;
+    ctx.data()
+        .antispam_policies
+        .write()
+        .await
+        .insert(guild, policy.clone());
+
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Antispam policy set.\n{}", format_policy(&policy)))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Remove the antispam policy for this guild.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "clear",
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn antispam_clear(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let n = db::clear_antispam_policy(&ctx.data().pool, guild)
+        .await
+        .map_err(|e| format!("Couldn't clear antispam policy: {e}"))?;
+    ctx.data().antispam_policies.write().await.remove(&guild);
+    let content = if n == 0 {
+        "No antispam policy was configured."
+    } else {
+        "Antispam policy cleared."
+    };
+    ctx.send(CreateReply::default().content(content).ephemeral(true))
+        .await?;
+    Ok(())
+}
+
+/// Show the current antispam policy for this guild.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "show",
+    check = "crate::checks::manage_messages_check"
+)]
+pub async fn antispam_show(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let content = match ctx.data().antispam_policies.read().await.get(&guild) {
+        Some(p) => format_policy(p),
+        None => "No antispam policy configured.".to_string(),
+    };
+    ctx.send(CreateReply::default().content(content).ephemeral(true))
+        .await?;
+    Ok(())
+}
+
+fn format_policy(p: &db::AntiSpamPolicy) -> String {
+    let mut s = format!("• Max pings per message: **{}**\n", p.max_per_message);
+    if let (Some(w), Some(m)) = (p.window_secs, p.window_max_pings) {
+        let _ = writeln!(s, "• Rolling window: **{m}** pings per **{w}s**");
+    }
+    let _ = write!(s, "• Action: **{}**", p.action.as_db_str());
+    if matches!(p.action, db::AntiSpamAction::Timeout)
+        && let Some(t) = p.timeout_secs
+    {
+        let _ = write!(s, " ({t}s)");
+    }
+    if let Some(role) = p.exempt_role_id {
+        let _ = write!(s, "\n• Exempt role: <@&{role}>");
+    }
+    s
+}
+
+/// Manage reaction-role bindings on existing messages.
+///
+/// Subcommands: `add`, `remove`, `list`, `delete`. Use `/embed create` first to send the message
+/// users will react on, then bind one or more `(emoji -> role)` mappings with `/reactionrole add`.
+/// Requires the Manage Roles permission or this server's mod role.
+#[poise::command(
+    slash_command,
+    guild_only,
+    subcommands(
+        "reactionrole_add",
+        "reactionrole_remove",
+        "reactionrole_list",
+        "reactionrole_delete"
+    ),
+    subcommand_required
+)]
+pub async fn reactionrole(_ctx: Context<'_>) -> Result<(), Error> {
+    Ok(())
+}
+
+/// Bind an emoji on a message to a role. Re-running on the same `(message, emoji)` swaps the role.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "add",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn reactionrole_add(
+    ctx: Context<'_>,
+    #[description = "Message link, channel-message id, or message id"] message: String,
+    #[description = "Emoji to react with (unicode or <:name:id>)"] emoji: String,
+    #[description = "Role to grant on react"] role: Role,
+    #[description = "Channel the message is in (if not derivable from the link)"] channel: Option<
+        ChannelId,
+    >,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    // The owner, member and role lookups are several round-trips; don't race the 3 s
+    // interaction window.
+    ctx.defer_ephemeral().await?;
+    crate::checks::check_role_binding(ctx, guild, &role).await?;
+    let (link_channel, message_id) = parse_message_ref(&message)
+        .ok_or("Couldn't parse that message reference. Use a message link, `channel-message` id, or message id.")?;
+    let target = channel.or(link_channel).unwrap_or_else(|| ctx.channel_id());
+    ensure_in_this_guild(ctx, &message, target).await?;
+
+    target
+        .message(ctx.http(), message_id)
+        .await
+        .map_err(|_| format!("Couldn't find message {message_id} in <#{target}>."))?;
+
+    let reaction: serenity::ReactionType = emoji
+        .trim()
+        .parse()
+        .map_err(|_| format!("Couldn't parse '{emoji}' as an emoji."))?;
+    let key = reaction.to_string();
+
+    let saved = db::add_reaction_role(&ctx.data().pool, guild, target, message_id, &key, role.id)
+        .await
+        .map_err(|e| format!("Couldn't save reaction-role: {e}"))?;
+    if !saved {
+        return Err(format!("{key} on that message is already bound by another server.").into());
+    }
+    ctx.data().tracked_messages.write().await.insert(message_id);
+
+    let warning = match target
+        .create_reaction(ctx.http(), message_id, reaction)
+        .await
+    {
+        Ok(()) => String::new(),
+        Err(e) => {
+            tracing::warn!("Couldn't seed reaction on {message_id}: {e}");
+            format!(" (couldn't react myself: {e})")
+        }
+    };
+
+    let link = message_link(ctx.guild_id(), target, message_id);
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Bound {key} → <@&{}> on {link}.{warning}", role.id))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Remove a single `(message, emoji)` binding.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "remove",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn reactionrole_remove(
+    ctx: Context<'_>,
+    #[description = "Message link, channel-message id, or message id"] message: String,
+    #[description = "Emoji to unbind"] emoji: String,
+    #[description = "Channel the message is in (if not derivable from the link)"] channel: Option<
+        ChannelId,
+    >,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let (link_channel, message_id) = parse_message_ref(&message)
+        .ok_or("Couldn't parse that message reference. Use a message link, `channel-message` id, or message id.")?;
+    let target = channel.or(link_channel).unwrap_or_else(|| ctx.channel_id());
+
+    let reaction: ReactionType = emoji
+        .trim()
+        .parse()
+        .map_err(|_| format!("Couldn't parse '{emoji}' as an emoji."))?;
+    let key = reaction.to_string();
+
+    let removed = db::remove_reaction_role(&ctx.data().pool, guild, message_id, &key)
+        .await
+        .map_err(|e| format!("Couldn't remove reaction-role: {e}"))?;
+    if !removed {
+        return Err(format!("No binding found for {key} on that message.").into());
+    }
+
+    sync_tracked_cache(ctx.data()).await?;
+
+    let link = message_link(ctx.guild_id(), target, message_id);
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Unbound {key} on {link}."))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// List every reaction-role binding in this guild, grouped by message.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "list",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn reactionrole_list(ctx: Context<'_>) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let rows = db::list_reaction_roles_for_guild(&ctx.data().pool, guild)
+        .await
+        .map_err(|e| format!("Couldn't read reaction-roles: {e}"))?;
+
+    if rows.is_empty() {
+        ctx.send(
+            CreateReply::default()
+                .content("No reaction-roles set in this guild.")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let mut body = String::new();
+    let mut last: Option<MessageId> = None;
+    for row in &rows {
+        if last != Some(row.message_id) {
+            if last.is_some() {
+                body.push('\n');
+            }
+            let link = message_link(Some(row.guild_id), row.channel_id, row.message_id);
+            let _ = writeln!(body, "**{link}**");
+            last = Some(row.message_id);
+        }
+        let _ = writeln!(body, "• {} → <@&{}>", row.emoji, row.role_id);
+    }
+
+    let reply = if body.len() <= 2000 {
+        CreateReply::default().content(body)
+    } else {
+        CreateReply::default().attachment(CreateAttachment::bytes(
+            body.into_bytes(),
+            "reaction_roles.txt",
+        ))
+    };
+    ctx.send(reply.ephemeral(true)).await?;
+    Ok(())
+}
+
+/// Drop every binding attached to a message in one shot.
+#[poise::command(
+    slash_command,
+    guild_only,
+    rename = "delete",
+    check = "crate::checks::manage_roles_check"
+)]
+pub async fn reactionrole_delete(
+    ctx: Context<'_>,
+    #[description = "Message link, channel-message id, or message id"] message: String,
+    #[description = "Channel the message is in (if not derivable from the link)"] channel: Option<
+        ChannelId,
+    >,
+) -> Result<(), Error> {
+    let guild = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    let (link_channel, message_id) = parse_message_ref(&message)
+        .ok_or("Couldn't parse that message reference. Use a message link, `channel-message` id, or message id.")?;
+    let target = channel.or(link_channel).unwrap_or_else(|| ctx.channel_id());
+
+    let n = db::remove_guild_reaction_message(&ctx.data().pool, guild, message_id)
+        .await
+        .map_err(|e| format!("Couldn't delete reaction-roles: {e}"))?;
+    if n == 0 {
+        return Err("That message has no reaction-role bindings.".into());
+    }
+    // Rebuilt rather than dropping `message_id`: another guild may still hold a binding on it.
+    sync_tracked_cache(ctx.data()).await?;
+
+    let link = message_link(ctx.guild_id(), target, message_id);
+    ctx.send(
+        CreateReply::default()
+            .content(format!("Deleted {n} binding(s) on {link}."))
+            .ephemeral(true),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Rebuild the in-memory tracked-message cache from `SQLite`.
+///
+/// Called after operations that may have removed the last binding on a message — cheaper than
+/// threading "does any binding remain for this `message_id`?" through the call sites.
+async fn sync_tracked_cache(data: &Data) -> Result<(), Error> {
+    let ids = db::list_tracked_message_ids(&data.pool).await?;
+    {
+        let mut cache = data.tracked_messages.write().await;
+        cache.clear();
+        cache.extend(ids);
+    }
+    Ok(())
+}
+
+/// Optional embed fields collected from a slash command invocation.
+///
+/// Packaging these as one nominal type keeps `apply_fields` from monomorphizing
+/// across many generic positions - rustc treats this as one struct instead of
+/// 12 separate `Option<T>` parameter slots.
+#[derive(Default)]
+struct EmbedFields {
+    title: Option<String>,
+    description: Option<String>,
+    color: Option<String>,
+    url: Option<String>,
+    image: Option<String>,
+    thumbnail: Option<String>,
+    author: Option<String>,
+    author_icon: Option<String>,
+    footer: Option<String>,
+    footer_icon: Option<String>,
+    timestamp: Option<bool>,
+}
+
+/// Layer the provided optional fields onto an existing embed builder.
+fn apply_fields(mut embed: CreateEmbed, fields: EmbedFields) -> Result<CreateEmbed, Error> {
+    if let Some(title) = fields.title {
+        embed = embed.title(title);
+    }
+    if let Some(description) = fields.description {
+        embed = embed.description(description);
+    }
+    if let Some(color) = fields.color {
+        embed = embed.colour(parse_color(&color)?);
+    }
+    if let Some(url) = fields.url {
+        embed = embed.url(url);
+    }
+    if let Some(image) = fields.image {
+        embed = embed.image(image);
+    }
+    if let Some(thumbnail) = fields.thumbnail {
+        embed = embed.thumbnail(thumbnail);
+    }
+    if let Some(name) = fields.author {
+        let mut a = CreateEmbedAuthor::new(name);
+        if let Some(icon) = fields.author_icon {
+            a = a.icon_url(icon);
+        }
+        embed = embed.author(a);
+    }
+    if let Some(text) = fields.footer {
+        let mut f = CreateEmbedFooter::new(text);
+        if let Some(icon) = fields.footer_icon {
+            f = f.icon_url(icon);
+        }
+        embed = embed.footer(f);
+    }
+    if fields.timestamp == Some(true) {
+        embed = embed.timestamp(Timestamp::now());
+    }
+    Ok(embed)
+}
+
+/// Parse a raw embed JSON object into a `CreateEmbed`.
+fn parse_embed_json(input: &str) -> Result<CreateEmbed, Error> {
+    let embed: Embed =
+        serde_json::from_str(input).map_err(|e| format!("Invalid embed JSON: {e}"))?;
+    Ok(CreateEmbed::from(embed))
+}
+
+/// Parse a color string: `#RRGGBB`, `0xRRGGBB`, a decimal value, or bare `RRGGBB`.
+///
+/// Input made only of digits is decimal by design, so a bare hex code is read as hex only when
+/// it has a letter in it (`ff0000`). An all-digit hex code needs its marker: `112233` is the
+/// decimal 112233 (0x01B669), `#112233` is 0x112233.
+fn parse_color(input: &str) -> Result<Colour, Error> {
+    let trimmed = input.trim();
+    let hex = trimmed
+        .strip_prefix('#')
+        .or_else(|| trimmed.strip_prefix("0x"))
+        .or_else(|| trimmed.strip_prefix("0X"));
+
+    let value = match hex {
+        Some(h) => u32::from_str_radix(h, 16),
+        // No explicit hex marker: try decimal first, then bare hex (e.g. "ff0000").
+        None => trimmed
+            .parse::<u32>()
+            .or_else(|_| u32::from_str_radix(trimmed, 16)),
+    }
+    .map_err(|_| format!("Invalid color '{input}'. Use a hex code like #5865F2."))?;
+
+    Ok(Colour::new(value))
+}
+
+/// Resolve a message reference into an optional channel and a message id.
+///
+/// Accepts a full message URL (`.../channels/<guild>/<channel>/<message>`), a `channel-message`
+/// id pair, or a bare message id (channel inferred by the caller). A zero channel or message id
+/// is rejected: serenity ids can't be zero and `*Id::new(0)` panics.
+fn parse_message_ref(input: &str) -> Option<(Option<ChannelId>, MessageId)> {
+    let input = input.trim();
+
+    if let Some(idx) = input.find("/channels/") {
+        let segments: Vec<&str> = input[idx + "/channels/".len()..].split('/').collect();
+        // [guild, channel, message]
+        if segments.len() >= 3 {
+            let channel = segments[1].parse::<NonZeroU64>().ok()?;
+            let message = segments[2].parse::<NonZeroU64>().ok()?;
+            return Some((Some(ChannelId::from(channel)), MessageId::from(message)));
+        }
+        return None;
+    }
+
+    if let Some((channel, message)) = input.split_once('-')
+        && let (Ok(channel), Ok(message)) = (
+            channel.trim().parse::<NonZeroU64>(),
+            message.trim().parse::<NonZeroU64>(),
+        )
+    {
+        return Some((Some(ChannelId::from(channel)), MessageId::from(message)));
+    }
+
+    input
+        .parse::<NonZeroU64>()
+        .ok()
+        .map(|id| (None, MessageId::from(id)))
+}
+
+/// Refuse a message reference that points outside the guild the command runs in.
+///
+/// Discord's message routes take only a channel id, so a link or `channel-message` pair can name
+/// a channel in any guild the bot is in, while the invoker's permission was checked only here.
+/// The link's guild segment is checked first for a clear reply; the target channel's own guild
+/// is what decides, since a hand-edited link can pair this guild's id with a foreign channel.
+async fn ensure_in_this_guild(
+    ctx: Context<'_>,
+    reference: &str,
+    target: ChannelId,
+) -> Result<(), Error> {
+    let here = ctx
+        .guild_id()
+        .ok_or("This command must be used in a guild.")?;
+    if let Some(why) = link_guild_mismatch(reference, here) {
+        return Err(why.into());
+    }
+    if target == ctx.channel_id() {
+        return Ok(());
+    }
+    let channel_guild = target
+        .to_channel(ctx)
+        .await
+        .map_err(|_| format!("Couldn't find channel <#{target}>."))?
+        .guild()
+        .map(|c| c.guild_id);
+    if channel_guild == Some(here) {
+        Ok(())
+    } else {
+        Err(NOT_THIS_GUILD.into())
+    }
+}
+
+/// The reply when a message reference resolves outside the invoking guild.
+const NOT_THIS_GUILD: &str =
+    "That message isn't in this server. I can only work with messages here.";
+
+/// Why a message link's guild segment rules it out from `here`, or `None` when it names `here`
+/// or `reference` is not a link (a `channel-message` pair or a bare id carries no guild).
+fn link_guild_mismatch(reference: &str, here: GuildId) -> Option<&'static str> {
+    let idx = reference.find("/channels/")?;
+    let guild = reference[idx + "/channels/".len()..].split('/').next()?;
+    if guild == "@me" {
+        return Some("That link points to a DM. I can only work with messages in this server.");
+    }
+    (guild.parse::<u64>().ok() != Some(here.get())).then_some(NOT_THIS_GUILD)
+}
+
+/// Build a clickable jump link to a message.
+fn message_link(guild: Option<GuildId>, channel: ChannelId, message: MessageId) -> String {
+    match guild {
+        Some(g) => format!("https://discord.com/channels/{g}/{channel}/{message}"),
+        None => format!("https://discord.com/channels/@me/{channel}/{message}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        NOT_THIS_GUILD, link_guild_mismatch, message_link, parse_color, parse_message_ref,
+    };
+    use ::serenity::model::id::{ChannelId, GuildId, MessageId};
+
+    fn color(input: &str) -> Option<u32> {
+        parse_color(input).ok().map(|c| c.0)
+    }
+
+    #[test]
+    fn parses_marked_hex_colors() {
+        assert_eq!(color("#5865F2"), Some(0x0058_65F2));
+        assert_eq!(color("0x5865f2"), Some(0x0058_65F2));
+        assert_eq!(color("0XFF0000"), Some(0x00FF_0000));
+        assert_eq!(color("  #00ff00  "), Some(0x0000_FF00));
+    }
+
+    #[test]
+    fn parses_bare_hex_with_letters() {
+        assert_eq!(color("ff0000"), Some(0x00FF_0000));
+        assert_eq!(color("5865F2"), Some(0x0058_65F2));
+    }
+
+    #[test]
+    fn reads_all_digit_input_as_decimal() {
+        assert_eq!(color("16711680"), Some(0x00FF_0000));
+        assert_eq!(color("0"), Some(0));
+        // By design: all-digit input is decimal, so "112233" is 0x01B669 and the
+        // hex code needs its marker (see `parse_color`).
+        assert_eq!(color("112233"), Some(112_233));
+        assert_eq!(color("#112233"), Some(0x0011_2233));
+    }
+
+    #[test]
+    fn rejects_unparseable_colors_with_a_hint() {
+        for bad in ["", "#", "blue", "#GGGGGG", "-1", "0x1FFFFFFFF"] {
+            let err = parse_color(bad).expect_err(bad).to_string();
+            assert!(err.contains("Use a hex code like #5865F2"), "{bad}: {err}");
+        }
+    }
+
+    #[test]
+    fn parses_message_urls() {
+        assert_eq!(
+            parse_message_ref("https://discord.com/channels/1/22/333"),
+            Some((Some(ChannelId::new(22)), MessageId::new(333)))
+        );
+        assert_eq!(
+            parse_message_ref("https://discord.com/channels/@me/22/333"),
+            Some((Some(ChannelId::new(22)), MessageId::new(333)))
+        );
+        assert_eq!(parse_message_ref("https://discord.com/channels/1/22"), None);
+        assert_eq!(
+            parse_message_ref("https://discord.com/channels/1/x/333"),
+            None
+        );
+    }
+
+    #[test]
+    fn parses_channel_message_pairs_and_bare_ids() {
+        assert_eq!(
+            parse_message_ref("22-333"),
+            Some((Some(ChannelId::new(22)), MessageId::new(333)))
+        );
+        assert_eq!(
+            parse_message_ref(" 22 - 333 "),
+            Some((Some(ChannelId::new(22)), MessageId::new(333)))
+        );
+        assert_eq!(parse_message_ref("333"), Some((None, MessageId::new(333))));
+        for bad in ["", "abc", "22-abc", "-5"] {
+            assert_eq!(parse_message_ref(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn zero_ids_are_rejected() {
+        for bad in [
+            "0",
+            "0-5",
+            "5-0",
+            "0-0",
+            "https://discord.com/channels/1/0/333",
+            "https://discord.com/channels/1/22/0",
+        ] {
+            assert_eq!(parse_message_ref(bad), None, "{bad:?}");
+        }
+        // The guild segment is not read, so a zero there changes nothing.
+        assert_eq!(
+            parse_message_ref("https://discord.com/channels/0/22/333"),
+            Some((Some(ChannelId::new(22)), MessageId::new(333)))
+        );
+    }
+
+    #[test]
+    fn links_into_other_guilds_or_dms_are_refused() {
+        let here = GuildId::new(1);
+        assert_eq!(
+            link_guild_mismatch("https://discord.com/channels/1/22/333", here),
+            None
+        );
+        assert_eq!(
+            link_guild_mismatch("https://discord.com/channels/2/22/333", here),
+            Some(NOT_THIS_GUILD)
+        );
+        assert_eq!(
+            link_guild_mismatch("https://discord.com/channels/x/22/333", here),
+            Some(NOT_THIS_GUILD)
+        );
+        assert!(
+            link_guild_mismatch("https://discord.com/channels/@me/22/333", here)
+                .is_some_and(|why| why.contains("DM"))
+        );
+        // A pair or a bare id carries no guild; the target channel's guild decides those.
+        for no_guild in ["22-333", "333"] {
+            assert_eq!(link_guild_mismatch(no_guild, here), None, "{no_guild:?}");
+        }
+    }
+
+    #[test]
+    fn builds_guild_and_dm_links() {
+        assert_eq!(
+            message_link(Some(GuildId::new(1)), ChannelId::new(2), MessageId::new(3)),
+            "https://discord.com/channels/1/2/3"
+        );
+        assert_eq!(
+            message_link(None, ChannelId::new(2), MessageId::new(3)),
+            "https://discord.com/channels/@me/2/3"
+        );
+    }
+}

@@ -1,0 +1,58 @@
+import { SlidersHorizontal } from "lucide-react";
+import * as React from "react";
+import { Badge } from "#/components/ui/badge";
+import { Button } from "#/components/ui/button";
+import { Sheet, SheetClose, SheetContent, SheetFooter, SheetHeader, SheetPanel, SheetTitle, SheetTrigger } from "#/components/ui/sheet";
+import { useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import type { IBirthdayFilters } from "../types";
+import { FilterControls } from "./FilterControls";
+import type { messages } from "./FilterSheet.messages";
+
+interface IFilterSheetProps {
+    filters: IBirthdayFilters;
+    onChange: (next: IBirthdayFilters) => void;
+    nations: [string, string][];
+    /** Class code -> the server's own class name. */
+    classNames: ReadonlyMap<string, string>;
+    matched: number;
+    total: number;
+    /** Count of active facets, shown as a badge on the trigger. */
+    activeCount: number;
+    onReset: () => void;
+}
+
+/** Trigger button + side sheet holding the filter form; the trigger is hidden at `lg` and up. */
+export function FilterSheet({ filters, onChange, nations, classNames, matched, total, activeCount, onReset }: IFilterSheetProps): React.ReactElement {
+    const t: TypedT<typeof messages> = useT("tools");
+    const [open, setOpen] = React.useState(false);
+
+    return (
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger render={<Button variant="outline" className="w-full justify-center sm:w-auto lg:hidden" />}>
+                <SlidersHorizontal />
+                {t("birthdays.sheet.trigger")}
+                {activeCount > 0 && (
+                    <Badge size="sm" className="ml-0.5">
+                        {activeCount}
+                    </Badge>
+                )}
+            </SheetTrigger>
+            <SheetContent side="right" variant="inset" className="w-[min(420px,100vw)]">
+                <SheetHeader>
+                    <SheetTitle>{t("birthdays.sheet.title")}</SheetTitle>
+                    <p className="text-muted-foreground text-sm">{t("birthdays.sheet.matchCount", { matched, total })}</p>
+                </SheetHeader>
+                <SheetPanel className="px-5 pt-1 pb-2">
+                    <FilterControls filters={filters} onChange={onChange} nations={nations} classNames={classNames} />
+                </SheetPanel>
+                <SheetFooter>
+                    <Button variant="ghost" onClick={onReset} disabled={activeCount === 0}>
+                        {t("birthdays.sheet.reset")}
+                    </Button>
+                    <SheetClose render={<Button />}>{t("birthdays.sheet.show", { count: matched })}</SheetClose>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
+    );
+}

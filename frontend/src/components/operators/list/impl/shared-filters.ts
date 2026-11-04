@@ -1,0 +1,127 @@
+/** This module exists so the two surfaces cannot drift; a filter added here appears on both pages. */
+
+import type { IOperatorFactLabels } from "#/components/operators/OperatorFacts";
+import { serverNames, subProfessionLabel } from "#/lib/utils";
+import type { IActiveChip } from "./components/ActiveFilterChips";
+import { CHIP_CONFIG, moduleTypeGlyph } from "./constants";
+import type { ArrayFilterKey, IFilterLabels, IFilterOptions, IFilterSubject, ISharedFilters } from "./types";
+
+export const EMPTY_SHARED_FILTERS: ISharedFilters = {
+    classes: [],
+    subclasses: [],
+    rarities: [],
+    genders: [],
+    nations: [],
+    factions: [],
+    races: [],
+    birthPlaces: [],
+    artists: [],
+    voiceActors: [],
+    modules: [],
+};
+
+export function buildFilterOptions(subjects: readonly IFilterSubject[]): IFilterOptions {
+    const subclasses = new Set<string>();
+    const nations = new Set<string>();
+    const factions = new Set<string>();
+    const races = new Set<string>();
+    const birthPlaces = new Set<string>();
+    const artists = new Set<string>();
+    const voiceActors = new Set<string>();
+
+    for (const op of subjects) {
+        const { race, placeOfBirth } = op;
+        if (op.subProfessionId) subclasses.add(op.subProfessionId);
+        if (op.nationId) nations.add(op.nationId);
+        if (op.groupId) factions.add(op.groupId);
+        if (op.teamId) factions.add(op.teamId);
+        if (race && race !== "Unknown") races.add(race);
+        if (placeOfBirth) birthPlaces.add(placeOfBirth);
+        for (const a of op.artists) artists.add(a);
+        for (const v of op.voiceActors) voiceActors.add(v);
+    }
+
+    const labels: IFilterLabels = {
+        classes: Object.fromEntries(serverNames(subjects, "profession")),
+        subclasses: Object.fromEntries(serverNames(subjects, "subProfession")),
+        nations: Object.fromEntries(serverNames(subjects, "nation")),
+        factions: Object.fromEntries([...serverNames(subjects, "group"), ...serverNames(subjects, "team")]),
+    };
+
+    return {
+        labels,
+        subclasses: [...subclasses].sort(),
+        nations: [...nations].sort(),
+        factions: [...factions].sort(),
+        races: [...races].sort(),
+        birthPlaces: [...birthPlaces].sort(),
+        artists: [...artists].sort(),
+        voiceActors: [...voiceActors].sort(),
+    };
+}
+
+export type FilterSets = Readonly<Record<ArrayFilterKey, ReadonlySet<string>>>;
+
+export function toFilterSets(filters: ISharedFilters): FilterSets {
+    return {
+        classes: new Set(filters.classes),
+        subclasses: new Set(filters.subclasses),
+        rarities: new Set(filters.rarities),
+        genders: new Set(filters.genders),
+        nations: new Set(filters.nations),
+        factions: new Set(filters.factions),
+        races: new Set(filters.races),
+        birthPlaces: new Set(filters.birthPlaces),
+        artists: new Set(filters.artists),
+        voiceActors: new Set(filters.voiceActors),
+        modules: new Set(filters.modules),
+    };
+}
+
+export function hasAnySharedFilter(sets: FilterSets): boolean {
+    return Object.values(sets).some((set) => set.size > 0);
+}
+
+export function matchesSharedFilters(subject: IFilterSubject, sets: FilterSets): boolean {
+    if (sets.classes.size && !sets.classes.has(subject.profession)) return false;
+    if (sets.subclasses.size && !sets.subclasses.has(subject.subProfessionId)) return false;
+    if (sets.rarities.size && !sets.rarities.has(`TIER_${subject.rarity}`)) return false;
+    if (sets.genders.size && (!subject.gender || !sets.genders.has(subject.gender))) return false;
+    if (sets.nations.size && (!subject.nationId || !sets.nations.has(subject.nationId))) return false;
+    if (sets.factions.size) {
+        const hit = (subject.groupId && sets.factions.has(subject.groupId)) || (subject.teamId && sets.factions.has(subject.teamId));
+        if (!hit) return false;
+    }
+    if (sets.races.size && (!subject.race || !sets.races.has(subject.race))) return false;
+    if (sets.birthPlaces.size && (!subject.placeOfBirth || !sets.birthPlaces.has(subject.placeOfBirth))) return false;
+    if (sets.artists.size && !subject.artists.some((a) => sets.artists.has(a))) return false;
+    if (sets.voiceActors.size && !subject.voiceActors.some((v) => sets.voiceActors.has(v))) return false;
+    if (sets.modules.size && !subject.modules.some((m) => m.typeName2 && sets.modules.has(m.typeName2))) return false;
+    return true;
+}
+
+export function countSharedFilters(filters: ISharedFilters): number {
+    return filters.classes.length + filters.subclasses.length + filters.rarities.length + filters.genders.length + filters.nations.length + filters.factions.length + filters.races.length + filters.birthPlaces.length + filters.artists.length + filters.voiceActors.length + filters.modules.length;
+}
+
+/** `fact` localizes the gender, race and birthplace chips, which the game data sends as raw English; without it they keep the raw value.
+ *  `moduleChip` words a module chip around its type glyph; without it the chip reads "X module" in English. */
+export function buildSharedChips(filters: ISharedFilters, removeFrom: (key: ArrayFilterKey, value: string) => void, labels?: IFilterLabels, fact?: IOperatorFactLabels, moduleChip?: (glyph: string) => string): IActiveChip[] {
+    // A subclass goes through `subProfessionLabel`, which keeps EN's "Centurion Guard" wording; the bare server name
+    // would read "Centurion".
+    const named = (key: ArrayFilterKey, v: string): string | undefined => {
+        if (key === "subclasses") return subProfessionLabel({ subProfessionId: v, subProfessionName: labels?.subclasses[v] });
+        if (key === "genders") return fact?.gender(v);
+        if (key === "races") return fact?.race(v);
+        if (key === "birthPlaces") return fact?.birthPlace(v);
+        if (key === "modules") return moduleChip?.(moduleTypeGlyph(v));
+        return key === "classes" || key === "nations" || key === "factions" ? labels?.[key][v] : undefined;
+    };
+    return CHIP_CONFIG.flatMap(({ key, prefix, label }) =>
+        (filters[key] as string[]).map((v) => ({
+            key: `${prefix}-${v}`,
+            label: named(key, v) ?? label(v),
+            onRemove: () => removeFrom(key, v),
+        })),
+    );
+}

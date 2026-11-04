@@ -1,0 +1,1052 @@
+import { randomBytes } from "node:crypto";
+import { queryOptions } from "@tanstack/react-query";
+import { createServerFn } from "@tanstack/react-start";
+import { getCookie, getRequestIP, setCookie } from "@tanstack/react-start/server";
+import { env } from "#/env";
+import { noRetryOnServer } from "#/integrations/tanstack-query/root-provider";
+import { backendFetch } from "#/lib/fetch";
+import { sanitizeMarkdownForStorage, sanitizePlainName } from "#/lib/markdown/sanitize-input";
+import { formatRelative } from "#/lib/utils";
+import type { EntitySummary } from "#/types/generated/EntitySummary";
+import type { GrantedTierList } from "#/types/generated/GrantedTierList";
+import type { PlacementDetail } from "#/types/generated/PlacementDetail";
+import type { JsonValue } from "#/types/generated/serde_json/JsonValue";
+// The `IBackend*` types are the WIRE shapes, generated from
+// `backend/src/app/services/tier_list.rs` and `backend/src/database/models/tier_list.rs`.
+// The exported `I*` types below are FRONTEND VIEW MODELS: camelCase, built from
+// the entities the backend resolved by the `map*` functions. Do not conflate them.
+import type { Tier } from "#/types/generated/Tier";
+import type { TierDetail } from "#/types/generated/TierDetail";
+import type { TierList } from "#/types/generated/TierList";
+import type { TierListDetail } from "#/types/generated/TierListDetail";
+import type { TierListFlair } from "#/types/generated/TierListFlair";
+import type { TierListType } from "#/types/generated/TierListType";
+import type { TierListVersion } from "#/types/generated/TierListVersion";
+import type { TierPlacement } from "#/types/generated/TierPlacement";
+import type { OperatorProfession } from "#/types/operators";
+import { type IBackendStatus, parseError } from "./_shared";
+import { requireSiteToken } from "./_shared.server";
+import type { TierListPermissionLevel } from "./admin/types";
+import { DEFAULT_GAMEDATA_SERVER, gamedataKey, resolveGamedataServer } from "./gamedata";
+import { type ArtFit, DEFAULT_ENTITY_KINDS, entityArtFit, type ITierEntity, isOperatorEntity, type TierEntityKind, toTierEntity } from "./tier-entities";
+
+export type { ITierEntity, ITierOperator, TierEntityKind } from "./tier-entities";
+
+/** A card preview's tile, the view model `toCardOperator` builds. */
+export interface IOperator {
+    id: string;
+    name: string;
+    rarity: number;
+    role: string;
+    arch: string;
+    /** Set for a non-operator placement (an enemy, an event...); absent for an operator. */
+    kind?: Exclude<TierEntityKind, "operator">;
+    /** The non-operator's resolved icon path, `null` when the extract has no art. */
+    icon?: string | null;
+    /** How the non-operator's art sits in its tile, see `entityArtFit`. */
+    fit?: ArtFit;
+}
+
+export interface ITierEntry {
+    name: string;
+    operators: IOperator[];
+    color?: string | null;
+}
+
+export interface ITierList {
+    id: string;
+    slug: string;
+    title: string;
+    tag: string;
+    stage: string;
+    /** `id` is the account id the browse page filters by; null for a list whose author is gone. */
+    author: { id: string | null; name: string; avatarId: string | null };
+    updated: string;
+    votes: number;
+    views: number;
+    comments: number;
+    hot?: boolean;
+    accent: string;
+    tiers: ITierEntry[];
+}
+
+const VIEW_SESSION_COOKIE = "mtl_sid";
+
+const LIST_NAME_LIMIT = 80;
+const LIST_DESCRIPTION_LIMIT = 4000;
+const TIER_NAME_LIMIT = 40;
+const TIER_DESCRIPTION_LIMIT = 1000;
+const PLACEMENT_DESCRIPTION_LIMIT = 1000;
+const CHANGELOG_LIMIT = 1000;
+
+function ensureViewSessionId(): string {
+    const existing = getCookie(VIEW_SESSION_COOKIE);
+    if (existing && /^[0-9a-f]{64}$/.test(existing)) return existing;
+    const fresh = randomBytes(32).toString("hex");
+    setCookie(VIEW_SESSION_COOKIE, fresh, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 365,
+    });
+    return fresh;
+}
+
+type IBackendTierList = TierList;
+
+type IBackendTier = TierDetail;
+
+type IBackendPlacement = TierPlacement;
+
+type IBackendFlair = TierListFlair;
+
+type IBackendTierListDetail = TierListDetail;
+
+const BROWSE_TIER_LIST_LIMIT = 200;
+
+const PROFESSION_TO_ROLE: Record<OperatorProfession, string> = {
+    PIONEER: "Vanguard",
+    WARRIOR: "Guard",
+    TANK: "Defender",
+    SNIPER: "Sniper",
+    CASTER: "Caster",
+    MEDIC: "Medic",
+    SUPPORT: "Supporter",
+    SPECIAL: "Specialist",
+    TOKEN: "Specialist",
+    TRAP: "Specialist",
+    // `#[serde(other)]` catch-all on OperatorProfession.
+    UNKNOWN: "Unknown",
+};
+
+const FLAIR_ACCENT: Record<string, string> = {
+    endgame: "coral",
+    meta: "coral",
+    beginner: "mint",
+    fun: "mint",
+    roguelike: "violet",
+    event: "violet",
+    niche: "amber",
+};
+
+const FALLBACK_ACCENTS = ["coral", "mint", "amber", "violet"];
+
+/** `?server=` for a tier-list read: whose game data names the entities on it. */
+function serverQuery(server: string | undefined): string {
+    return `server=${encodeURIComponent(resolveGamedataServer(server))}`;
+}
+
+function placementEntity(p: PlacementDetail): ITierEntity {
+    return toTierEntity(p.entity_kind, p.entity_id, p.entity, { subOrder: p.sub_order, description: p.description, updatedAt: p.updated_at });
+}
+
+/** A card preview's tile: an operator with its rarity and class, any other resolved kind with its own icon. A placement the served data does not know is left off the card. */
+function toCardOperator(p: PlacementDetail): IOperator | null {
+    const entity = placementEntity(p);
+    if (!entity.resolved) return null;
+    if (!isOperatorEntity(entity)) return { id: entity.id, name: entity.name, rarity: 1, role: "", arch: "", kind: entity.kind, icon: entity.icon, fit: entityArtFit(entity) };
+    return {
+        id: entity.id,
+        name: entity.name,
+        rarity: entity.rarity,
+        role: PROFESSION_TO_ROLE[entity.profession] ?? "Specialist",
+        arch: entity.subProfessionId,
+    };
+}
+
+function tagFromDetail(detail: IBackendTierListDetail): string {
+    if (detail.flair?.label) return detail.flair.label;
+    if (detail.list_type === "official") return "Official";
+    return "Community";
+}
+
+function accentFromDetail(detail: IBackendTierListDetail, index: number): string {
+    const code = detail.flair?.code;
+    if (code && FLAIR_ACCENT[code]) return FLAIR_ACCENT[code];
+    return FALLBACK_ACCENTS[index % FALLBACK_ACCENTS.length] as string;
+}
+
+function mapTiers(tiers: IBackendTier[]): ITierEntry[] {
+    return [...tiers]
+        .sort((a, b) => a.display_order - b.display_order)
+        .map((tier) => ({
+            name: tier.name,
+            color: tier.color,
+            operators: [...tier.placements]
+                .sort((a, b) => a.sub_order - b.sub_order)
+                .map(toCardOperator)
+                .filter((op): op is IOperator => Boolean(op)),
+        }));
+}
+
+function mapDetail(detail: IBackendTierListDetail, index: number): ITierList {
+    return {
+        id: detail.id,
+        slug: detail.slug,
+        title: detail.name,
+        tag: tagFromDetail(detail),
+        stage: detail.description ?? "",
+        author: {
+            id: detail.author?.id ?? null,
+            name: detail.author?.nickname?.trim() || "Community",
+            avatarId: detail.author?.avatar_id ?? null,
+        },
+        updated: formatRelative(detail.updated_at),
+        votes: detail.stats?.favorite_count ?? 0,
+        views: detail.stats?.view_count ?? 0,
+        comments: detail.stats?.views_last_7d ?? 0,
+        hot: detail.stats?.is_trending ?? false,
+        accent: accentFromDetail(detail, index),
+        tiers: mapTiers(detail.tiers),
+    };
+}
+
+export const recordTierListViewFn = createServerFn({ method: "POST" })
+    .inputValidator((slug: string) => slug)
+    .handler(async ({ data: slug }) => {
+        const sessionId = ensureViewSessionId();
+        const clientIp = getRequestIP({ xForwardedFor: true });
+        const headers: Record<string, string> = { "X-Session-Id": sessionId };
+        if (clientIp) headers["X-Forwarded-For"] = clientIp;
+        const res = await backendFetch(`/tier-lists/${slug}/view`, {
+            method: "POST",
+            headers,
+            body: "{}",
+        });
+        if (!res.ok) throw new Error(`Failed to record view: ${res.status}`);
+        return (await res.json()) as { unique: boolean };
+    });
+
+async function fetchTierListDetails(limit: number, server?: string, author?: string): Promise<IBackendTierListDetail[]> {
+    // The tier list itself is ours; the names on its cards are game data, so
+    // the backend resolves them against the locale's server.
+    const authorQuery = author ? `&author=${encodeURIComponent(author)}` : "";
+    const detailsRes = await backendFetch(`/tier-lists/details?limit=${limit}${authorQuery}&${serverQuery(server)}`);
+    if (!detailsRes.ok) throw new Error(`Failed to load tier lists: ${detailsRes.status}`);
+    return (await detailsRes.json()) as IBackendTierListDetail[];
+}
+
+// The backend's closed `TierListType` enum (backend/src/database/models/tier_list.rs),
+// so a variant added there reaches every `listType` here at compile time.
+export type { TierListType };
+
+export interface ITierListBrowseItem extends ITierList {
+    listType: TierListType;
+    description: string;
+    createdAtMs: number;
+    updatedAtMs: number;
+    flairCode: string | null;
+    flairLabel: string | null;
+    flairColor: string | null;
+    favorites: number;
+    shares: number;
+    views24h: number;
+    views7d: number;
+    trendingScore: number;
+    isTrending: boolean;
+}
+
+function mapBrowseItem(detail: IBackendTierListDetail, index: number): ITierListBrowseItem {
+    const base = mapDetail(detail, index);
+    const listType: TierListType = detail.list_type === "official" ? "official" : "community";
+    return {
+        ...base,
+        listType,
+        description: detail.description ?? "",
+        createdAtMs: Date.parse(detail.created_at) || 0,
+        updatedAtMs: Date.parse(detail.updated_at) || 0,
+        flairCode: detail.flair?.code ?? null,
+        flairLabel: detail.flair?.label ?? null,
+        flairColor: detail.flair?.color ?? null,
+        favorites: detail.stats?.favorite_count ?? 0,
+        shares: detail.stats?.share_count ?? 0,
+        views24h: detail.stats?.views_last_24h ?? 0,
+        views7d: detail.stats?.views_last_7d ?? 0,
+        trendingScore: detail.stats?.trending_score ?? 0,
+        isTrending: detail.stats?.is_trending ?? false,
+    };
+}
+
+/** An account id (UUID), the only shape the backend's `author` filter takes. */
+const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isAccountId(value: string): boolean {
+    return ACCOUNT_ID.test(value);
+}
+
+export const getBrowseTierListsFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { server?: string; author?: string }) => data)
+    .handler(async ({ data: { server, author } }): Promise<ITierListBrowseItem[]> => {
+        // Listed lists only, an author's included: unlisted ones never reach the index.
+        const details = await fetchTierListDetails(BROWSE_TIER_LIST_LIMIT, server, author && isAccountId(author) ? author : undefined);
+        return details.map((detail, i) => mapBrowseItem(detail, i));
+    });
+
+/** The index, or one author's listed lists when `author` (an account id) is given. */
+export function browseTierListsQueryOptions(server: string = DEFAULT_GAMEDATA_SERVER, author?: string) {
+    return queryOptions({
+        queryKey: ["tier-lists", "browse", ...gamedataKey(server), author ?? null],
+        queryFn: () => getBrowseTierListsFn({ data: { server: resolveGamedataServer(server), author } }),
+        staleTime: 5 * 60 * 1000,
+        gcTime: 60 * 60 * 1000,
+    });
+}
+
+export interface ITierListAuthor {
+    id: string;
+    uid: string;
+    nickname: string | null;
+    avatarId: string | null;
+}
+
+export interface ITierListFlair {
+    id: number;
+    code: string;
+    label: string;
+    color: string | null;
+    displayOrder: number;
+    isActive: boolean;
+}
+
+export interface ITierListStats {
+    viewCount: number;
+    uniqueViewCount: number;
+    favoriteCount: number;
+    shareCount: number;
+    isTrending: boolean;
+    trendingScore: number;
+    viewsLast24h: number;
+    viewsLast7d: number;
+    lastViewedAt: string | null;
+    statsUpdatedAt: string;
+}
+
+export interface ITierEntryFull {
+    id: string;
+    name: string;
+    displayOrder: number;
+    color: string | null;
+    description: string | null;
+    /** Every placement, in `subOrder` order, resolved or not. */
+    entities: ITierEntity[];
+}
+
+export interface ITierListDetail {
+    id: string;
+    slug: string;
+    title: string;
+    description: string;
+    listType: TierListType;
+    createdBy: string | null;
+    isListed: boolean;
+    /** The kinds this list's editor offers. */
+    entityKinds: TierEntityKind[];
+    flair: ITierListFlair | null;
+    author: ITierListAuthor | null;
+    stats: ITierListStats | null;
+    tiers: ITierEntryFull[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+function mapTiersFull(raw: IBackendTier[]): ITierEntryFull[] {
+    return [...raw]
+        .sort((a, b) => a.display_order - b.display_order)
+        .map((t) => ({
+            id: t.id,
+            name: t.name,
+            displayOrder: t.display_order,
+            color: t.color,
+            description: t.description,
+            entities: [...t.placements].sort((a, b) => a.sub_order - b.sub_order).map(placementEntity),
+        }));
+}
+
+function mapTierDetail(detail: IBackendTierListDetail): ITierListDetail {
+    const tiers = mapTiersFull(detail.tiers);
+
+    return {
+        id: detail.id,
+        slug: detail.slug,
+        title: detail.name,
+        description: detail.description ?? "",
+        listType: detail.list_type === "official" ? "official" : "community",
+        createdBy: detail.created_by,
+        isListed: detail.is_listed ?? true,
+        entityKinds: detail.entity_kinds?.length ? detail.entity_kinds : [...DEFAULT_ENTITY_KINDS],
+        flair: detail.flair
+            ? {
+                  id: detail.flair.id,
+                  code: detail.flair.code,
+                  label: detail.flair.label,
+                  color: detail.flair.color,
+                  displayOrder: detail.flair.display_order,
+                  isActive: detail.flair.is_active,
+              }
+            : null,
+        author: detail.author
+            ? {
+                  id: detail.author.id,
+                  uid: detail.author.uid,
+                  nickname: detail.author.nickname,
+                  avatarId: detail.author.avatar_id,
+              }
+            : null,
+        stats: detail.stats
+            ? {
+                  viewCount: detail.stats.view_count,
+                  uniqueViewCount: detail.stats.unique_view_count,
+                  favoriteCount: detail.stats.favorite_count,
+                  shareCount: detail.stats.share_count,
+                  isTrending: detail.stats.is_trending,
+                  trendingScore: detail.stats.trending_score,
+                  viewsLast24h: detail.stats.views_last_24h,
+                  viewsLast7d: detail.stats.views_last_7d,
+                  lastViewedAt: detail.stats.last_viewed_at,
+                  statsUpdatedAt: detail.stats.stats_updated_at,
+              }
+            : null,
+        tiers,
+        createdAt: detail.created_at,
+        updatedAt: detail.updated_at,
+    };
+}
+
+export const getTierListDetailFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { slug: string; server?: string }) => data)
+    .handler(async ({ data: { slug, server } }): Promise<ITierListDetail | null> => {
+        const listRes = await backendFetch(`/tier-lists/${encodeURIComponent(slug)}?${serverQuery(server)}`);
+        if (listRes.status === 404) return null;
+        if (!listRes.ok) throw new Error(`Failed to load tier list: ${listRes.status}`);
+        return mapTierDetail((await listRes.json()) as IBackendTierListDetail);
+    });
+
+export function tierListDetailQueryOptions(slug: string, server: string = DEFAULT_GAMEDATA_SERVER) {
+    return queryOptions({
+        queryKey: ["tier-lists", "detail", slug, ...gamedataKey(server)],
+        queryFn: () => getTierListDetailFn({ data: { slug, server: resolveGamedataServer(server) } }),
+        staleTime: 5 * 60 * 1000,
+        gcTime: 60 * 60 * 1000,
+    });
+}
+
+export const toggleTierListFavoriteFn = createServerFn({ method: "POST" })
+    .inputValidator((slug: string) => slug)
+    .handler(async ({ data: slug }): Promise<{ favorited: boolean } | null> => {
+        const token = getCookie("site_token");
+        if (!token) return null;
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(slug)}/favorite`, {
+            method: "POST",
+            body: "{}",
+            bearerToken: token,
+        });
+        if (res.status === 401) return null;
+        if (!res.ok) throw new Error(`Failed to toggle favorite: ${res.status}`);
+        return (await res.json()) as { favorited: boolean };
+    });
+
+export const getMyTierListFavoriteFn = createServerFn({ method: "GET" })
+    .inputValidator((slug: string) => slug)
+    .handler(async ({ data: slug }): Promise<{ favorited: boolean } | null> => {
+        const token = getCookie("site_token");
+        if (!token) return null;
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(slug)}/favorite`, { bearerToken: token });
+        if (res.status === 401 || res.status === 404) return null;
+        if (!res.ok) throw new Error(`Failed to load favorite state: ${res.status}`);
+        return (await res.json()) as { favorited: boolean };
+    });
+
+export function myTierListFavoriteQueryOptions(slug: string, authed: boolean) {
+    return queryOptions({
+        queryKey: ["tier-lists", "favorite", slug, authed ? "auth" : "anon"],
+        queryFn: () => (authed ? getMyTierListFavoriteFn({ data: slug }) : Promise.resolve(null)),
+        enabled: authed,
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+        // The tier-list page's loader awaits this during SSR.
+        ...noRetryOnServer(),
+    });
+}
+
+export const getTierListFlairsFn = createServerFn({ method: "GET" }).handler(async (): Promise<ITierListFlair[]> => {
+    const res = await backendFetch("/tier-list-flairs");
+    if (!res.ok) throw new Error(`Failed to load tier list flairs: ${res.status}`);
+    const raw = (await res.json()) as IBackendFlair[];
+    return raw.map((f) => ({
+        id: f.id,
+        code: f.code,
+        label: f.label,
+        color: f.color,
+        displayOrder: f.display_order,
+        isActive: f.is_active,
+    }));
+});
+
+export function tierListFlairsQueryOptions() {
+    return queryOptions({
+        queryKey: ["tier-list-flairs"],
+        queryFn: () => getTierListFlairsFn(),
+        staleTime: 60 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+}
+
+/** Tier list version snapshots. */
+export type TierListJsonValue = JsonValue;
+
+export interface ICreateTierListInput {
+    name: string;
+    description?: string | null;
+    /**
+     * `"community"` is the default for normal users (limited to 10 per user).
+     * `"official"` is restricted to global tier-list admins.
+     */
+    listType: TierListType;
+}
+
+export interface IUpdateTierListInput {
+    slug: string;
+    name: string;
+    description?: string | null;
+    /** The kinds the list's pool offers. Omitted: unchanged. */
+    entityKinds?: TierEntityKind[];
+}
+
+export interface ICreateTierInput {
+    slug: string;
+    name: string;
+    displayOrder: number;
+    color?: string | null;
+    description?: string | null;
+}
+
+export interface IUpdateTierInput extends ICreateTierInput {
+    tierId: string;
+}
+
+export interface IDeleteTierInput {
+    slug: string;
+    tierId: string;
+}
+
+/** One placement's key on the wire: the kind and the id in that kind's space. */
+interface IPlacementTarget {
+    slug: string;
+    kind: TierEntityKind;
+    entityId: string;
+}
+
+export interface IAddPlacementInput extends IPlacementTarget {
+    tierId: string;
+    subOrder?: number;
+    description?: string | null;
+}
+
+export interface IUpdatePlacementDescriptionInput extends IPlacementTarget {
+    description?: string | null;
+}
+
+export type IRemovePlacementInput = IPlacementTarget;
+
+export interface IMovePlacementInput extends IPlacementTarget {
+    newTierId: string;
+    subOrder?: number;
+}
+
+function placementPath({ slug, kind, entityId }: IPlacementTarget): string {
+    return `/tier-lists/${encodeURIComponent(slug)}/placements/${encodeURIComponent(kind)}/${encodeURIComponent(entityId)}`;
+}
+
+export interface ISetTierListFlairInput {
+    slug: string;
+    flairId: number | null;
+}
+
+export interface ISetTierListVisibilityInput {
+    slug: string;
+    isListed: boolean;
+}
+
+export interface IPublishTierListVersionInput {
+    slug: string;
+    changelog?: string | null;
+}
+
+export interface ITierListSummary {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    listType: TierListType;
+    createdBy: string | null;
+    isActive: boolean;
+    isListed: boolean;
+    flairId: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ITierSummary {
+    id: string;
+    tierListId: string;
+    name: string;
+    displayOrder: number;
+    color: string | null;
+    description: string | null;
+}
+
+export interface ITierPlacementSummary {
+    tierId: string;
+    kind: TierEntityKind;
+    entityId: string;
+    subOrder: number;
+    description: string | null;
+    updatedAt: string;
+}
+
+export interface ITierListVersion {
+    id: string;
+    tierListId: string;
+    version: number;
+    snapshot: TierListJsonValue;
+    changelog: string | null;
+    publishedBy: string | null;
+    publishedAt: string;
+}
+
+type IBackendTierRaw = Tier;
+
+type IBackendTierListVersion = TierListVersion;
+
+function mapTierListSummary(raw: IBackendTierList): ITierListSummary {
+    return {
+        id: raw.id,
+        name: raw.name,
+        slug: raw.slug,
+        description: raw.description,
+        listType: raw.list_type === "official" ? "official" : "community",
+        createdBy: raw.created_by,
+        isActive: raw.is_active,
+        isListed: raw.is_listed ?? true,
+        flairId: raw.flair_id,
+        createdAt: raw.created_at,
+        updatedAt: raw.updated_at,
+    };
+}
+
+function mapTierSummary(raw: IBackendTierRaw): ITierSummary {
+    return {
+        id: raw.id,
+        tierListId: raw.tier_list_id,
+        name: raw.name,
+        displayOrder: raw.display_order,
+        color: raw.color,
+        description: raw.description,
+    };
+}
+
+function mapPlacementSummary(raw: IBackendPlacement): ITierPlacementSummary {
+    return {
+        tierId: raw.tier_id,
+        kind: raw.entity_kind,
+        entityId: raw.entity_id,
+        subOrder: raw.sub_order,
+        description: raw.description,
+        updatedAt: raw.updated_at,
+    };
+}
+
+function mapTierListVersion(raw: IBackendTierListVersion): ITierListVersion {
+    return {
+        id: raw.id,
+        tierListId: raw.tier_list_id,
+        version: raw.version,
+        snapshot: raw.snapshot,
+        changelog: raw.changelog,
+        publishedBy: raw.published_by,
+        publishedAt: raw.published_at,
+    };
+}
+
+export const createTierListFn = createServerFn({ method: "POST" })
+    .inputValidator((data: ICreateTierListInput) => data)
+    .handler(async ({ data }): Promise<ITierListSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch("/tier-lists", {
+            method: "POST",
+            bearerToken: token,
+            body: JSON.stringify({
+                name: sanitizePlainName(data.name, LIST_NAME_LIMIT),
+                description: sanitizeMarkdownForStorage(data.description, { maxLength: LIST_DESCRIPTION_LIMIT, nullOnEmpty: true }),
+                list_type: data.listType,
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapTierListSummary((await res.json()) as IBackendTierList);
+    });
+
+export const updateTierListFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IUpdateTierListInput) => data)
+    .handler(async ({ data }): Promise<ITierListSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}`, {
+            method: "PUT",
+            bearerToken: token,
+            body: JSON.stringify({
+                name: sanitizePlainName(data.name, LIST_NAME_LIMIT),
+                description: sanitizeMarkdownForStorage(data.description, { maxLength: LIST_DESCRIPTION_LIMIT, nullOnEmpty: true }),
+                ...(data.entityKinds ? { entity_kinds: data.entityKinds } : {}),
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapTierListSummary((await res.json()) as IBackendTierList);
+    });
+
+export const deleteTierListFn = createServerFn({ method: "POST" })
+    .inputValidator((slug: string) => slug)
+    .handler(async ({ data: slug }): Promise<IBackendStatus> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(slug)}`, {
+            method: "DELETE",
+            bearerToken: token,
+        });
+        if (!res.ok) throw await parseError(res);
+        return (await res.json()) as IBackendStatus;
+    });
+
+export const getMyTierListsFn = createServerFn({ method: "GET" }).handler(async (): Promise<ITierListSummary[]> => {
+    const token = getCookie("site_token");
+    if (!token) return [];
+    const res = await backendFetch("/tier-lists/mine", { bearerToken: token });
+    if (res.status === 401) return [];
+    if (!res.ok) throw await parseError(res);
+    const raw = (await res.json()) as IBackendTierList[];
+    return raw.map(mapTierListSummary);
+});
+
+export function myTierListsQueryOptions(authed: boolean) {
+    return queryOptions({
+        queryKey: ["tier-lists", "mine", authed ? "auth" : "anon"],
+        queryFn: () => (authed ? getMyTierListsFn() : Promise.resolve([] as ITierListSummary[])),
+        enabled: authed,
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+/** A list the signed-in user holds a grant on, at their highest level on it. */
+export interface IGrantedTierList {
+    tierListId: string;
+    slug: string;
+    title: string;
+    listType: TierListType;
+    permission: TierListPermissionLevel;
+}
+
+export const getGrantedTierListsFn = createServerFn({ method: "GET" }).handler(async (): Promise<IGrantedTierList[]> => {
+    const token = getCookie("site_token");
+    if (!token) return [];
+    const res = await backendFetch("/tier-lists/granted", { bearerToken: token });
+    if (res.status === 401) return [];
+    if (!res.ok) throw await parseError(res);
+    const raw = (await res.json()) as GrantedTierList[];
+    return raw.map((g) => ({
+        tierListId: g.tier_list_id,
+        slug: g.slug,
+        title: g.title,
+        listType: g.list_type === "official" ? "official" : "community",
+        permission: g.permission as IGrantedTierList["permission"],
+    }));
+});
+
+/**
+ * The lists granted to the signed-in user (`GET /tier-lists/granted`), not the
+ * ones they created (that is `myTierListsQueryOptions`). Any signed-in role.
+ */
+export function grantedTierListsQueryOptions(authed: boolean) {
+    return queryOptions({
+        queryKey: ["tier-lists", "granted", authed ? "auth" : "anon"],
+        queryFn: () => (authed ? getGrantedTierListsFn() : Promise.resolve([] as IGrantedTierList[])),
+        enabled: authed,
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const getFavoritedTierListsFn = createServerFn({ method: "GET" })
+    .inputValidator((server: string | undefined) => server)
+    .handler(async ({ data: server }): Promise<ITierListBrowseItem[]> => {
+        const token = getCookie("site_token");
+        if (!token) return [];
+
+        const favRes = await backendFetch("/tier-lists/favorites", { bearerToken: token });
+        if (favRes.status === 401) return [];
+        if (!favRes.ok) throw await parseError(favRes);
+        const favorites = (await favRes.json()) as IBackendTierList[];
+        if (favorites.length === 0) return [];
+
+        const settled = await Promise.allSettled(
+            favorites.map(async (tl) => {
+                const res = await backendFetch(`/tier-lists/${tl.slug}?${serverQuery(server)}`, { bearerToken: token });
+                if (!res.ok) throw new Error(`Failed to load tier list ${tl.slug}: ${res.status}`);
+                return (await res.json()) as IBackendTierListDetail;
+            }),
+        );
+
+        const details: IBackendTierListDetail[] = [];
+        for (const r of settled) {
+            if (r.status === "fulfilled") details.push(r.value);
+        }
+        return details.map((detail, i) => mapBrowseItem(detail, i));
+    });
+
+export function favoritedTierListsQueryOptions(authed: boolean, server: string = DEFAULT_GAMEDATA_SERVER) {
+    return queryOptions({
+        queryKey: ["tier-lists", "favorites", authed ? "auth" : "anon", ...gamedataKey(server)],
+        queryFn: () => (authed ? getFavoritedTierListsFn({ data: resolveGamedataServer(server) }) : Promise.resolve([] as ITierListBrowseItem[])),
+        enabled: authed,
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const getMyTierListsDetailedFn = createServerFn({ method: "GET" })
+    .inputValidator((server: string | undefined) => server)
+    .handler(async ({ data: server }): Promise<ITierListBrowseItem[]> => {
+        const token = getCookie("site_token");
+        if (!token) return [];
+
+        const mineRes = await backendFetch("/tier-lists/mine", { bearerToken: token });
+        if (mineRes.status === 401) return [];
+        if (!mineRes.ok) throw await parseError(mineRes);
+        const mine = (await mineRes.json()) as IBackendTierList[];
+        if (mine.length === 0) return [];
+
+        const settled = await Promise.allSettled(
+            mine.map(async (tl) => {
+                const res = await backendFetch(`/tier-lists/${tl.slug}?${serverQuery(server)}`, { bearerToken: token });
+                if (!res.ok) throw new Error(`Failed to load tier list ${tl.slug}: ${res.status}`);
+                return (await res.json()) as IBackendTierListDetail;
+            }),
+        );
+
+        const details: IBackendTierListDetail[] = [];
+        for (const r of settled) {
+            if (r.status === "fulfilled") details.push(r.value);
+        }
+        return details.map((detail, i) => mapBrowseItem(detail, i));
+    });
+
+export function myTierListsDetailedQueryOptions(authed: boolean, server: string = DEFAULT_GAMEDATA_SERVER) {
+    return queryOptions({
+        queryKey: ["tier-lists", "mine", "detailed", authed ? "auth" : "anon", ...gamedataKey(server)],
+        queryFn: () => (authed ? getMyTierListsDetailedFn({ data: resolveGamedataServer(server) }) : Promise.resolve([] as ITierListBrowseItem[])),
+        enabled: authed,
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+    });
+}
+
+export const createTierFn = createServerFn({ method: "POST" })
+    .inputValidator((data: ICreateTierInput) => data)
+    .handler(async ({ data }): Promise<ITierSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/tiers`, {
+            method: "POST",
+            bearerToken: token,
+            body: JSON.stringify({
+                name: sanitizePlainName(data.name, TIER_NAME_LIMIT),
+                display_order: data.displayOrder,
+                color: data.color ?? null,
+                description: sanitizeMarkdownForStorage(data.description, { maxLength: TIER_DESCRIPTION_LIMIT, nullOnEmpty: true }),
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapTierSummary((await res.json()) as IBackendTierRaw);
+    });
+
+export const updateTierFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IUpdateTierInput) => data)
+    .handler(async ({ data }): Promise<ITierSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/tiers/${encodeURIComponent(data.tierId)}`, {
+            method: "PUT",
+            bearerToken: token,
+            body: JSON.stringify({
+                name: sanitizePlainName(data.name, TIER_NAME_LIMIT),
+                display_order: data.displayOrder,
+                color: data.color ?? null,
+                description: sanitizeMarkdownForStorage(data.description, { maxLength: TIER_DESCRIPTION_LIMIT, nullOnEmpty: true }),
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapTierSummary((await res.json()) as IBackendTierRaw);
+    });
+
+export const deleteTierFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IDeleteTierInput) => data)
+    .handler(async ({ data }): Promise<IBackendStatus> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/tiers/${encodeURIComponent(data.tierId)}`, { method: "DELETE", bearerToken: token });
+        if (!res.ok) throw await parseError(res);
+        return (await res.json()) as IBackendStatus;
+    });
+
+export const addTierListPlacementFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IAddPlacementInput) => data)
+    .handler(async ({ data }): Promise<ITierPlacementSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/placements`, {
+            method: "POST",
+            bearerToken: token,
+            body: JSON.stringify({
+                tier_id: data.tierId,
+                entity_kind: data.kind,
+                entity_id: data.entityId,
+                sub_order: data.subOrder ?? 0,
+                description: sanitizeMarkdownForStorage(data.description, { maxLength: PLACEMENT_DESCRIPTION_LIMIT, nullOnEmpty: true }),
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapPlacementSummary((await res.json()) as IBackendPlacement);
+    });
+
+/** Update the editor-authored description of an existing placement, keyed by (kind, id). */
+export const updateTierListPlacementDescriptionFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IUpdatePlacementDescriptionInput) => data)
+    .handler(async ({ data }): Promise<ITierPlacementSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(placementPath(data), {
+            method: "PATCH",
+            bearerToken: token,
+            body: JSON.stringify({
+                description: sanitizeMarkdownForStorage(data.description, { maxLength: PLACEMENT_DESCRIPTION_LIMIT, nullOnEmpty: true }),
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapPlacementSummary((await res.json()) as IBackendPlacement);
+    });
+
+export const removeTierListPlacementFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IRemovePlacementInput) => data)
+    .handler(async ({ data }): Promise<IBackendStatus> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(placementPath(data), { method: "DELETE", bearerToken: token });
+        if (!res.ok) throw await parseError(res);
+        return (await res.json()) as IBackendStatus;
+    });
+
+export const moveTierListPlacementFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IMovePlacementInput) => data)
+    .handler(async ({ data }): Promise<ITierPlacementSummary> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`${placementPath(data)}/move`, {
+            method: "POST",
+            bearerToken: token,
+            body: JSON.stringify({
+                new_tier_id: data.newTierId,
+                sub_order: data.subOrder ?? 0,
+            }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapPlacementSummary((await res.json()) as IBackendPlacement);
+    });
+
+export const setTierListFlairFn = createServerFn({ method: "POST" })
+    .inputValidator((data: ISetTierListFlairInput) => data)
+    .handler(async ({ data }): Promise<IBackendStatus> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/flair`, {
+            method: "PUT",
+            bearerToken: token,
+            body: JSON.stringify({ flair_id: data.flairId }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return (await res.json()) as IBackendStatus;
+    });
+
+export const setTierListVisibilityFn = createServerFn({ method: "POST" })
+    .inputValidator((data: ISetTierListVisibilityInput) => data)
+    .handler(async ({ data }): Promise<{ is_listed: boolean }> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/visibility`, {
+            method: "PUT",
+            bearerToken: token,
+            body: JSON.stringify({ is_listed: data.isListed }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return (await res.json()) as { is_listed: boolean };
+    });
+
+export const publishTierListVersionFn = createServerFn({ method: "POST" })
+    .inputValidator((data: IPublishTierListVersionInput) => data)
+    .handler(async ({ data }): Promise<ITierListVersion> => {
+        const token = requireSiteToken();
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(data.slug)}/publish`, {
+            method: "POST",
+            bearerToken: token,
+            body: JSON.stringify({ changelog: sanitizeMarkdownForStorage(data.changelog, { maxLength: CHANGELOG_LIMIT, nullOnEmpty: true }) }),
+        });
+        if (!res.ok) throw await parseError(res);
+        return mapTierListVersion((await res.json()) as IBackendTierListVersion);
+    });
+
+/**
+ * Convert a published-version snapshot into the same shape the live detail
+ * view uses. The backend serves every snapshot as `TierDetail[]` with each
+ * placement already resolved, whatever shape it was stored in. Returns [] for
+ * a snapshot it could not read.
+ */
+export function snapshotToTiers(snapshot: TierListJsonValue): ITierEntryFull[] {
+    if (!Array.isArray(snapshot)) return [];
+    const readable = snapshot.filter((t): t is TierListJsonValue & object => {
+        if (!t || typeof t !== "object" || Array.isArray(t)) return false;
+        const tier = t as Record<string, TierListJsonValue>;
+        return typeof tier.id === "string" && typeof tier.name === "string" && Array.isArray(tier.placements);
+    });
+    const tiers = readable as unknown as IBackendTier[];
+    return mapTiersFull(tiers.map((t) => ({ ...t, placements: t.placements.filter((p) => typeof p.entity_kind === "string" && typeof p.entity_id === "string") })));
+}
+
+export const getTierListVersionsFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { slug: string; server?: string }) => data)
+    .handler(async ({ data: { slug, server } }): Promise<ITierListVersion[]> => {
+        const res = await backendFetch(`/tier-lists/${encodeURIComponent(slug)}/versions?${serverQuery(server)}`);
+        if (!res.ok) throw await parseError(res);
+        const raw = (await res.json()) as IBackendTierListVersion[];
+        return raw.map(mapTierListVersion);
+    });
+
+export function tierListVersionsQueryOptions(slug: string, server: string = DEFAULT_GAMEDATA_SERVER) {
+    return queryOptions({
+        queryKey: ["tier-lists", "versions", slug, ...gamedataKey(server)],
+        queryFn: () => getTierListVersionsFn({ data: { slug, server: resolveGamedataServer(server) } }),
+        staleTime: 60 * 1000,
+        gcTime: 5 * 60 * 1000,
+        // The tier-list page's loader awaits this during SSR.
+        ...noRetryOnServer(),
+    });
+}
+
+export const getTierEntityCatalogueFn = createServerFn({ method: "GET" })
+    .inputValidator((data: { kind: TierEntityKind; server?: string }) => data)
+    .handler(async ({ data: { kind, server } }): Promise<EntitySummary[]> => {
+        const res = await backendFetch(`/tier-lists/catalogue/${encodeURIComponent(kind)}?${serverQuery(server)}`);
+        if (!res.ok) throw new Error(`Failed to load the ${kind} catalogue: ${res.status}`);
+        return (await res.json()) as EntitySummary[];
+    });
+
+/** Static game data: one entry per kind and server, held as long as the operator index is. */
+export function tierEntityCatalogueQueryOptions(kind: TierEntityKind, server: string = DEFAULT_GAMEDATA_SERVER) {
+    return queryOptions({
+        // Outside the `tier-lists` root on purpose: a save invalidates that root, and this never changes with a list.
+        queryKey: ["tier-entity-catalogue", kind, ...gamedataKey(server)],
+        queryFn: () => getTierEntityCatalogueFn({ data: { kind, server: resolveGamedataServer(server) } }),
+        staleTime: 60 * 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+    });
+}
+
+// Per-list grants (`allTierListGrantsQueryOptions`, `grantTierListPermissionFn`,
+// `revokeTierListPermissionFn`) live in `./admin/permissions`.

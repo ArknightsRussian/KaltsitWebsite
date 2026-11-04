@@ -1,0 +1,401 @@
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { ArrowDown, ArrowUp, Download, Filter, LayoutGrid, LayoutList, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DynamicExportDialog } from "#/components/export/ExportDialog.lazy";
+import { SearchField } from "#/components/SearchField";
+import { Badge } from "#/components/ui/badge";
+import { Button } from "#/components/ui/button";
+import { LoadFailed } from "#/components/ui/load-failed";
+import { PageHeader } from "#/components/ui/page-header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
+import { Sheet, SheetHeader, SheetPanel, SheetPopup, SheetTitle } from "#/components/ui/sheet";
+import { Skeleton } from "#/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "#/components/ui/toggle-group";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "#/components/ui/tooltip";
+import { useLocalStorageState } from "#/hooks/use-local-storage-state";
+import { enemiesQueryOptions, enemyStageTableQueryOptions } from "#/lib/api/enemies";
+import { enemiesExportSchema } from "#/lib/export";
+import { type TypedRichT, useFormatters, useGamedataServer, useRichT, useT } from "#/lib/i18n";
+import type { TypedT } from "#/lib/i18n/messages";
+import { values } from "#/lib/records";
+import type { StageGroupKey } from "#/lib/registry/stage-groups";
+import { Route } from "#/routes/enemies";
+import { Pagination, PaginationCompact } from "../../operators/list/impl/components/Pagination";
+import type { messages } from "./Enemies.messages";
+import { EnemyCardGrid } from "./impl/components/EnemyCardGrid";
+import { EnemyCardList } from "./impl/components/EnemyCardList";
+import { EnemyFilterChips } from "./impl/components/EnemyFilterChips";
+import { buildLocationTree, EnemyLocationFilter, type IRawStage, type IRawZone } from "./impl/components/EnemyLocationFilter";
+import { ITEMS_PER_PAGE, ITEMS_PER_PAGE_KEY, ITEMS_PER_PAGE_OPTIONS, type ItemsPerPage, LIST_GRID_COLS, PAGE_KEY, SORT_OPTIONS, VIEW_MODE_KEY, VIEW_MODES } from "./impl/constants";
+import type { messages as listConstantsMessages } from "./impl/constants.messages";
+import { computeStatMaxByLevel, enrichEnemies } from "./impl/enrich";
+import type { IEnemyLocationIndex, IEnemyView, SortOption, SortOrder, ViewMode } from "./impl/types";
+import { useEnemyFilters } from "./impl/useEnemyFilters";
+
+export function EnemiesList() {
+    const t: TypedT<typeof messages> = useT("enemies");
+    const rt: TypedRichT<typeof messages> = useRichT("enemies");
+    const f = useFormatters();
+    const tConst: TypedT<typeof listConstantsMessages> = useT("enemies");
+    const server = useGamedataServer();
+    const { data: handbook } = useQuery(enemiesQueryOptions(server));
+
+    const enriched = useMemo(() => {
+        if (!handbook) return [] as IEnemyView[];
+        const list = values(handbook.enemyData).sort((a, b) => a.sortId - b.sortId);
+        return enrichEnemies(list, handbook.raceData);
+    }, [handbook]);
+
+    const visibleCount = useMemo(() => enriched.filter((e) => !e.hideInHandbook).length, [enriched]);
+    const statMax = useMemo(() => computeStatMaxByLevel(enriched), [enriched]);
+
+    const availableRaces = useMemo(() => {
+        if (!handbook) return [];
+        const present = new Set<string>();
+        for (const e of enriched) {
+            if (e.hideInHandbook) continue;
+            for (const tag of e.enemyTags ?? []) present.add(tag);
+        }
+        return values(handbook.raceData)
+            .filter((r) => present.has(r.id))
+            .sort((a, b) => a.raceName.localeCompare(b.raceName))
+            .map((r) => ({ id: r.id, label: r.raceName }));
+    }, [handbook, enriched]);
+
+    // Location index ("Appears In" filter), derived from the enemy-stage table.
+    // The route does not load it, so it is fetched here after hydration.
+    const { data: stageTable, isError: stageTableFailed, refetch: refetchStageTable } = useQuery(enemyStageTableQueryOptions(server));
+    const { locationIndex, locationTree } = useMemo(() => {
+        const zonesByEnemy = new Map<string, Set<string>>();
+        const stagesByEnemy = new Map<string, Set<string>>();
+        const zoneTmp = new Map<string, { name: string; group: StageGroupKey; stages: Map<string, IRawStage> }>();
+        const stageList = stageTable?.stages ?? [];
+        for (const [enemyId, refs] of Object.entries(stageTable?.refs ?? {})) {
+            const zones = new Set<string>();
+            const stages = new Set<string>();
+            for (const [stageIndex] of refs ?? []) {
+                const r = stageList[stageIndex];
+                if (!r) continue;
+                zones.add(r.zoneId);
+                stages.add(r.stageId);
+                let z = zoneTmp.get(r.zoneId);
+                if (!z) {
+                    z = { name: r.zoneName ?? r.zoneId, group: r.group, stages: new Map() };
+                    zoneTmp.set(r.zoneId, z);
+                }
+                if (!z.stages.has(r.stageId)) z.stages.set(r.stageId, { stageId: r.stageId, code: r.code, stageName: r.stageName, isHard: r.isHard });
+            }
+            zonesByEnemy.set(enemyId, zones);
+            stagesByEnemy.set(enemyId, stages);
+        }
+        const rawZones: IRawZone[] = [...zoneTmp].map(([zoneId, z]) => ({ zoneId, name: z.name, group: z.group, stages: [...z.stages.values()] }));
+        return { locationIndex: { zonesByEnemy, stagesByEnemy } satisfies IEnemyLocationIndex, locationTree: buildLocationTree(rawZones) };
+    }, [stageTable]);
+
+    // The page number round-trips through the URL, so browser back from an enemy
+    // lands on the page you left rather than restarting at one.
+    const { page: pageFromUrl } = Route.useSearch();
+    const navigate = useNavigate({ from: "/enemies" });
+    const [currentPage, setCurrentPage] = useState(pageFromUrl ?? 1);
+
+    const goToPage = useCallback(
+        (next: number, scrollToTop: boolean) => {
+            setCurrentPage(next);
+            navigate({ search: (prev) => ({ ...prev, page: next }), replace: true, resetScroll: false });
+            if (typeof window === "undefined") return;
+            window.localStorage.setItem(PAGE_KEY, String(next));
+            if (scrollToTop) {
+                window.scrollTo({ top: 0 });
+            }
+        },
+        [navigate],
+    );
+
+    // Arriving with no page in the URL (the breadcrumb out of an enemy, the nav
+    // link) resumes the page you were last on, like the filters and view mode do.
+    // A page in the URL always wins, so browser back lands exactly where it left.
+    const pageRestoredRef = useRef(false);
+    useEffect(() => {
+        if (pageRestoredRef.current) return;
+        pageRestoredRef.current = true;
+        if (pageFromUrl != null || typeof window === "undefined") return;
+        const stored = Number(window.localStorage.getItem(PAGE_KEY));
+        if (Number.isFinite(stored) && stored > 1) goToPage(stored, false);
+    }, [pageFromUrl, goToPage]);
+
+    // Paging is a deliberate jump, so it puts the top of the new page in view;
+    // a filter change only rewinds the counter and leaves the scroll alone.
+    const handlePageChange = useCallback((next: number) => goToPage(next, true), [goToPage]);
+    const resetPage = useCallback(() => goToPage(1, false), [goToPage]);
+
+    const { filters, filteredEnemies, setSearchQuery, setLevels, setDamageTypes, setAttackTypes, setRaces, setImmunities, setAppearsIn, setSortBy, setSortOrder, clearFilters, activeFilterCount } = useEnemyFilters(enriched, locationIndex, resetPage);
+    // A restored "Appears In" filter matches nothing until the stage table arrives,
+    // so the counter and the grid show loading rather than a result of zero.
+    // A failed table is not "still loading": the skeleton would spin forever, so it gets a retry instead.
+    const locationsFailed = stageTable === undefined && stageTableFailed;
+    const locationsPending = stageTable === undefined && filters.appearsIn.length > 0 && !locationsFailed;
+
+    const [viewMode, setViewMode] = useLocalStorageState<ViewMode>(VIEW_MODE_KEY, "grid", {
+        parse: (raw) => (VIEW_MODES.has(raw as ViewMode) ? (raw as ViewMode) : undefined),
+        serialize: (v) => v,
+    });
+
+    const [itemsPerPage, setItemsPerPage] = useLocalStorageState<ItemsPerPage>(ITEMS_PER_PAGE_KEY, ITEMS_PER_PAGE, {
+        parse: (raw) => {
+            if (raw === "all") return "all";
+            const num = Number(raw);
+            return (ITEMS_PER_PAGE_OPTIONS as readonly ItemsPerPage[]).includes(num as ItemsPerPage) ? (num as ItemsPerPage) : undefined;
+        },
+        serialize: (v) => String(v),
+    });
+
+    const pageSize = itemsPerPage === "all" ? Math.max(filteredEnemies.length, 1) : itemsPerPage;
+    const totalPages = Math.max(1, Math.ceil(filteredEnemies.length / pageSize));
+    // A narrowed filter can leave the counter past the end of the shorter list;
+    // every read below uses the clamped value so the pager and the grid agree.
+    const page = Math.min(currentPage, totalPages);
+    const { paginated, fromIndex, toIndex } = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        const end = page * pageSize;
+        return {
+            paginated: filteredEnemies.slice(start, end),
+            fromIndex: filteredEnemies.length === 0 ? 0 : start + 1,
+            toIndex: Math.min(end, filteredEnemies.length),
+        };
+    }, [filteredEnemies, page, pageSize]);
+
+    const [exportOpen, setExportOpen] = useState(false);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    // The search box stays on the page, so the sheet's badge counts only what the sheet holds.
+    const sheetFilterCount = activeFilterCount - (filters.q ? 1 : 0);
+    const filterControls = (
+        <>
+            <EnemyFilterChips filters={filters} setLevels={setLevels} setDamageTypes={setDamageTypes} setAttackTypes={setAttackTypes} setRaces={setRaces} setImmunities={setImmunities} races={availableRaces} />
+            {locationTree.length > 0 && <EnemyLocationFilter tree={locationTree} selected={filters.appearsIn} onChange={setAppearsIn} />}
+        </>
+    );
+
+    return (
+        <div className="page-shell [--page-max:1400px]">
+            <PageHeader className="pb-1.5" breadcrumbLabel={t("list.breadcrumb")} breadcrumb={[t("list.breadcrumb.collection"), t("list.breadcrumb.enemies")]} title={t("list.title")} description={rt("list.blurb", { count: <strong className="text-foreground">{f.number(visibleCount)}</strong> })} />
+
+            <section className="flex min-w-0 flex-col gap-5.5 pt-5" aria-label={t("list.results.aria")}>
+                {/* Below md the panel moves into a sheet, as on Operators and Stories: inline it pushed the first card ~1000px down at 375. */}
+                <div className="flex flex-col gap-5.5 max-md:hidden">{filterControls}</div>
+                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+                    <SheetPopup side="left" variant="inset" className="max-w-80">
+                        <SheetHeader className="pb-4">
+                            <SheetTitle className="flex items-center gap-2 text-base">
+                                <Filter className="size-4 text-muted-foreground" aria-hidden="true" />
+                                {t("list.filters.title")}
+                                {sheetFilterCount > 0 ? (
+                                    <Badge className="font-mono tabular-nums" size="sm">
+                                        {sheetFilterCount}
+                                    </Badge>
+                                ) : null}
+                            </SheetTitle>
+                        </SheetHeader>
+                        <SheetPanel className="flex flex-col gap-5.5 px-5 pb-6">{filterControls}</SheetPanel>
+                    </SheetPopup>
+                </Sheet>
+                {locationsFailed && filters.appearsIn.length === 0 && <LoadFailed message={t("list.locations.failed")} onRetry={() => void refetchStageTable()} />}
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <SearchField className="min-w-55 max-w-100 flex-1" value={filters.q} onChange={setSearchQuery} placeholder={t("list.search.placeholder")} label={t("list.search.aria")} />
+
+                    {/* At 375 Filters, view, sort, Show and download wrapped into two ragged rows. The
+                        toolbar keeps the three that shape the list; page size and download sit with
+                        the pagination below. */}
+                    <div className="flex items-center gap-2 max-md:w-full max-md:justify-between">
+                        <Button variant="outline" className="relative md:hidden" onClick={() => setFiltersOpen(true)} aria-expanded={filtersOpen}>
+                            <Filter aria-hidden="true" />
+                            {t("list.filters.button")}
+                            {sheetFilterCount > 0 && (
+                                <Badge className="font-mono tabular-nums" size="sm">
+                                    {sheetFilterCount}
+                                </Badge>
+                            )}
+                        </Button>
+                        <ToggleGroup aria-label={t("list.viewMode.aria")} value={[viewMode]} onValueChange={(next) => next[0] && setViewMode(next[0] as ViewMode)} variant="outline">
+                            <Tooltip>
+                                <TooltipTrigger render={<ToggleGroupItem aria-label={t("list.viewMode.grid")} value="grid" />}>
+                                    <LayoutGrid aria-hidden="true" />
+                                </TooltipTrigger>
+                                <TooltipPopup side="top" sideOffset={8}>
+                                    {t("list.viewMode.grid")}
+                                </TooltipPopup>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger render={<ToggleGroupItem aria-label={t("list.viewMode.list")} value="list" />}>
+                                    <LayoutList aria-hidden="true" />
+                                </TooltipTrigger>
+                                <TooltipPopup side="top" sideOffset={8}>
+                                    {t("list.viewMode.list")}
+                                </TooltipPopup>
+                            </Tooltip>
+                        </ToggleGroup>
+
+                        <div className="inline-flex h-9.5 items-center gap-1 rounded-lg border border-border bg-[color-mix(in_oklch,var(--secondary)_50%,transparent)] p-0.75">
+                            <Select value={filters.sortBy} onValueChange={(v) => setSortBy(v as SortOption)} aria-label={t("list.sort.aria")}>
+                                <SelectTrigger size="sm" className="h-7.5 min-h-7.5 min-w-0 gap-1.5 border-0 bg-transparent px-2 font-medium font-sans text-[12.5px] text-foreground shadow-none before:shadow-none hover:bg-[color-mix(in_oklch,var(--secondary)_80%,transparent)]">
+                                    <span className="mr-0.5 text-muted-foreground leading-none">{t("list.sort.label")}</span>
+                                    <SelectValue>
+                                        {(value) => {
+                                            const opt = SORT_OPTIONS.find((o) => o.value === value);
+                                            return opt ? tConst(opt.labelKey) : value;
+                                        }}
+                                    </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {SORT_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                            {tConst(opt.labelKey)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Tooltip>
+                                <TooltipTrigger render={<Button size="icon-sm" variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => setSortOrder((filters.sortOrder === "asc" ? "desc" : "asc") as SortOrder)} aria-label={t("list.sort.toggle")} />}>
+                                    {filters.sortOrder === "asc" ? <ArrowUp aria-hidden="true" /> : <ArrowDown aria-hidden="true" />}
+                                </TooltipTrigger>
+                                <TooltipPopup side="top" sideOffset={8}>
+                                    {filters.sortOrder === "asc" ? t("list.sort.asc") : t("list.sort.desc")}
+                                </TooltipPopup>
+                            </Tooltip>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 font-medium font-sans text-[12.5px] text-muted-foreground leading-none">
+                    <span>
+                        {locationsPending ? (
+                            <Skeleton className="inline-block h-3 w-40 align-middle" aria-hidden="true" />
+                        ) : (
+                            rt("list.showing", {
+                                from: <strong className="text-foreground">{f.number(fromIndex)}</strong>,
+                                to: <strong className="text-foreground">{f.number(toIndex)}</strong>,
+                                total: <strong className="text-foreground">{f.number(filteredEnemies.length)}</strong>,
+                            })
+                        )}
+                        {activeFilterCount > 0 && (
+                            <>
+                                {" · "}
+                                <button
+                                    type="button"
+                                    onClick={clearFilters}
+                                    className="relative cursor-pointer appearance-none border-0 bg-transparent p-0 font-medium text-primary pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2 hover:underline"
+                                >
+                                    {t("list.clearFilters", { count: activeFilterCount })}
+                                </button>
+                            </>
+                        )}
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                        <span className="mr-1 hidden text-muted-foreground leading-none lg:inline">{t("list.hint")}</span>
+                        <div className="inline-flex h-9.5 items-center rounded-lg border border-border bg-[color-mix(in_oklch,var(--secondary)_50%,transparent)] p-0.75">
+                            <Select
+                                value={String(itemsPerPage)}
+                                onValueChange={(v) => {
+                                    setItemsPerPage(v === "all" ? "all" : (Number(v) as ItemsPerPage));
+                                    resetPage();
+                                }}
+                                aria-label={t("list.perPage.aria")}
+                            >
+                                <SelectTrigger size="sm" className="h-7.5 min-h-7.5 min-w-0 gap-1.5 border-0 bg-transparent px-2 font-medium font-sans text-[12.5px] text-foreground shadow-none before:shadow-none hover:bg-[color-mix(in_oklch,var(--secondary)_80%,transparent)]">
+                                    <span className="mr-0.5 text-muted-foreground leading-none">{t("list.perPage.label")}</span>
+                                    <SelectValue>{(value) => (value === "all" ? t("list.perPage.all") : value)}</SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ITEMS_PER_PAGE_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt} value={String(opt)}>
+                                            {opt === "all" ? t("list.perPage.all") : opt}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button variant="outline" onClick={() => setExportOpen(true)} aria-label={t("list.export.aria")}>
+                                        <Download aria-hidden="true" />
+                                        <span className="hidden sm:inline">{t("list.export")}</span>
+                                    </Button>
+                                }
+                            />
+                            <TooltipPopup side="top" sideOffset={8}>
+                                {t("list.export.aria")}
+                            </TooltipPopup>
+                        </Tooltip>
+                        <PaginationCompact currentPage={page} totalPages={totalPages} onPageChange={handlePageChange} />
+                    </div>
+                </div>
+
+                {locationsFailed && filters.appearsIn.length > 0 ? (
+                    <LoadFailed message={t("list.locations.failed")} onRetry={() => void refetchStageTable()} />
+                ) : locationsPending ? (
+                    // Not the empty state: its clear button would wipe the restored filter.
+                    <LocationsLoading />
+                ) : filteredEnemies.length === 0 ? (
+                    <EmptyState onClear={clearFilters} />
+                ) : viewMode === "grid" ? (
+                    <div className="grid grid-cols-2 gap-2.5 min-[1100px]:grid-cols-6 min-[420px]:grid-cols-3 min-[640px]:grid-cols-4 min-[860px]:grid-cols-5 min-[1280px]:gap-4">
+                        {paginated.map((e) => (
+                            <EnemyCardGrid key={e.enemyId} enemy={e} statMax={statMax} />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-1">
+                        <div className="grid items-center gap-3.5 border-b border-b-[color-mix(in_oklch,var(--border)_60%,transparent)] px-3.5 pb-2 font-medium font-mono text-[10.5px] text-muted-foreground uppercase leading-none tracking-[0.12em] max-[900px]:hidden" style={{ gridTemplateColumns: LIST_GRID_COLS }}>
+                            <span />
+                            <span>{t("list.col.name")}</span>
+                            <span>{t("list.col.threat")}</span>
+                            <span>{t("list.col.damage")}</span>
+                            <span className="text-right">{t("list.col.hp")}</span>
+                        </div>
+                        {paginated.map((e) => (
+                            <EnemyCardList key={e.enemyId} enemy={e} statMax={statMax} />
+                        ))}
+                    </div>
+                )}
+
+                <Pagination currentPage={page} totalPages={totalPages} onPageChange={handlePageChange} />
+            </section>
+
+            <DynamicExportDialog open={exportOpen} onOpenChange={setExportOpen} schema={enemiesExportSchema} allRows={enriched} filteredRows={filteredEnemies} pageRows={paginated} title={t("list.export.dialogTitle")} />
+        </div>
+    );
+}
+
+function LocationsLoading() {
+    return (
+        <div className="grid grid-cols-2 gap-2.5 min-[1100px]:grid-cols-6 min-[420px]:grid-cols-3 min-[640px]:grid-cols-4 min-[860px]:grid-cols-5 min-[1280px]:gap-4" aria-busy="true">
+            {Array.from({ length: 12 }, (_, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder tiles
+                <Skeleton key={i} className="aspect-[3/4] rounded-lg" />
+            ))}
+        </div>
+    );
+}
+
+function EmptyState({ onClear }: { onClear: () => void }) {
+    const t: TypedT<typeof messages> = useT("enemies");
+    return (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-border border-dashed bg-card/50 px-6 py-16 text-center">
+            <div className="mb-3.5 grid h-14 w-14 place-items-center rounded-full bg-secondary">
+                <Search className="h-6.5 w-6.5 text-muted-foreground" strokeWidth={2} aria-hidden="true" />
+            </div>
+            <h3 className="m-0 font-sans font-semibold text-[16px] text-foreground leading-none">{t("list.empty.title")}</h3>
+            <p className="m-0 mt-2 mb-3.5 max-w-80 font-sans text-[13px] text-muted-foreground leading-normal">{t("list.empty.body")}</p>
+            <button
+                type="button"
+                onClick={onClear}
+                className="relative cursor-pointer appearance-none border-0 bg-transparent p-0 font-medium font-sans text-[13px] text-primary pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-1/2 pointer-coarse:after:h-11 pointer-coarse:after:-translate-y-1/2 hover:underline"
+            >
+                {t("list.empty.clear")}
+            </button>
+        </div>
+    );
+}

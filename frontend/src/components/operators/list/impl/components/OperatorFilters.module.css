@@ -1,0 +1,142 @@
+/*
+ * --filter-sidebar-offset is the bottom edge of whatever sticky chrome the page
+ * keeps above the panel. The site header alone is 64px; a page that stacks more
+ * (the profile's tab bar) raises it through FilterPanel's stickyOffset prop.
+ * The 16px gap and the extra 32px the max-height reserves past the offset stay fixed.
+ */
+.filterSidebar {
+    position: sticky;
+    top: calc(var(--filter-sidebar-offset, 64px) + 16px);
+    flex: 0 0 280px;
+    width: 280px;
+    align-self: stretch;
+    max-height: calc(100vh - var(--filter-sidebar-offset, 64px) - 32px);
+    overflow: hidden;
+    margin-right: 8px;
+    box-sizing: border-box;
+    opacity: 1;
+    transition:
+        flex-basis 300ms cubic-bezier(0.32, 0.72, 0, 1),
+        width 300ms cubic-bezier(0.32, 0.72, 0, 1),
+        margin-right 300ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: flex-basis, width, opacity;
+}
+.filterSidebar::-webkit-scrollbar {
+    width: 6px;
+}
+.filterSidebar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+
+.filterSidebarInner {
+    width: 280px;
+    height: 100%;
+    max-height: calc(100vh - var(--filter-sidebar-offset, 64px) - 32px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 18px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2xl);
+    background: var(--card);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    box-sizing: border-box;
+}
+.filterSidebarInner::-webkit-scrollbar {
+    width: 6px;
+}
+.filterSidebarInner::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+}
+
+.filterSidebarCollapsed {
+    flex-basis: 0;
+    width: 0;
+    margin-right: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+@media (max-width: 800px) {
+    .filterSidebar {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .filterSidebar {
+        transition: none;
+    }
+}
+
+.fpHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2px;
+}
+.fpHead h3 {
+    margin: 0;
+    font: 600 14px / 1 var(--font-sans);
+    color: var(--foreground);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.fpHead h3 svg {
+    color: var(--muted-foreground);
+}
+
+.sectionHead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+}
+.sectionHead.expandable {
+    cursor: pointer;
+    user-select: none;
+}
+.sectionHead .line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+.sectionHead .chev {
+    width: 13px;
+    height: 13px;
+    color: var(--muted-foreground);
+    transition: transform 180ms ease;
+}
+.sectionHead.expandable.open .chev {
+    transform: rotate(180deg);
+}
+
+.field {
+    container-type: inline-size;
+}
+.field + .field {
+    margin-top: 14px;
+}
+.fieldLabel {
+    font: 500 12px / 1 var(--font-sans);
+    color: var(--muted-foreground);
+    margin-bottom: 8px;
+}
+
+.tagRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
