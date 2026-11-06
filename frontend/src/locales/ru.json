@@ -1,0 +1,4 @@
+﻿{
+  "header": { "searchPlaceholder": "Найти персонажей...", "signIn": "Войти", "settings": "Настройки" },
+  "nav": { "home": "Главная", "collection": "Коллекция", "tools": "Инструменты", "gacha": "Гача", "tierLists": "Тир-листы", "players": "Игроки" }
+}

@@ -1,0 +1,4 @@
+﻿{
+  "header": { "searchPlaceholder": "Search operators...", "signIn": "Sign in", "settings": "Settings" },
+  "nav": { "home": "Home", "collection": "Collection", "tools": "Tools", "gacha": "Gacha", "tierLists": "Tier Lists", "players": "Players" }
+}
