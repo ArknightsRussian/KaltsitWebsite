@@ -19,3 +19,7 @@ assets/il2cpp-work/
 # Local scratch work (renders, captures, one-off instruments), never published
 scratchpad/
 backend/sync-dumps/
+
+*.zip
+gamedata_temp*
+package-lock.json
