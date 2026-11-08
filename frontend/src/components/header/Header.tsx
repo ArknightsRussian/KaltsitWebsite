@@ -13,6 +13,7 @@ import { useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { getToolsByCategory, modKey } from "#/lib/registry/tools";
 import type { messages as toolMessages } from "#/lib/registry/tools.messages";
+import { useTranslatorsMember } from "#/lib/translators/member";
 import { Kbd } from "../ui/kbd";
 import type { messages } from "./Header.messages";
 import styles from "./impl/Header.module.css";
@@ -25,6 +26,7 @@ import { useNavOverflow } from "./impl/use-nav-overflow";
 
 export default function Header() {
     const { user, loading, logout } = useAuth();
+    const translatorsMember = useTranslatorsMember();
     const { open: openCmd } = useCommand();
     const isMac = useIsMac();
     // The tool registry is a plain module, so its entries carry message keys;
@@ -81,11 +83,11 @@ export default function Header() {
             { href: "/tools", label: t("header.tools"), items: toolItems, sections: toolSections },
             { href: "/gacha", label: t("header.gacha"), items: gachaItems },
             { href: "/tier-lists", label: t("header.tierLists") },
-            // Fork: the translators' section.
-            { href: "/translators", label: t("header.translators") },
+            // Fork: the translators' section, for its members only.
+            ...(translatorsMember ? [{ href: "/translators", label: t("header.translators") }] : []),
             { href: "/user", label: t("header.players"), items: playerItems },
         ];
-    }, [t, user]);
+    }, [t, user, translatorsMember]);
 
     const rowRef = useRef<HTMLDivElement>(null);
     const brandRef = useRef<HTMLAnchorElement>(null);
