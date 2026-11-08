@@ -1,0 +1,29 @@
+# The translators' section, local development: build the backend and the
+# frontend from THIS checkout instead of pulling the upstream images.
+#
+# Paths are relative to the repo root (compose resolves them against the first
+# file). Used on top of the root docker-compose.yml, plus a machine-local
+# docker-compose.override.yml (not committed) that mounts the dictionaries,
+# the plugin DLL and arktr, and may switch the development sign-in on.
+# Setup and commands: translators/README.md.
+services:
+    backend:
+        image: kaltsit-translators-backend:local
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        environment:
+            # Where the import reads its sources inside the container; the
+            # override mounts the host folders here (read-only).
+            TRANSLATORS_RU_TEXT_DIR: /data/translators/ru-text
+            TRANSLATORS_PLUGIN_DLL: /data/translators/plugin/ArknightsLocalization.RichTextFix.dll
+            TRANSLATORS_ARKTR_DIR: /data/translators/arktr
+
+    frontend:
+        image: kaltsit-translators-frontend:local
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+            args:
+                VITE_BACKEND_URL: http://localhost:3060
+                VITE_SITE_URL: http://localhost:3000
