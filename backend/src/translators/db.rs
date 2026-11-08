@@ -7,7 +7,13 @@ use super::dto::TranslatorLine;
 
 /// Ordered migrations, tracked in `translators._migrations`, apart from the
 /// upstream ledger.
-const MIGRATIONS: &[(&str, &str)] = &[("t001_init", include_str!("migrations/t001_init.sql"))];
+const MIGRATIONS: &[(&str, &str)] = &[
+    ("t001_init", include_str!("migrations/t001_init.sql")),
+    (
+        "t002_glossary",
+        include_str!("migrations/t002_glossary.sql"),
+    ),
+];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::raw_sql(
@@ -119,6 +125,7 @@ pub async fn story_lines(
             cn: r.cn,
             sova: r.sova,
             ai: r.ai,
+            terms: Vec::new(),
         })
         .collect())
 }

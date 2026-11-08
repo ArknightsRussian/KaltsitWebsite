@@ -45,6 +45,8 @@ pub struct TranslatorLine {
     pub sova: Option<String>,
     /// The AI's translation: signed-in translators only.
     pub ai: Option<String>,
+    /// Glossary terms found in the English, in order.
+    pub terms: Vec<LineTerm>,
 }
 
 /// One story's lines.
@@ -73,4 +75,69 @@ pub struct ImportStatus {
     /// The last finished import's summary (`ImportSummary`).
     #[schema(value_type = Object)]
     pub last: Option<serde_json::Value>,
+}
+
+/// A glossary term found in a line's English.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LineTerm {
+    pub term_id: i32,
+    /// The text as it stands in the English line.
+    pub matched: String,
+    pub sheet: String,
+    pub ru: String,
+    pub ru_plural: Option<String>,
+    pub qualifier: Option<String>,
+    pub note: Option<String>,
+    /// From the sheet copied from Sova's glossary: a variant, never marked as not found.
+    pub from_sova: bool,
+    /// Whether the line's Russian holds the glossary form (by stem, ё = е); null when not checked.
+    pub found: Option<bool>,
+}
+
+/// One glossary entry for the Glossary tab.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GlossaryTerm {
+    pub id: i32,
+    pub sheet: String,
+    /// 1-based row in the sheet.
+    pub row: i32,
+    /// The English cell as written.
+    pub en: String,
+    /// The English the site searches for.
+    pub key: String,
+    pub qualifier: Option<String>,
+    pub ru: String,
+    pub ru_plural: Option<String>,
+    pub note: Option<String>,
+    pub synonyms: Option<String>,
+    pub comment: Option<String>,
+    pub cn: Option<String>,
+    pub case_sensitive: bool,
+    pub from_sova: bool,
+    /// Story lines whose English holds the key.
+    pub story_lines: i32,
+}
+
+/// The whole stored glossary and its freshness.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Glossary {
+    /// The Google Sheet, to open and edit it.
+    pub sheet_url: String,
+    /// Unix seconds of the stored copy's download, null when there is none.
+    #[ts(type = "number | null")]
+    pub fetched_at: Option<i64>,
+    /// Unix seconds of the last attempt, successful or not.
+    #[ts(type = "number | null")]
+    pub attempted_at: Option<i64>,
+    /// Why the last attempt failed (the stored copy is older then).
+    pub last_error: Option<String>,
+    /// A download is running now.
+    pub refreshing: bool,
+    pub terms: Vec<GlossaryTerm>,
 }

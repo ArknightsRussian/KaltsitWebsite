@@ -4,13 +4,13 @@ use axum::Json;
 use axum::extract::{Path, State};
 use uuid::Uuid;
 
-use super::dto::{TranslatorStoryLines, TranslatorsMe};
+use super::dto::{Glossary, GlossaryTerm, LineTerm, TranslatorStoryLines, TranslatorsMe};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::dto::ImportStatus;
 use super::import::{self, Sources};
-use super::{SERVER, db, dev_login_enabled};
+use super::{SERVER, db, dev_login_enabled, glossary};
 use crate::app::error::ApiError;
 use crate::app::extractors::auth::{AuthUser, MaybeAuthUser};
 use crate::app::services::auth::LoginResponse;
@@ -54,16 +54,31 @@ pub async fn me(
     }))
 }
 
-/// One story's lines: English, the Russian the game shows now, Chinese, and
-/// for signed-in translators Sova's and the AI's texts.
+/// The caller as a section member, or 403 (401 when signed out). The
+/// section's data is for members only.
+async fn require_member(state: &AppState, auth: &MaybeAuthUser) -> Result<(), ApiError> {
+    if auth.0.is_none() {
+        return Err(ApiError::Unauthorized);
+    }
+    if member_of(state, auth).await? {
+        Ok(())
+    } else {
+        Err(ApiError::Forbidden)
+    }
+}
+
+/// One story's lines: English, the Russian the game shows now, Chinese,
+/// Sova's and the AI's texts, and the glossary terms in each line. Members only.
 #[utoipa::path(
     get,
     path = "/translators/stories/{story_id}/lines",
     tag = "translators",
-    security(("bearer_auth" = []), ()),
+    security(("bearer_auth" = [])),
     params(("story_id" = String, Path, description = "The story id, as in `/story/{id}`.")),
     responses(
         (status = 200, description = "The story's lines in file order; empty when nothing was imported.", body = TranslatorStoryLines),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
         (status = 429, response = crate::app::openapi::responses::RateLimited),
         (status = 500, response = crate::app::openapi::responses::InternalError)
     )
@@ -73,17 +88,138 @@ pub async fn story_lines(
     auth: MaybeAuthUser,
     Path(story_id): Path<String>,
 ) -> Result<Json<TranslatorStoryLines>, ApiError> {
-    let hints = member_of(&state, &auth).await?;
-    let lines = db::story_lines(&state.db, SERVER, &story_id, hints).await?;
+    require_member(&state, &auth).await?;
+    let mut lines = db::story_lines(&state.db, SERVER, &story_id, true).await?;
+    let stored = glossary::load(&state.db).await?;
+    if !stored.is_empty() {
+        let terms: Vec<_> = stored.iter().map(glossary::StoredTerm::as_term).collect();
+        let finder = glossary::matcher::Finder::new(&terms);
+        for line in &mut lines {
+            let mut seen = std::collections::HashSet::new();
+            for found in finder.find(&line.en) {
+                for t in found.terms {
+                    if !seen.insert(t) {
+                        continue;
+                    }
+                    let term = &terms[t];
+                    let checked = !term.from_sova && line.ru_game.is_some();
+                    line.terms.push(LineTerm {
+                        term_id: stored[t].id,
+                        matched: line.en[found.start..found.end].to_owned(),
+                        sheet: term.sheet.clone(),
+                        ru: term.ru.clone(),
+                        ru_plural: term.ru_plural.clone(),
+                        qualifier: term.qualifier.clone(),
+                        note: term.note.clone(),
+                        from_sova: term.from_sova,
+                        found: checked.then(|| {
+                            glossary::matcher::term_found(
+                                line.ru_game.as_deref().unwrap_or(""),
+                                term,
+                            )
+                        }),
+                    });
+                }
+            }
+        }
+    }
     let imported_at = db::last_import(&state.db, SERVER)
         .await?
         .map(|t| t.timestamp());
     Ok(Json(TranslatorStoryLines {
         story_id,
         imported_at,
-        hints,
+        hints: true,
         lines,
     }))
+}
+
+/// The whole team glossary as last downloaded. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/glossary",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Every stored term, with the copy's date and the last download error.", body = Glossary),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn glossary(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+) -> Result<Json<Glossary>, ApiError> {
+    require_member(&state, &auth).await?;
+    glossary_body(&state).await.map(Json)
+}
+
+async fn glossary_body(state: &AppState) -> Result<Glossary, ApiError> {
+    let meta = glossary::meta(&state.db).await?;
+    let (fetched_at, attempted_at, last_error) = meta.unwrap_or((None, None, None));
+    let terms = glossary::load(&state.db)
+        .await?
+        .into_iter()
+        .map(|t| GlossaryTerm {
+            id: t.id,
+            sheet: t.sheet,
+            row: t.row_no,
+            en: t.en,
+            key: t.key,
+            qualifier: t.qualifier,
+            ru: t.ru,
+            ru_plural: t.ru_plural,
+            note: t.note,
+            synonyms: t.synonyms,
+            comment: t.comment,
+            cn: t.cn,
+            case_sensitive: t.case_sensitive,
+            from_sova: t.from_sova,
+            story_lines: t.story_lines,
+        })
+        .collect();
+    Ok(Glossary {
+        sheet_url: glossary::SHEET_URL.to_owned(),
+        fetched_at: fetched_at.map(|t| t.timestamp()),
+        attempted_at: attempted_at.map(|t| t.timestamp()),
+        last_error,
+        refreshing: glossary::refreshing(),
+        terms,
+    })
+}
+
+/// Download the glossary again from the team's sheet, in the background.
+/// Members only. On failure the stored copy stays and `lastError` says why.
+#[utoipa::path(
+    post,
+    path = "/translators/glossary/refresh",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "The stored glossary, with `refreshing` set while the download runs.", body = Glossary),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn refresh_glossary(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+) -> Result<Json<Glossary>, ApiError> {
+    require_member(&state, &auth).await?;
+    if !glossary::refreshing() {
+        let pool = state.db.clone();
+        let http = state.http_client.clone();
+        tokio::spawn(async move {
+            let _ = glossary::refresh(&pool, &http).await;
+        });
+        // Let the task mark itself as running before answering.
+        tokio::task::yield_now().await;
+    }
+    let mut body = glossary_body(&state).await?;
+    body.refreshing = true;
+    Ok(Json(body))
 }
 
 /// Start rebuilding the section's lines from the EN scripts, the ArknightsRU
@@ -181,6 +317,16 @@ async fn import_now(state: &AppState, sources: Sources) -> Result<(), ApiError> 
             .await
             .map_err(|e| ApiError::Internal(e.into()))??;
     import::store(&state.db, SERVER, started_at, &lines, &summary).await?;
+    // The glossary rides along: a failed download keeps the stored copy, and
+    // the counts are redone over the new lines either way.
+    if glossary::refresh(&state.db, &state.http_client)
+        .await
+        .is_err()
+    {
+        glossary::recount(&state.db)
+            .await
+            .map_err(ApiError::Internal)?;
+    }
     tracing::info!(
         lines = summary.lines,
         with_ru = summary.with_ru_game,

@@ -12805,6 +12805,76 @@
         }
       }
     },
+    "/api/translators/glossary": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The whole team glossary as last downloaded. Members only.",
+        "operationId": "glossary",
+        "responses": {
+          "200": {
+            "description": "Every stored term, with the copy's date and the last download error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Glossary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/glossary/refresh": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Download the glossary again from the team's sheet, in the background.\nMembers only. On failure the stored copy stays and `lastError` says why.",
+        "operationId": "refresh_glossary",
+        "responses": {
+          "200": {
+            "description": "The stored glossary, with `refreshing` set while the download runs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Glossary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/translators/import": {
       "get": {
         "tags": [
@@ -12911,7 +12981,7 @@
         "tags": [
           "translators"
         ],
-        "summary": "One story's lines: English, the Russian the game shows now, Chinese, and\nfor signed-in translators Sova's and the AI's texts.",
+        "summary": "One story's lines: English, the Russian the game shows now, Chinese,\nSova's and the AI's texts, and the glossary terms in each line. Members only.",
         "operationId": "story_lines",
         "parameters": [
           {
@@ -12935,6 +13005,12 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -12945,8 +13021,7 @@
         "security": [
           {
             "bearer_auth": []
-          },
-          {}
+          }
         ]
       }
     },
@@ -23140,6 +23215,141 @@
           }
         }
       },
+      "Glossary": {
+        "type": "object",
+        "description": "The whole stored glossary and its freshness.",
+        "required": [
+          "sheetUrl",
+          "refreshing",
+          "terms"
+        ],
+        "properties": {
+          "attemptedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last attempt, successful or not."
+          },
+          "fetchedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the stored copy's download, null when there is none."
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last attempt failed (the stored copy is older then)."
+          },
+          "refreshing": {
+            "type": "boolean",
+            "description": "A download is running now."
+          },
+          "sheetUrl": {
+            "type": "string",
+            "description": "The Google Sheet, to open and edit it."
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryTerm"
+            }
+          }
+        }
+      },
+      "GlossaryTerm": {
+        "type": "object",
+        "description": "One glossary entry for the Glossary tab.",
+        "required": [
+          "id",
+          "sheet",
+          "row",
+          "en",
+          "key",
+          "ru",
+          "caseSensitive",
+          "fromSova",
+          "storyLines"
+        ],
+        "properties": {
+          "caseSensitive": {
+            "type": "boolean"
+          },
+          "cn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "en": {
+            "type": "string",
+            "description": "The English cell as written."
+          },
+          "fromSova": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "key": {
+            "type": "string",
+            "description": "The English the site searches for."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "row": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based row in the sheet."
+          },
+          "ru": {
+            "type": "string"
+          },
+          "ruPlural": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "storyLines": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Story lines whose English holds the key."
+          },
+          "synonyms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "GrantRequest": {
         "type": "object",
         "required": [
@@ -24518,6 +24728,62 @@
           "non_production",
           "unmodeled"
         ]
+      },
+      "LineTerm": {
+        "type": "object",
+        "description": "A glossary term found in a line's English.",
+        "required": [
+          "termId",
+          "matched",
+          "sheet",
+          "ru",
+          "fromSova"
+        ],
+        "properties": {
+          "found": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the line's Russian holds the glossary form (by stem, ё = е); null when not checked."
+          },
+          "fromSova": {
+            "type": "boolean",
+            "description": "From the sheet copied from Sova's glossary: a variant, never marked as not found."
+          },
+          "matched": {
+            "type": "string",
+            "description": "The text as it stands in the English line."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ru": {
+            "type": "string"
+          },
+          "ruPlural": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "termId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "LmdIncomeDto": {
         "type": "object",
@@ -35142,7 +35408,8 @@
           "part",
           "kind",
           "speakerEn",
-          "en"
+          "en",
+          "terms"
         ],
         "properties": {
           "ai": {
@@ -35232,6 +35499,13 @@
               "string",
               "null"
             ]
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineTerm"
+            },
+            "description": "Glossary terms found in the English, in order."
           }
         }
       },

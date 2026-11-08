@@ -10,6 +10,7 @@
 
 pub mod db;
 pub mod dto;
+pub mod glossary;
 pub mod import;
 pub mod routes;
 
@@ -32,4 +33,6 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::story_lines))
         .routes(routes!(routes::run_import, routes::import_status))
         .routes(routes!(routes::dev_login))
+        .routes(routes!(routes::glossary))
+        .routes(routes!(routes::refresh_glossary))
 }
