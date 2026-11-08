@@ -81,6 +81,8 @@ export default function Header() {
             { href: "/tools", label: t("header.tools"), items: toolItems, sections: toolSections },
             { href: "/gacha", label: t("header.gacha"), items: gachaItems },
             { href: "/tier-lists", label: t("header.tierLists") },
+            // Fork: the translators' section.
+            { href: "/translators", label: t("header.translators") },
             { href: "/user", label: t("header.players"), items: playerItems },
         ];
     }, [t, user]);

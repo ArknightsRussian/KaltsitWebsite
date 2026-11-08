@@ -32,6 +32,10 @@ export const messages = {
         text: "Tier Lists",
         description: "Top-level nav link to the tier-list section, where operators are ranked into tiers.",
     },
+    "header.translators": {
+        text: "For translators",
+        description: "Top-level nav link to the section for the Russian translation team (fork: translators' section).",
+    },
     "header.players": {
         text: "Players",
         description: "Top-level nav menu for other people's profiles, search and the leaderboard.",

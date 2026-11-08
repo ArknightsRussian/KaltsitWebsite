@@ -29,6 +29,7 @@ import { Route as StatsRouteImport } from './routes/stats'
 import { Route as StoriesRouteImport } from './routes/stories'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TierListsRouteImport } from './routes/tier-lists'
+import { Route as TranslatorsRouteImport } from './routes/translators'
 import { Route as AuthedAdminRouteImport } from './routes/_authed/admin'
 import { Route as EnemiesIdRouteImport } from './routes/enemies_.$id'
 import { Route as GachaCommunityRouteImport } from './routes/gacha.community'
@@ -48,6 +49,7 @@ import { Route as ToolsRandomizerRouteImport } from './routes/tools.randomizer'
 import { Route as ToolsRecruitmentRouteImport } from './routes/tools.recruitment'
 import { Route as ToolsReleaseRouteImport } from './routes/tools.release'
 import { Route as ToolsSquadBuilderRouteImport } from './routes/tools.squad-builder'
+import { Route as TranslatorsDevLoginRouteImport } from './routes/translators_.dev-login'
 import { Route as UserIdRouteImport } from './routes/user.$id'
 import { Route as UserLeaderboardRouteImport } from './routes/user.leaderboard'
 import { Route as UserSearchRouteImport } from './routes/user.search'
@@ -171,6 +173,11 @@ const TierListsRoute = TierListsRouteImport.update({
   path: '/tier-lists',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TranslatorsRoute = TranslatorsRouteImport.update({
+  id: '/translators',
+  path: '/translators',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedAdminRoute = AuthedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -264,6 +271,11 @@ const ToolsReleaseRoute = ToolsReleaseRouteImport.update({
 const ToolsSquadBuilderRoute = ToolsSquadBuilderRouteImport.update({
   id: '/tools/squad-builder',
   path: '/tools/squad-builder',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TranslatorsDevLoginRoute = TranslatorsDevLoginRouteImport.update({
+  id: '/translators_/dev-login',
+  path: '/translators/dev-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UserIdRoute = UserIdRouteImport.update({
@@ -404,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/stories': typeof StoriesRoute
   '/terms': typeof TermsRoute
   '/tier-lists': typeof TierListsRoute
+  '/translators': typeof TranslatorsRoute
   '/admin': typeof AuthedAdminRouteWithChildren
   '/enemies/$id': typeof EnemiesIdRoute
   '/gacha/community': typeof GachaCommunityRoute
@@ -423,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/tools/recruitment': typeof ToolsRecruitmentRoute
   '/tools/release': typeof ToolsReleaseRoute
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
+  '/translators/dev-login': typeof TranslatorsDevLoginRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
   '/user/search': typeof UserSearchRoute
@@ -467,6 +481,7 @@ export interface FileRoutesByTo {
   '/stories': typeof StoriesRoute
   '/terms': typeof TermsRoute
   '/tier-lists': typeof TierListsRoute
+  '/translators': typeof TranslatorsRoute
   '/enemies/$id': typeof EnemiesIdRoute
   '/gacha/community': typeof GachaCommunityRoute
   '/gacha/history': typeof GachaHistoryRoute
@@ -485,6 +500,7 @@ export interface FileRoutesByTo {
   '/tools/recruitment': typeof ToolsRecruitmentRoute
   '/tools/release': typeof ToolsReleaseRoute
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
+  '/translators/dev-login': typeof TranslatorsDevLoginRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
   '/user/search': typeof UserSearchRoute
@@ -531,6 +547,7 @@ export interface FileRoutesById {
   '/stories': typeof StoriesRoute
   '/terms': typeof TermsRoute
   '/tier-lists': typeof TierListsRoute
+  '/translators': typeof TranslatorsRoute
   '/_authed/admin': typeof AuthedAdminRouteWithChildren
   '/enemies_/$id': typeof EnemiesIdRoute
   '/gacha/community': typeof GachaCommunityRoute
@@ -550,6 +567,7 @@ export interface FileRoutesById {
   '/tools/recruitment': typeof ToolsRecruitmentRoute
   '/tools/release': typeof ToolsReleaseRoute
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
+  '/translators_/dev-login': typeof TranslatorsDevLoginRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
   '/user/search': typeof UserSearchRoute
@@ -596,6 +614,7 @@ export interface FileRouteTypes {
     | '/stories'
     | '/terms'
     | '/tier-lists'
+    | '/translators'
     | '/admin'
     | '/enemies/$id'
     | '/gacha/community'
@@ -615,6 +634,7 @@ export interface FileRouteTypes {
     | '/tools/recruitment'
     | '/tools/release'
     | '/tools/squad-builder'
+    | '/translators/dev-login'
     | '/user/$id'
     | '/user/leaderboard'
     | '/user/search'
@@ -659,6 +679,7 @@ export interface FileRouteTypes {
     | '/stories'
     | '/terms'
     | '/tier-lists'
+    | '/translators'
     | '/enemies/$id'
     | '/gacha/community'
     | '/gacha/history'
@@ -677,6 +698,7 @@ export interface FileRouteTypes {
     | '/tools/recruitment'
     | '/tools/release'
     | '/tools/squad-builder'
+    | '/translators/dev-login'
     | '/user/$id'
     | '/user/leaderboard'
     | '/user/search'
@@ -722,6 +744,7 @@ export interface FileRouteTypes {
     | '/stories'
     | '/terms'
     | '/tier-lists'
+    | '/translators'
     | '/_authed/admin'
     | '/enemies_/$id'
     | '/gacha/community'
@@ -741,6 +764,7 @@ export interface FileRouteTypes {
     | '/tools/recruitment'
     | '/tools/release'
     | '/tools/squad-builder'
+    | '/translators_/dev-login'
     | '/user/$id'
     | '/user/leaderboard'
     | '/user/search'
@@ -787,6 +811,7 @@ export interface RootRouteChildren {
   StoriesRoute: typeof StoriesRoute
   TermsRoute: typeof TermsRoute
   TierListsRoute: typeof TierListsRoute
+  TranslatorsRoute: typeof TranslatorsRoute
   EnemiesIdRoute: typeof EnemiesIdRoute
   GachaCommunityRoute: typeof GachaCommunityRoute
   GachaHistoryRoute: typeof GachaHistoryRoute
@@ -805,6 +830,7 @@ export interface RootRouteChildren {
   ToolsRecruitmentRoute: typeof ToolsRecruitmentRoute
   ToolsReleaseRoute: typeof ToolsReleaseRoute
   ToolsSquadBuilderRoute: typeof ToolsSquadBuilderRoute
+  TranslatorsDevLoginRoute: typeof TranslatorsDevLoginRoute
   UserIdRoute: typeof UserIdRoute
   UserLeaderboardRoute: typeof UserLeaderboardRoute
   UserSearchRoute: typeof UserSearchRoute
@@ -957,6 +983,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TierListsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/translators': {
+      id: '/translators'
+      path: '/translators'
+      fullPath: '/translators'
+      preLoaderRoute: typeof TranslatorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authed/admin': {
       id: '/_authed/admin'
       path: '/admin'
@@ -1088,6 +1121,13 @@ declare module '@tanstack/react-router' {
       path: '/tools/squad-builder'
       fullPath: '/tools/squad-builder'
       preLoaderRoute: typeof ToolsSquadBuilderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/translators_/dev-login': {
+      id: '/translators_/dev-login'
+      path: '/translators/dev-login'
+      fullPath: '/translators/dev-login'
+      preLoaderRoute: typeof TranslatorsDevLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/user/$id': {
@@ -1326,6 +1366,7 @@ const rootRouteChildren: RootRouteChildren = {
   StoriesRoute: StoriesRoute,
   TermsRoute: TermsRoute,
   TierListsRoute: TierListsRoute,
+  TranslatorsRoute: TranslatorsRoute,
   EnemiesIdRoute: EnemiesIdRoute,
   GachaCommunityRoute: GachaCommunityRoute,
   GachaHistoryRoute: GachaHistoryRoute,
@@ -1344,6 +1385,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsRecruitmentRoute: ToolsRecruitmentRoute,
   ToolsReleaseRoute: ToolsReleaseRoute,
   ToolsSquadBuilderRoute: ToolsSquadBuilderRoute,
+  TranslatorsDevLoginRoute: TranslatorsDevLoginRoute,
   UserIdRoute: UserIdRoute,
   UserLeaderboardRoute: UserLeaderboardRoute,
   UserSearchRoute: UserSearchRoute,
