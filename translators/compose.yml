@@ -11,7 +11,8 @@ services:
         image: kaltsit-translators-backend:local
         build:
             context: ./backend
-            dockerfile: Dockerfile
+            # backend/Dockerfile with cargo on 4 jobs and a build cache.
+            dockerfile: ../translators/backend.Dockerfile
         environment:
             # Where the import reads its sources inside the container; the
             # override mounts the host folders here (read-only).
