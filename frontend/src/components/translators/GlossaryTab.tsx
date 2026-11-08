@@ -188,7 +188,6 @@ export function GlossaryTab(): React.ReactElement {
                                             {term.qualifier ? <span className="text-muted-foreground"> ({term.qualifier})</span> : null}
                                         </span>
                                         {term.en !== term.key && term.en !== `${term.key} (${term.qualifier})` ? <span className="text-subtle-foreground text-xs">{term.en}</span> : null}
-                                        {term.caseSensitive ? <span className="text-subtle-foreground text-xs">{t("glossary.caseSensitive")}</span> : null}
                                     </span>
                                 </TableCell>
                                 <TableCell className={PROSE}>

@@ -94,6 +94,10 @@ export const messages = {
         text: "Sova and the AI under the Russian.",
         description: "Second line under the Show variants switch.",
     },
+    "book.back": {
+        text: "Back to the section",
+        description: "Button above the book view opened from the translators' section: returns to the same chapter and story.",
+    },
     "book.open": {
         text: "Book view",
         description: "Link that opens the chosen story in the site's book view.",
@@ -262,10 +266,6 @@ export const messages = {
     "glossary.plural": {
         text: "pl. {form}",
         description: "The Russian plural of a race or similar term; form is the plural.",
-    },
-    "glossary.caseSensitive": {
-        text: "Capitalised only",
-        description: "Mark on a term that is found in the English only as capitalised (names, classes, races).",
     },
     "glossary.summary": {
         text: "{shown, plural, one {# term} other {# terms}} of {total}",

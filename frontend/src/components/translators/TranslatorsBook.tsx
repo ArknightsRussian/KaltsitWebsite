@@ -48,12 +48,11 @@ function Book({ script, group, back }: { script: StoryScript; group: BookGroup; 
 
 function Loaded({ groupId, storyId }: { groupId: string; storyId: string }): React.ReactElement {
     const t: TypedT<typeof messages> = useT("translators");
-    const te: TypedT<typeof exportMessages> = useT("story");
     const index = useQuery(storyIndexQueryOptions(SERVER));
     const script = useQuery(storyQueryOptions(storyId, SERVER));
     const back = (
         <Button variant="ghost" size="sm" className="max-sm:h-11" render={<Link to="/translators" search={{ group: groupId, story: storyId }} />}>
-            {te("export.book.back")}
+            {t("book.back")}
         </Button>
     );
     if (index.isError || script.isError) {

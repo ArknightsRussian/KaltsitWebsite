@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-08T21:22:50.232Z",
+    "generatedAt": "2026-11-08T21:43:20.230Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -53987,6 +53987,13 @@
             "placeholders": []
         },
         {
+            "key": "translators.book.back",
+            "namespace": "translators",
+            "source_text": "Back to the section",
+            "description": "Button above the book view opened from the translators' section: returns to the same chapter and story.",
+            "placeholders": []
+        },
+        {
             "key": "translators.book.open",
             "namespace": "translators",
             "source_text": "Book view",
@@ -54103,13 +54110,6 @@
             "namespace": "translators",
             "source_text": "The story text has not been imported yet.",
             "description": "Shown when the section's database is empty.",
-            "placeholders": []
-        },
-        {
-            "key": "translators.glossary.caseSensitive",
-            "namespace": "translators",
-            "source_text": "Capitalised only",
-            "description": "Mark on a term that is found in the English only as capitalised (names, classes, races).",
             "placeholders": []
         },
         {
