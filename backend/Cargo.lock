@@ -760,6 +760,7 @@ dependencies = [
  "dashmap",
  "dialoguer",
  "dotenv",
+ "flate2",
  "futures-util",
  "hex",
  "hmac 0.12.1",

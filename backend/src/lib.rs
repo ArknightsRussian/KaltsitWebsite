@@ -45,5 +45,7 @@ pub mod core;
 pub mod database;
 pub mod db_export;
 pub mod dps;
+// Fork: the translators' section, kept in its own module (see translators/mod.rs).
+pub mod translators;
 pub mod user_export;
 pub mod utils;

@@ -12778,6 +12778,178 @@
         ]
       }
     },
+    "/api/translators/dev-login": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Development only: sign in as a local translator account without a game\naccount. Answers 404 unless `TRANSLATORS_DEV_LOGIN=1` is set for the\nbackend process.",
+        "operationId": "dev_login",
+        "responses": {
+          "200": {
+            "description": "A site token for the development translator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/translators/import": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Whether an import is running, the last error, and the last finished import's summary.",
+        "operationId": "import_status",
+        "responses": {
+          "200": {
+            "description": "The import's state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "service_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Start rebuilding the section's lines from the EN scripts, the ArknightsRU\ndictionaries and arktr, in the background (it outlasts the request\ntimeout). Internal service key only; re-runnable. Poll `GET` for the result.",
+        "operationId": "run_import",
+        "responses": {
+          "200": {
+            "description": "The import's state right after the request: running, with the previous result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "service_key": []
+          }
+        ]
+      }
+    },
+    "/api/translators/me": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Whether the caller is a signed-in translator, and whether the development sign-in is on.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "The caller's standing in the section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslatorsMe"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/translators/stories/{story_id}/lines": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "One story's lines: English, the Russian the game shows now, Chinese, and\nfor signed-in translators Sova's and the AI's texts.",
+        "operationId": "story_lines",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "description": "The story id, as in `/story/{id}`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The story's lines in file order; empty when nothing was imported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslatorStoryLines"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {}
+        ]
+      }
+    },
     "/api/upcoming": {
       "get": {
         "tags": [
@@ -23705,6 +23877,38 @@
           "w": {
             "type": "number",
             "format": "float"
+          }
+        }
+      },
+      "ImportStatus": {
+        "type": "object",
+        "description": "The import's state (service key only; not used by the page).",
+        "required": [
+          "running",
+          "last"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last run failed, while this process remembers it."
+          },
+          "last": {
+            "type": "object",
+            "description": "The last finished import's summary (`ImportSummary`)."
+          },
+          "lastFinishedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last finished import."
+          },
+          "running": {
+            "type": "boolean"
           }
         }
       },
@@ -34927,6 +35131,157 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "TranslatorLine": {
+        "type": "object",
+        "description": "One displayed text of a story with its Russian and the hints.",
+        "required": [
+          "line",
+          "part",
+          "kind",
+          "speakerEn",
+          "en"
+        ],
+        "properties": {
+          "ai": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The AI's translation: signed-in translators only."
+          },
+          "cn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "en": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`dialog`, `narration`, `subtitle`, `sticker` or `option`."
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based line in the EN script.",
+            "minimum": 0
+          },
+          "part": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The option number of a decision (1-based), else 0."
+          },
+          "pluginRole": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`story` when the text is in the plugin's catalog, `ambiguous:story` when the plugin leaves it in English."
+          },
+          "ruDict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The dictionary's value when the plugin's differs."
+          },
+          "ruGame": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Russian the game shows now."
+          },
+          "ruGameMatch": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`exact`, `normalized`, `lines` or `plugin`."
+          },
+          "ruGameSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`plugin:story` or the dictionary file it came from."
+          },
+          "sova": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sova's translation: signed-in translators only."
+          },
+          "speakerCn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "speakerEn": {
+            "type": "string"
+          },
+          "speakerRu": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TranslatorStoryLines": {
+        "type": "object",
+        "description": "One story's lines.",
+        "required": [
+          "storyId",
+          "hints",
+          "lines"
+        ],
+        "properties": {
+          "hints": {
+            "type": "boolean",
+            "description": "The lines carry Sova's and the AI's texts."
+          },
+          "importedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last import, null when nothing was imported yet."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslatorLine"
+            }
+          },
+          "storyId": {
+            "type": "string"
+          }
+        }
+      },
+      "TranslatorsMe": {
+        "type": "object",
+        "description": "What the page needs to know about the caller.",
+        "required": [
+          "member",
+          "devLogin"
+        ],
+        "properties": {
+          "devLogin": {
+            "type": "boolean",
+            "description": "The development sign-in is switched on for this backend."
+          },
+          "member": {
+            "type": "boolean",
+            "description": "A signed-in translator: sees Sova's and the AI's texts."
           }
         }
       },

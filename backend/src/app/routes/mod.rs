@@ -448,4 +448,6 @@ pub fn router() -> OpenApiRouter<AppState> {
         .merge(squads::router())
         .merge(music::router())
         .merge(i18n::router())
+        // Fork: the translators' section.
+        .merge(crate::translators::router())
 }
