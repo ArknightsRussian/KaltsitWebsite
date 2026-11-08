@@ -1,8 +1,12 @@
 /**
- * THE TRANSLATORS' READER (`/translators`): pick a chapter and a story, read
- * its lines as English | Russian as the game shows it now | Chinese. Read only.
- * The chapter list is the story library's own index; the lines come from the
- * section's import (`/api/translators`).
+ * THE TRANSLATORS' SECTION (`/translators`), for members of the team only
+ * (`translators.members`); anyone else sees "No access" and no data.
+ *
+ * Story tab: pick a chapter and a story, read its lines as Russian as the game
+ * shows it now | English | Chinese, with the glossary's terms and Sova's and
+ * the AI's variants. Glossary tab: the team's whole glossary. The chapter list
+ * is the story library's own index; the lines come from the section's import
+ * (`/api/translators`).
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -11,7 +15,7 @@ import type React from "react";
 import { useId, useMemo } from "react";
 import { Button } from "#/components/ui/button";
 import { Combobox, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopup } from "#/components/ui/combobox";
-import { Empty, EmptyHeader, EmptyTitle } from "#/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "#/components/ui/empty";
 import { Label } from "#/components/ui/label";
 import { LoadFailed } from "#/components/ui/load-failed";
 import { PageHeader } from "#/components/ui/page-header";
@@ -19,22 +23,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#
 import { Skeleton } from "#/components/ui/skeleton";
 import { Switch } from "#/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "#/components/ui/tabs";
-import { storyIndexQueryOptions } from "#/lib/api/story";
+import { storyIndexQueryOptions, storyQueryOptions } from "#/lib/api/story";
 import { useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { storyLabel } from "#/lib/story/book/book";
 import { resolveNickname, useStorySettings } from "#/lib/story/settings";
 import { translatorLinesQueryOptions, translatorsMeQueryOptions } from "#/lib/translators/api";
 import type { StoryGroup } from "#/types/generated/StoryGroup";
+import { GlossaryTab } from "./GlossaryTab";
 import { LinesTable } from "./LinesTable";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
 
+export type TranslatorsTab = "story" | "glossary";
+
 export interface ITranslatorsSearch {
+    tab?: TranslatorsTab;
     group?: string;
     story?: string;
     cn?: boolean;
+    /** Script line numbers and stage commands between the lines. */
+    service?: boolean;
+    /** Only `false` is kept: the variants show by default. */
+    variants?: false;
 }
 
 interface IGroupItem {
@@ -48,8 +60,19 @@ function groupLabel(g: StoryGroup): string {
     return g.category === "main" && first ? `${first}: ${g.name}` : g.name;
 }
 
-function Lines({ storyId, title, showCn, t }: { storyId: string; title: string; showCn: boolean; t: T }): React.ReactElement {
+interface ILinesProps {
+    storyId: string;
+    title: string;
+    showCn: boolean;
+    showService: boolean;
+    showVariants: boolean;
+    t: T;
+}
+
+function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesProps): React.ReactElement {
     const query = useQuery(translatorLinesQueryOptions(storyId));
+    // The stage commands come from the site's own parse of the EN script.
+    const script = useQuery({ ...storyQueryOptions(storyId, "en"), enabled: showService });
     const [settings] = useStorySettings();
     const nickname = resolveNickname(settings.nickname);
     if (query.isError) return <LoadFailed message={t("load.lines")} onRetry={() => query.refetch()} />;
@@ -75,16 +98,32 @@ function Lines({ storyId, title, showCn, t }: { storyId: string; title: string; 
     return (
         <div className="flex flex-col gap-2">
             <p className="text-subtle-foreground text-xs">{t("table.summary", { count: lines.length, ru: withRu })}</p>
-            <LinesTable lines={lines} label={t("table.label", { story: title })} showCn={showCn} nickname={nickname} />
+            <LinesTable lines={lines} label={t("table.label", { story: title })} showCn={showCn} showVariants={showVariants} commands={showService ? (script.data?.commands ?? null) : null} nickname={nickname} />
         </div>
     );
 }
 
-export function TranslatorsPage({ search, onSearch }: { search: ITranslatorsSearch; onSearch: (next: ITranslatorsSearch) => void }): React.ReactElement {
+interface ISearchProps {
+    search: ITranslatorsSearch;
+    onSearch: (next: ITranslatorsSearch) => void;
+}
+
+function Toggle({ id, checked, onChange, label, hint }: { id: string; checked: boolean; onChange: (checked: boolean) => void; label: string; hint: string }): React.ReactElement {
+    return (
+        <label htmlFor={id} className="flex items-center gap-3">
+            <Switch id={id} checked={checked} onCheckedChange={onChange} />
+            <span className="flex flex-col gap-0.5">
+                <span className="font-medium text-sm">{label}</span>
+                <span className="text-muted-foreground text-xs">{hint}</span>
+            </span>
+        </label>
+    );
+}
+
+function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
     const t: T = useT("translators");
-    const ids = { chapter: useId(), story: useId(), cn: useId() };
+    const ids = { chapter: useId(), story: useId(), cn: useId(), service: useId(), variants: useId() };
     const index = useQuery(storyIndexQueryOptions("en"));
-    const me = useQuery(translatorsMeQueryOptions());
 
     const groups = index.data?.groups ?? [];
     const items: IGroupItem[] = useMemo(() => groups.map((g) => ({ id: g.id, label: groupLabel(g), kind: g.category })), [groups]);
@@ -93,97 +132,128 @@ export function TranslatorsPage({ search, onSearch }: { search: ITranslatorsSear
     const stories = useMemo(() => (group ? [...group.stories].sort((a, b) => a.sort - b.sort) : []), [group]);
     const story = stories.find((s) => s.id === search.story) ?? null;
     const showCn = search.cn === true;
+    const showService = search.service === true;
+    const showVariants = search.variants !== false;
 
     return (
-        <div className="page-shell flex flex-col gap-6">
-            <PageHeader
-                title={t("page.title")}
-                description={t("page.description")}
-                actions={
-                    me.data?.devLogin && !me.data.member ? (
-                        <Button variant="outline" size="sm" render={<Link to="/translators/dev-login" />}>
-                            {t("devLogin.link")}
+        <>
+            {index.isError ? (
+                <LoadFailed message={t("load.index")} onRetry={() => index.refetch()} />
+            ) : (
+                <div className="flex flex-wrap items-end gap-4">
+                    <div className="flex w-full flex-col gap-1.5 sm:w-80">
+                        <Label htmlFor={ids.chapter}>{t("picker.chapter")}</Label>
+                        <Combobox<IGroupItem, false> items={items} value={groupItem} onValueChange={(v) => v && onSearch({ ...search, group: v.id, story: undefined })} itemToStringLabel={(i) => i.label} itemToStringValue={(i) => i.id}>
+                            <ComboboxInput id={ids.chapter} placeholder={t("picker.chapterPlaceholder", { count: items.length })} disabled={!index.data} />
+                            <ComboboxPopup>
+                                <ComboboxEmpty>{t("picker.chapterEmpty")}</ComboboxEmpty>
+                                <ComboboxList>
+                                    {(item: IGroupItem) => (
+                                        <ComboboxItem key={item.id} value={item}>
+                                            <span className="flex min-w-0 flex-col">
+                                                <span className="truncate">{item.label}</span>
+                                                <span className="text-subtle-foreground text-xs">{t(`category.${item.kind}` as "category.main")}</span>
+                                            </span>
+                                        </ComboboxItem>
+                                    )}
+                                </ComboboxList>
+                            </ComboboxPopup>
+                        </Combobox>
+                    </div>
+
+                    <div className="flex w-full flex-col gap-1.5 sm:w-80">
+                        <Label htmlFor={ids.story}>{t("picker.story")}</Label>
+                        <Select value={story?.id ?? null} onValueChange={(v: string | null) => v && onSearch({ ...search, story: v })} disabled={!group}>
+                            <SelectTrigger id={ids.story}>
+                                <SelectValue placeholder={t("picker.storyPlaceholder")}>{() => (story ? storyLabel(story) : t("picker.storyPlaceholder"))}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {stories.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                        {storyLabel(s)}
+                                        {s.avgTag ? <span className="text-subtle-foreground"> · {s.avgTag}</span> : null}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <Toggle id={ids.variants} checked={showVariants} onChange={(checked) => onSearch({ ...search, variants: checked ? undefined : false })} label={t("toggle.variants")} hint={t("toggle.variantsHint")} />
+                    <Toggle id={ids.cn} checked={showCn} onChange={(checked) => onSearch({ ...search, cn: checked || undefined })} label={t("toggle.cn")} hint={t("toggle.cnHint")} />
+                    <Toggle id={ids.service} checked={showService} onChange={(checked) => onSearch({ ...search, service: checked || undefined })} label={t("toggle.service")} hint={t("toggle.serviceHint")} />
+
+                    {story && group ? (
+                        <Button variant="ghost" size="sm" render={<Link to="/translators/book" search={{ group: group.id, story: story.id }} />}>
+                            <BookOpen />
+                            {t("book.open")}
                         </Button>
-                    ) : null
-                }
-            />
+                    ) : null}
+                </div>
+            )}
 
-            <Tabs value="story">
-                <TabsList aria-label={t("tabs.label")}>
-                    <TabsTab value="story">{t("tabs.story")}</TabsTab>
-                </TabsList>
-                <TabsPanel value="story" className="flex flex-col gap-6 pt-4">
-                    {index.isError ? (
-                        <LoadFailed message={t("load.index")} onRetry={() => index.refetch()} />
-                    ) : (
-                        <div className="flex flex-wrap items-end gap-4">
-                            <div className="flex w-full flex-col gap-1.5 sm:w-80">
-                                <Label htmlFor={ids.chapter}>{t("picker.chapter")}</Label>
-                                <Combobox<IGroupItem, false> items={items} value={groupItem} onValueChange={(v) => v && onSearch({ ...search, group: v.id, story: undefined })} itemToStringLabel={(i) => i.label} itemToStringValue={(i) => i.id}>
-                                    <ComboboxInput id={ids.chapter} placeholder={t("picker.chapterPlaceholder", { count: items.length })} disabled={!index.data} />
-                                    <ComboboxPopup>
-                                        <ComboboxEmpty>{t("picker.chapterEmpty")}</ComboboxEmpty>
-                                        <ComboboxList>
-                                            {(item: IGroupItem) => (
-                                                <ComboboxItem key={item.id} value={item}>
-                                                    <span className="flex min-w-0 flex-col">
-                                                        <span className="truncate">{item.label}</span>
-                                                        <span className="text-subtle-foreground text-xs">{t(`category.${item.kind}` as "category.main")}</span>
-                                                    </span>
-                                                </ComboboxItem>
-                                            )}
-                                        </ComboboxList>
-                                    </ComboboxPopup>
-                                </Combobox>
-                            </div>
+            {story ? (
+                <Lines storyId={story.id} title={storyLabel(story)} showCn={showCn} showService={showService} showVariants={showVariants} t={t} />
+            ) : (
+                <Empty>
+                    <EmptyHeader>
+                        <EmptyTitle>{t("empty.choose")}</EmptyTitle>
+                    </EmptyHeader>
+                </Empty>
+            )}
+        </>
+    );
+}
 
-                            <div className="flex w-full flex-col gap-1.5 sm:w-80">
-                                <Label htmlFor={ids.story}>{t("picker.story")}</Label>
-                                <Select value={story?.id ?? null} onValueChange={(v: string | null) => v && onSearch({ ...search, story: v })} disabled={!group}>
-                                    <SelectTrigger id={ids.story}>
-                                        <SelectValue placeholder={t("picker.storyPlaceholder")}>{() => (story ? storyLabel(story) : t("picker.storyPlaceholder"))}</SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {stories.map((s) => (
-                                            <SelectItem key={s.id} value={s.id}>
-                                                {storyLabel(s)}
-                                                {s.avgTag ? <span className="text-subtle-foreground"> · {s.avgTag}</span> : null}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+/** "No access" for anyone outside the team, with the development sign-in when it is switched on. */
+export function NoAccess({ devLogin }: { devLogin: boolean }): React.ReactElement {
+    const t: T = useT("translators");
+    return (
+        <Empty>
+            <EmptyHeader>
+                <EmptyTitle>{t("access.title")}</EmptyTitle>
+                <EmptyDescription>{t("access.description")}</EmptyDescription>
+            </EmptyHeader>
+            {devLogin ? (
+                <EmptyContent>
+                    <Button variant="outline" size="sm" render={<Link to="/translators/dev-login" />}>
+                        {t("devLogin.link")}
+                    </Button>
+                </EmptyContent>
+            ) : null}
+        </Empty>
+    );
+}
 
-                            <label htmlFor={ids.cn} className="flex items-center gap-3">
-                                <Switch id={ids.cn} checked={showCn} onCheckedChange={(checked: boolean) => onSearch({ ...search, cn: checked || undefined })} />
-                                <span className="flex flex-col gap-0.5">
-                                    <span className="font-medium text-sm">{t("toggle.cn")}</span>
-                                    <span className="text-muted-foreground text-xs">{t("toggle.cnHint")}</span>
-                                </span>
-                            </label>
+/** Renders `children` for a member of the section only: a skeleton while checking, else "No access". */
+export function MembersOnly({ children }: { children: React.ReactNode }): React.ReactElement {
+    const t: T = useT("translators");
+    const me = useQuery(translatorsMeQueryOptions());
+    if (me.isError) return <LoadFailed message={t("load.access")} onRetry={() => me.refetch()} />;
+    if (!me.data) return <Skeleton className="h-64 w-full rounded-2xl" />;
+    if (!me.data.member) return <NoAccess devLogin={me.data.devLogin} />;
+    return <>{children}</>;
+}
 
-                            {story ? (
-                                <Button variant="ghost" size="sm" render={<Link to="/stories/$storyId" params={{ storyId: story.id }} search={{ view: "book" }} />}>
-                                    <BookOpen />
-                                    {t("book.open")}
-                                </Button>
-                            ) : null}
-                        </div>
-                    )}
-
-                    {me.data && !me.data.member ? <p className="text-muted-foreground text-sm">{t("hints.signedOut")}</p> : null}
-
-                    {story ? (
-                        <Lines storyId={story.id} title={storyLabel(story)} showCn={showCn} t={t} />
-                    ) : (
-                        <Empty>
-                            <EmptyHeader>
-                                <EmptyTitle>{t("empty.choose")}</EmptyTitle>
-                            </EmptyHeader>
-                        </Empty>
-                    )}
-                </TabsPanel>
-            </Tabs>
+export function TranslatorsPage({ search, onSearch }: ISearchProps): React.ReactElement {
+    const t: T = useT("translators");
+    const tab: TranslatorsTab = search.tab ?? "story";
+    return (
+        <div className="page-shell flex flex-col gap-6">
+            <PageHeader title={t("page.title")} description={t("page.description")} />
+            <MembersOnly>
+                <Tabs value={tab} onValueChange={(v: string) => onSearch({ ...search, tab: v === "story" ? undefined : (v as TranslatorsTab) })}>
+                    <TabsList aria-label={t("tabs.label")}>
+                        <TabsTab value="story">{t("tabs.story")}</TabsTab>
+                        <TabsTab value="glossary">{t("tabs.glossary")}</TabsTab>
+                    </TabsList>
+                    <TabsPanel value="story" className="flex flex-col gap-6 pt-4">
+                        <StoryTab search={search} onSearch={onSearch} />
+                    </TabsPanel>
+                    <TabsPanel value="glossary" className="flex flex-col gap-6 pt-4">
+                        <GlossaryTab />
+                    </TabsPanel>
+                </Tabs>
+            </MembersOnly>
         </div>
     );
 }

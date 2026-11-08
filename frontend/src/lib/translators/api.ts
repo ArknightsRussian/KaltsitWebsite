@@ -1,8 +1,8 @@
 /**
  * The translators' section (`/translators`): its backend calls, under
  * `/api/translators`. Every call goes through a server function so the
- * http-only `site_token` reaches the backend: Sova's and the AI's texts are
- * only answered to a signed-in translator.
+ * http-only `site_token` reaches the backend: the section's data is only
+ * answered to a member (`translators.members`).
  */
 import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
@@ -11,6 +11,7 @@ import { env } from "#/env";
 import { parseError } from "#/lib/api/_shared";
 import { optionalSiteToken } from "#/lib/api/_shared.server";
 import { backendFetch } from "#/lib/fetch";
+import type { Glossary } from "#/types/generated/Glossary";
 import type { LoginResponse } from "#/types/generated/LoginResponse";
 import type { TranslatorStoryLines } from "#/types/generated/TranslatorStoryLines";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
@@ -39,6 +40,29 @@ export const getTranslatorLinesFn = createServerFn({ method: "GET" })
 export function translatorLinesQueryOptions(storyId: string) {
     return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "lines", storyId], queryFn: () => getTranslatorLinesFn({ data: { storyId } }), staleTime: 5 * 60_000 });
 }
+
+export const getGlossaryFn = createServerFn({ method: "GET" }).handler(async (): Promise<Glossary> => {
+    const res = await backendFetch("/translators/glossary", { bearerToken: optionalSiteToken() });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as Glossary;
+});
+
+/** The stored glossary; polled every 2 s while a download runs. */
+export function glossaryQueryOptions() {
+    return queryOptions({
+        queryKey: [...TRANSLATORS_QUERY_ROOT, "glossary"],
+        queryFn: () => getGlossaryFn(),
+        staleTime: 5 * 60_000,
+        refetchInterval: (query) => (query.state.data?.refreshing ? 2_000 : false),
+    });
+}
+
+/** Download the glossary again from the team's sheet (in the background); answers the stored copy with `refreshing` set. */
+export const refreshGlossaryFn = createServerFn({ method: "POST" }).handler(async (): Promise<Glossary> => {
+    const res = await backendFetch("/translators/glossary/refresh", { method: "POST", bearerToken: optionalSiteToken() });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as Glossary;
+});
 
 // The same cookies the site's own sign-in sets (`lib/auth/server.ts`), so the
 // rest of the site sees the development translator as signed in.

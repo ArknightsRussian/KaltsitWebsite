@@ -49,6 +49,7 @@ import { Route as ToolsRandomizerRouteImport } from './routes/tools.randomizer'
 import { Route as ToolsRecruitmentRouteImport } from './routes/tools.recruitment'
 import { Route as ToolsReleaseRouteImport } from './routes/tools.release'
 import { Route as ToolsSquadBuilderRouteImport } from './routes/tools.squad-builder'
+import { Route as TranslatorsBookRouteImport } from './routes/translators_.book'
 import { Route as TranslatorsDevLoginRouteImport } from './routes/translators_.dev-login'
 import { Route as UserIdRouteImport } from './routes/user.$id'
 import { Route as UserLeaderboardRouteImport } from './routes/user.leaderboard'
@@ -273,6 +274,11 @@ const ToolsSquadBuilderRoute = ToolsSquadBuilderRouteImport.update({
   path: '/tools/squad-builder',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TranslatorsBookRoute = TranslatorsBookRouteImport.update({
+  id: '/translators_/book',
+  path: '/translators/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TranslatorsDevLoginRoute = TranslatorsDevLoginRouteImport.update({
   id: '/translators_/dev-login',
   path: '/translators/dev-login',
@@ -436,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/tools/recruitment': typeof ToolsRecruitmentRoute
   '/tools/release': typeof ToolsReleaseRoute
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
+  '/translators/book': typeof TranslatorsBookRoute
   '/translators/dev-login': typeof TranslatorsDevLoginRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
@@ -500,6 +507,7 @@ export interface FileRoutesByTo {
   '/tools/recruitment': typeof ToolsRecruitmentRoute
   '/tools/release': typeof ToolsReleaseRoute
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
+  '/translators/book': typeof TranslatorsBookRoute
   '/translators/dev-login': typeof TranslatorsDevLoginRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
@@ -567,6 +575,7 @@ export interface FileRoutesById {
   '/tools/recruitment': typeof ToolsRecruitmentRoute
   '/tools/release': typeof ToolsReleaseRoute
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
+  '/translators_/book': typeof TranslatorsBookRoute
   '/translators_/dev-login': typeof TranslatorsDevLoginRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
@@ -634,6 +643,7 @@ export interface FileRouteTypes {
     | '/tools/recruitment'
     | '/tools/release'
     | '/tools/squad-builder'
+    | '/translators/book'
     | '/translators/dev-login'
     | '/user/$id'
     | '/user/leaderboard'
@@ -698,6 +708,7 @@ export interface FileRouteTypes {
     | '/tools/recruitment'
     | '/tools/release'
     | '/tools/squad-builder'
+    | '/translators/book'
     | '/translators/dev-login'
     | '/user/$id'
     | '/user/leaderboard'
@@ -764,6 +775,7 @@ export interface FileRouteTypes {
     | '/tools/recruitment'
     | '/tools/release'
     | '/tools/squad-builder'
+    | '/translators_/book'
     | '/translators_/dev-login'
     | '/user/$id'
     | '/user/leaderboard'
@@ -830,6 +842,7 @@ export interface RootRouteChildren {
   ToolsRecruitmentRoute: typeof ToolsRecruitmentRoute
   ToolsReleaseRoute: typeof ToolsReleaseRoute
   ToolsSquadBuilderRoute: typeof ToolsSquadBuilderRoute
+  TranslatorsBookRoute: typeof TranslatorsBookRoute
   TranslatorsDevLoginRoute: typeof TranslatorsDevLoginRoute
   UserIdRoute: typeof UserIdRoute
   UserLeaderboardRoute: typeof UserLeaderboardRoute
@@ -1123,6 +1136,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsSquadBuilderRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/translators_/book': {
+      id: '/translators_/book'
+      path: '/translators/book'
+      fullPath: '/translators/book'
+      preLoaderRoute: typeof TranslatorsBookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/translators_/dev-login': {
       id: '/translators_/dev-login'
       path: '/translators/dev-login'
@@ -1385,6 +1405,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsRecruitmentRoute: ToolsRecruitmentRoute,
   ToolsReleaseRoute: ToolsReleaseRoute,
   ToolsSquadBuilderRoute: ToolsSquadBuilderRoute,
+  TranslatorsBookRoute: TranslatorsBookRoute,
   TranslatorsDevLoginRoute: TranslatorsDevLoginRoute,
   UserIdRoute: UserIdRoute,
   UserLeaderboardRoute: UserLeaderboardRoute,

@@ -10,9 +10,13 @@ export const Route = createFileRoute("/translators")({
     errorComponent: RouteError,
     validateSearch: (search: Record<string, unknown>): ITranslatorsSearch => {
         const out: ITranslatorsSearch = {};
+        const on = (v: unknown) => v === true || v === 1 || v === "1" || v === "true";
+        if (search.tab === "glossary") out.tab = "glossary";
         if (typeof search.group === "string" && search.group) out.group = search.group;
         if (typeof search.story === "string" && search.story) out.story = search.story;
-        if (search.cn === true || search.cn === 1 || search.cn === "1" || search.cn === "true") out.cn = true;
+        if (on(search.cn)) out.cn = true;
+        if (on(search.service)) out.service = true;
+        if (search.variants === false || search.variants === 0 || search.variants === "0" || search.variants === "false") out.variants = false;
         return out;
     },
     head: ({ match }) => {
