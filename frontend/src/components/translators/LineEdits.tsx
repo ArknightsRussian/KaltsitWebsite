@@ -108,9 +108,10 @@ function commentsAt(edits: KeyEdits | undefined, place: EditPlace): EditComment[
     return (edits?.comments ?? []).filter((c) => c.variant !== "proposal" || c.proposalId === null || !all.has(c.proposalId) || shown.has(c.proposalId));
 }
 
-/** The quoted fragments of the comments at a place, to highlight. */
+/** The quoted fragments of the open remarks and the notes at a place, to highlight (a resolved remark no longer is). */
 export function quotesAt(edits: KeyEdits | undefined, place: EditPlace): string[] {
     return commentsAt(edits, place)
+        .filter((c) => c.kind === "note" || !c.resolvedBy)
         .map((c) => c.quote)
         .filter((q): q is string => Boolean(q));
 }

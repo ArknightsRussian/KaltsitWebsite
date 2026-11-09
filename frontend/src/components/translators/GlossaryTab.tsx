@@ -114,7 +114,7 @@ function GameVariants({ term, t }: { term: GlossaryTerm; t: T }): React.ReactEle
     return (
         <ul className="flex flex-col gap-0.5 text-xs">
             {term.gameVariants.map((v) => (
-                <li key={v.ru} className="flex items-center gap-1">
+                <li key={v.ru} className="flex items-center gap-1 whitespace-nowrap">
                     <span className={v.glossary ? "font-medium" : undefined}>{v.ru}</span>
                     <span className="text-subtle-foreground tabular-nums">{f.number(v.lines)}</span>
                     {v.glossary ? (
@@ -338,7 +338,7 @@ export function GlossaryTab(): React.ReactElement {
                                     <TableCell className="py-1.5 text-right align-top tabular-nums">
                                         {!own ? shared : share === null ? <span className="text-subtle-foreground">—</span> : <span title={t("glossary.consistencyHint", { found: term.foundLines, checked: term.checkedLines })}>{f.percent(share)}</span>}
                                     </TableCell>
-                                    <TableCell className={PROSE}>{term.cn ? <span>{term.cn}</span> : term.cnGame ? <span title={t("glossary.cnFromGame")}>{term.cnGame}</span> : <span className="text-subtle-foreground">—</span>}</TableCell>
+                                    <TableCell className={`${PROSE} whitespace-nowrap`}>{term.cn ? <span>{term.cn}</span> : term.cnGame ? <span title={t("glossary.cnFromGame")}>{term.cnGame}</span> : <span className="text-subtle-foreground">—</span>}</TableCell>
                                     <TableCell className={PROSE}>
                                         <span className="flex flex-col items-start gap-0.5 text-xs">
                                             {term.fromSova ? (
@@ -350,12 +350,12 @@ export function GlossaryTab(): React.ReactElement {
                                             )}
                                         </span>
                                     </TableCell>
-                                    <TableCell className={PROSE}>
+                                    <TableCell className={`${PROSE} max-w-64`}>
                                         <Notes term={term} />
                                     </TableCell>
                                     <TableCell className="py-1.5 text-right align-top text-muted-foreground tabular-nums">{own ? f.number(term.storyLines) : shared}</TableCell>
                                     <TableCell className="py-1 align-top">
-                                        {term.storyLines > 0 ? (
+                                        {own && term.storyLines > 0 ? (
                                             <Dialog>
                                                 <DialogTrigger render={<Button variant="ghost" size="xs" />}>
                                                     <List aria-hidden="true" />

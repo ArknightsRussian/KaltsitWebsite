@@ -23,7 +23,7 @@ import type { OutdatedEdit } from "#/types/generated/OutdatedEdit";
 import type { StoryCommand } from "#/types/generated/StoryCommand";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
-import { ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, quotesAt, StatusDot, TONE, Toned, VariantNotes } from "./LineEdits";
+import { ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
 import { StoryText } from "./StoryText";
 import { DISPLAYED_KINDS, describeCommands } from "./service";
 import type { messages } from "./translators.messages";
@@ -110,6 +110,17 @@ function Terms({ terms, t }: { terms: readonly LineTerm[]; t: T }): React.ReactE
     );
 }
 
+/** Sova's or the AI's variant on one line: label, text, and "Propose this" right after it. */
+function InlineVariant({ tone, label, text, nickname, action }: { tone: string; label: string; text: string; nickname: string; action?: React.ReactNode }): React.ReactElement {
+    return (
+        <div className="border-(--tone) border-s-2 ps-2" style={{ "--tone": tone } as React.CSSProperties}>
+            <span className="me-1.5 text-subtle-foreground text-xs">{label}</span>
+            <StoryText text={text} nickname={nickname} />
+            {action ? <span className="ms-2">{action}</span> : null}
+        </div>
+    );
+}
+
 interface IRuCellProps {
     line: TranslatorLine;
     storyId: string;
@@ -128,7 +139,7 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
     const quotes = quotesAt(edits, place);
     const notes = { edits, place, me, t };
     const take = (source: "sova" | "ai", text: string) => (
-        <Button variant="ghost" size="xs" onClick={() => onEditor({ kind: "proposal", text, source, context: false })}>
+        <Button variant="link" size="xs" className="h-auto px-0 text-xs" onClick={() => onEditor({ kind: "proposal", text, source, context: false })}>
             {t("action.proposeThis")}
         </Button>
     );
@@ -170,25 +181,17 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
                 <>
                     {line.sova ? (
                         <>
-                            <Toned tone={TONE.sova} label={t("hints.sova")} actions={line.editable && !editor ? take("sova", line.sova) : undefined}>
-                                <StoryText text={line.sova} nickname={nickname} />
-                            </Toned>
+                            <InlineVariant tone={TONE.sova} label={t("hints.sova")} text={line.sova} nickname={nickname} action={line.editable && !editor ? take("sova", line.sova) : undefined} />
                             <VariantNotes {...notes} variant="sova" />
                         </>
                     ) : null}
                     {line.ai ? (
                         <>
-                            <Toned tone={TONE.ai} label={t("hints.ai")} actions={line.editable && !editor ? take("ai", line.ai) : undefined}>
-                                <StoryText text={line.ai} nickname={nickname} />
-                            </Toned>
+                            <InlineVariant tone={TONE.ai} label={t("hints.ai")} text={line.ai} nickname={nickname} action={line.editable && !editor ? take("ai", line.ai) : undefined} />
                             <VariantNotes {...notes} variant="ai" />
                         </>
                     ) : null}
-                    {line.ruDict ? (
-                        <Toned tone={TONE.dict} label={t("hints.dict")}>
-                            <StoryText text={line.ruDict} nickname={nickname} />
-                        </Toned>
-                    ) : null}
+                    {line.ruDict ? <InlineVariant tone={TONE.dict} label={t("hints.dict")} text={line.ruDict} nickname={nickname} /> : null}
                 </>
             ) : null}
             <OutdatedHere items={outdated} nickname={nickname} t={t} />
