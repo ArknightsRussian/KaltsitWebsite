@@ -7258,6 +7258,8 @@
     "translators.action.comment": "Comment",
     "translators.action.editMine": "Edit my proposal",
     "translators.action.keep": "Keep as in the game",
+    "translators.action.menu": "Edit line {n}",
+    "translators.action.menuTitle": "Propose, keep as in the game, comment",
     "translators.action.takeAi": "Take the AI's",
     "translators.action.takeSova": "Take Sova's",
     "translators.action.write": "Write my own",

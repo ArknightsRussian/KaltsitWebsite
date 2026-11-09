@@ -431,6 +431,14 @@ export const messages = {
         text: "{count, plural, one {# resolved comment} other {# resolved comments}}",
         description: "Button that unfolds the resolved comments of a line.",
     },
+    "action.menu": {
+        text: "Edit line {n}",
+        description: "Accessible name of the edit menu button of a story line; n is the line's number in the table.",
+    },
+    "action.menuTitle": {
+        text: "Propose, keep as in the game, comment",
+        description: "Tooltip of the edit menu button by a story line's number.",
+    },
     "action.write": {
         text: "Write my own",
         description: "Action on a story line: opens the editor filled with the game's Russian.",

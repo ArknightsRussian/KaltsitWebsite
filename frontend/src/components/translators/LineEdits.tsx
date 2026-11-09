@@ -10,17 +10,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Check, MessageSquare, PenLine, Sparkles, Trash2, Undo2 } from "lucide-react";
 import type React from "react";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "#/components/ui/alert-dialog";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { LoadFailed } from "#/components/ui/load-failed";
+import { Menu, MenuCheckboxItem, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "#/components/ui/menu";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
 import { Textarea } from "#/components/ui/textarea";
 import { toastManager } from "#/components/ui/toast";
-import { Toggle } from "#/components/ui/toggle";
 import { useFormatters } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn, setAgreementFn } from "#/lib/translators/api";
@@ -273,6 +273,8 @@ export type EditorState = { kind: "proposal"; text: string; source: ProposalSour
 
 interface IActionsProps {
     line: TranslatorLine;
+    /** The line's № in the table. */
+    n: number;
     edits: KeyEdits | undefined;
     me: TranslatorsMe;
     place: EditPlace;
@@ -280,53 +282,68 @@ interface IActionsProps {
     t: T;
 }
 
-/** The row's actions: write my own, take Sova's / the AI's, keep as in the game, comment. */
-/** Shown on the row's hover and keyboard focus (always on a touch screen), so the dense table stays quiet. */
-const ACTIONS = "flex flex-wrap gap-1 opacity-0 transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 pointer-coarse:opacity-100";
-
-export function LineActions({ line, edits, me, place, onOpen, t }: IActionsProps): React.ReactElement {
+/**
+ * The row's actions in one small menu by the line number (write my own,
+ * take Sova's / the AI's, keep as in the game, comment): a bar of buttons
+ * under every line made the dense table twice as tall.
+ */
+export function LineActions({ line, n, edits, me, place, onOpen, t }: IActionsProps): React.ReactElement {
     const mineProposal = edits?.proposals.find((p) => p.author.id === me.userId);
     const keeping = Boolean(edits?.gameAgreements.some((p) => p.id === me.userId));
     const keep = useEditMutation((agree: boolean) => setAgreementFn({ data: { place, proposalId: null, agree } }), t("edit.failedKeep"));
-    if (!line.editable)
-        return (
-            <div className={ACTIONS}>
-                <span className="self-center text-subtle-foreground text-xs">{t("edit.notEditable")}</span>
-                <Button variant="ghost" size="sm" onClick={() => onOpen({ kind: "comment" })}>
+    // An item that opens the editor keeps the focus there instead of returning it to the menu button.
+    const toEditor = useRef(false);
+    const open = (state: EditorState) => {
+        toEditor.current = true;
+        onOpen(state);
+    };
+    return (
+        <Menu>
+            <MenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label={t("action.menu", { n })} title={t("action.menuTitle")} />}>
+                <PenLine aria-hidden="true" />
+            </MenuTrigger>
+            <MenuPopup
+                align="start"
+                finalFocus={() => {
+                    const keepFocus = !toEditor.current;
+                    toEditor.current = false;
+                    return keepFocus;
+                }}
+            >
+                {line.editable ? (
+                    <>
+                        <MenuItem onClick={() => open({ kind: "proposal", text: mineProposal?.text ?? line.ruGame ?? "", source: (mineProposal?.source as ProposalSource | undefined) ?? "own" })}>
+                            <PenLine aria-hidden="true" />
+                            {mineProposal ? t("action.editMine") : t("action.write")}
+                        </MenuItem>
+                        {line.sova ? (
+                            <MenuItem onClick={() => open({ kind: "proposal", text: line.sova ?? "", source: "sova" })}>
+                                <Sparkles aria-hidden="true" />
+                                {t("action.takeSova")}
+                            </MenuItem>
+                        ) : null}
+                        {line.ai ? (
+                            <MenuItem onClick={() => open({ kind: "proposal", text: line.ai ?? "", source: "ai" })}>
+                                <Sparkles aria-hidden="true" />
+                                {t("action.takeAi")}
+                            </MenuItem>
+                        ) : null}
+                        {line.ruGame ? (
+                            <MenuCheckboxItem closeOnClick checked={keeping} onCheckedChange={(checked: boolean) => keep.mutate(checked)} disabled={keep.isPending}>
+                                {t("action.keep")}
+                            </MenuCheckboxItem>
+                        ) : null}
+                    </>
+                ) : (
+                    <MenuItem disabled>{t("edit.notEditable")}</MenuItem>
+                )}
+                <MenuSeparator />
+                <MenuItem onClick={() => open({ kind: "comment" })}>
                     <MessageSquare aria-hidden="true" />
                     {t("action.comment")}
-                </Button>
-            </div>
-        );
-    return (
-        <div className={ACTIONS}>
-            <Button variant="ghost" size="sm" onClick={() => onOpen({ kind: "proposal", text: mineProposal?.text ?? line.ruGame ?? "", source: (mineProposal?.source as ProposalSource | undefined) ?? "own" })}>
-                <PenLine aria-hidden="true" />
-                {mineProposal ? t("action.editMine") : t("action.write")}
-            </Button>
-            {line.sova ? (
-                <Button variant="ghost" size="sm" onClick={() => onOpen({ kind: "proposal", text: line.sova ?? "", source: "sova" })}>
-                    <Sparkles aria-hidden="true" />
-                    {t("action.takeSova")}
-                </Button>
-            ) : null}
-            {line.ai ? (
-                <Button variant="ghost" size="sm" onClick={() => onOpen({ kind: "proposal", text: line.ai ?? "", source: "ai" })}>
-                    <Sparkles aria-hidden="true" />
-                    {t("action.takeAi")}
-                </Button>
-            ) : null}
-            {line.ruGame ? (
-                <Toggle size="sm" pressed={keeping} onPressedChange={(pressed: boolean) => keep.mutate(pressed)} disabled={keep.isPending} className="text-xs">
-                    <Check aria-hidden="true" />
-                    {t("action.keep")}
-                </Toggle>
-            ) : null}
-            <Button variant="ghost" size="sm" onClick={() => onOpen({ kind: "comment" })}>
-                <MessageSquare aria-hidden="true" />
-                {t("action.comment")}
-            </Button>
-        </div>
+                </MenuItem>
+            </MenuPopup>
+        </Menu>
     );
 }
 

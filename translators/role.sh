@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 UID_ARG="${1:?usage: $0 <uid> [translator|editor|admin]}"
 ROLE="${2:-translator}"
 case "$ROLE" in translator | editor | admin) ;; *) echo "role: translator, editor or admin" >&2; exit 2 ;; esac
-docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v uid="$1" -v role="$2"' sh "$UID_ARG" "$ROLE" <<'SQL'
+OUT="$(docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v uid="$1" -v role="$2"' sh "$UID_ARG" "$ROLE" <<'SQL'
 SELECT COUNT(*) AS found FROM users WHERE uid = :'uid' \gset
 \if :found
 INSERT INTO translators.members (user_id, note, role)
@@ -21,7 +21,11 @@ ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;
 SELECT u.uid, COALESCE(u.nickname, '') AS nickname, m.role, m.added_at
 FROM translators.members m JOIN users u ON u.id = m.user_id WHERE u.uid = :'uid';
 \else
-\echo 'No such user: they have to sign in to the site once.'
-\quit 1
+\echo 'NO_SUCH_USER'
 \endif
 SQL
+)"
+case "$OUT" in
+*NO_SUCH_USER*) echo "No such user: they have to sign in to the site once." >&2; exit 1 ;;
+esac
+echo "$OUT"

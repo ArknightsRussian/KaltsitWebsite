@@ -186,13 +186,8 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
             ) : null}
             <OutdatedHere items={outdated} t={t} />
             <Comments edits={edits} me={me} t={t} />
-            {editor?.kind === "proposal" ? (
-                <ProposalEditor line={line} place={place} initial={editor.text} source={editor.source} onClose={() => onEditor(null)} t={t} />
-            ) : editor?.kind === "comment" ? (
-                <CommentEditor place={place} onClose={() => onEditor(null)} t={t} />
-            ) : (
-                <LineActions line={line} edits={edits} me={me} place={place} onOpen={onEditor} t={t} />
-            )}
+            {editor?.kind === "proposal" ? <ProposalEditor line={line} place={place} initial={editor.text} source={editor.source} onClose={() => onEditor(null)} t={t} /> : null}
+            {editor?.kind === "comment" ? <CommentEditor place={place} onClose={() => onEditor(null)} t={t} /> : null}
         </div>
     );
 }
@@ -255,7 +250,7 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
         <Table aria-label={label}>
             <TableHeader>
                 <TableRow>
-                    <TableHead className="w-12">{t("table.line")}</TableHead>
+                    <TableHead className="w-14">{t("table.line")}</TableHead>
                     <TableHead className="w-36">{t("table.speaker")}</TableHead>
                     <TableHead>{t("table.ru")}</TableHead>
                     <TableHead>{t("table.en")}</TableHead>
@@ -275,6 +270,7 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
                                         {i + 1}
                                         <StatusDot status={line.status} t={t} />
                                     </span>
+                                    <LineActions line={line} n={i + 1} edits={byKey.get(line.editKey)} me={me} place={placeOf(storyId, line)} onOpen={(state) => setEditing({ id, state })} t={t} />
                                     {commands ? <span className="block font-mono">{t("table.scriptLine", { line: line.line })}</span> : null}
                                 </TableCell>
                                 <TableCell className={PROSE}>

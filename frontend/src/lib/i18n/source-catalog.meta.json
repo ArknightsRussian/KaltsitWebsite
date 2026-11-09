@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-09T03:36:29.275Z",
+    "generatedAt": "2026-11-09T03:49:54.334Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -53991,6 +53991,22 @@
             "namespace": "translators",
             "source_text": "Keep as in the game",
             "description": "Toggle on a story line: the viewer votes that the game's current Russian is good.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.action.menu",
+            "namespace": "translators",
+            "source_text": "Edit line {n}",
+            "description": "Accessible name of the edit menu button of a story line; n is the line's number in the table.",
+            "placeholders": [
+                "n"
+            ]
+        },
+        {
+            "key": "translators.action.menuTitle",
+            "namespace": "translators",
+            "source_text": "Propose, keep as in the game, comment",
+            "description": "Tooltip of the edit menu button by a story line's number.",
             "placeholders": []
         },
         {
