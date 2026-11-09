@@ -127,12 +127,16 @@ struct ProposalRow {
     part: i16,
     outdated_at: Option<DateTime<Utc>>,
     context: bool,
+    approved_by: Option<Uuid>,
+    approved_at: Option<DateTime<Utc>>,
+    approver_name: Option<String>,
     versions: i64,
 }
 
 const PROPOSAL_COLUMNS: &str = "p.id, p.edit_key, p.text, p.source, p.author_id, \
      COALESCE(NULLIF(u.nickname, ''), u.uid) AS author_name, p.created_at, p.updated_at, \
-     p.story_id, p.line, p.part, p.outdated_at, p.context, \
+     p.story_id, p.line, p.part, p.outdated_at, p.context, p.approved_by, p.approved_at, \
+     (SELECT COALESCE(NULLIF(x.nickname, ''), x.uid) FROM users x WHERE x.id = p.approved_by) AS approver_name, \
      (SELECT COUNT(*) FROM translators.proposal_versions v WHERE v.proposal_id = p.id) AS versions";
 
 impl ProposalRow {
@@ -156,6 +160,10 @@ impl ProposalRow {
             },
             context: self.context,
             outdated: self.outdated_at.is_some(),
+            approved_by: self
+                .approved_by
+                .map(|id| person(id, self.approver_name.unwrap_or_default())),
+            approved_at: self.approved_at.map(|t| t.timestamp()),
         }
     }
 }
@@ -237,15 +245,22 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
     .fetch_all(pool)
     .await?;
     #[allow(clippy::type_complexity)]
-    let approvals: Vec<(String, Option<i64>, String, Uuid, String, DateTime<Utc>)> =
-        sqlx::query_as(&format!(
-            "SELECT a.edit_key, a.proposal_id, a.text, a.approved_by, {NAME}, a.approved_at
+    let approvals: Vec<(
+        String,
+        String,
+        Option<i64>,
+        String,
+        Uuid,
+        String,
+        DateTime<Utc>,
+    )> = sqlx::query_as(&format!(
+        "SELECT a.edit_key, a.variant, a.proposal_id, a.text, a.approved_by, {NAME}, a.approved_at
              FROM translators.approvals a JOIN users u ON u.id = a.approved_by
              WHERE a.edit_key = ANY($1)"
-        ))
-        .bind(keys)
-        .fetch_all(pool)
-        .await?;
+    ))
+    .bind(keys)
+    .fetch_all(pool)
+    .await?;
     let comments = comments(pool, keys).await?;
 
     let mut out: HashMap<String, KeyEdits> = HashMap::new();
@@ -263,8 +278,9 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
             .proposals
             .push(p.into_proposal(agreed));
     }
-    for (key, proposal_id, text, by, name, at) in approvals {
+    for (key, variant, proposal_id, text, by, name, at) in approvals {
         entry(&mut out, &key).approval = Some(Approval {
+            variant,
             proposal_id,
             text,
             by: person(by, name),
@@ -617,6 +633,135 @@ pub async fn set_agreement(
     Ok(())
 }
 
+/// Approve a variant for an entry (replacing an earlier approval), and log it.
+#[allow(clippy::too_many_arguments)]
+pub async fn approve_key(
+    pool: &PgPool,
+    key: &str,
+    variant: &str,
+    proposal: Option<i64>,
+    text: &str,
+    place: &EditPlace,
+    by: Uuid,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO translators.approvals (edit_key, variant, proposal_id, text, approved_by, story_id, line, part)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (edit_key) DO UPDATE SET variant = EXCLUDED.variant, proposal_id = EXCLUDED.proposal_id,
+             text = EXCLUDED.text, approved_by = EXCLUDED.approved_by, approved_at = NOW(),
+             story_id = EXCLUDED.story_id, line = EXCLUDED.line, part = EXCLUDED.part, outdated_at = NULL",
+    )
+    .bind(key)
+    .bind(variant)
+    .bind(proposal)
+    .bind(text)
+    .bind(by)
+    .bind(&place.story_id)
+    .bind(place.line)
+    .bind(place.part)
+    .execute(&mut *tx)
+    .await?;
+    log_approval(
+        &mut tx,
+        key,
+        variant,
+        proposal,
+        Some(text),
+        "approve",
+        place,
+        by,
+    )
+    .await?;
+    tx.commit().await
+}
+
+/// Withdraw the approval of an entry, and log it.
+pub async fn withdraw_key(
+    pool: &PgPool,
+    key: &str,
+    place: &EditPlace,
+    by: Uuid,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let gone: Option<(String, Option<i64>)> = sqlx::query_as(
+        "DELETE FROM translators.approvals WHERE edit_key = $1 RETURNING variant, proposal_id",
+    )
+    .bind(key)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some((variant, proposal)) = gone {
+        log_approval(
+            &mut tx, key, &variant, proposal, None, "withdraw", place, by,
+        )
+        .await?;
+    }
+    tx.commit().await
+}
+
+/// Approve a proposal for one place (that place only), or withdraw it, and log it.
+pub async fn approve_context(
+    pool: &PgPool,
+    key: &str,
+    proposal: i64,
+    place: &EditPlace,
+    by: Uuid,
+    approve: bool,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE translators.proposals SET approved_by = $2,
+             approved_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE NOW() END
+         WHERE id = $1",
+    )
+    .bind(proposal)
+    .bind(approve.then_some(by))
+    .execute(&mut *tx)
+    .await?;
+    let action = if approve { "approve" } else { "withdraw" };
+    log_approval(
+        &mut tx,
+        key,
+        "proposal",
+        Some(proposal),
+        None,
+        action,
+        place,
+        by,
+    )
+    .await?;
+    tx.commit().await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn log_approval(
+    tx: &mut Transaction<'_, Postgres>,
+    key: &str,
+    variant: &str,
+    proposal: Option<i64>,
+    text: Option<&str>,
+    action: &str,
+    place: &EditPlace,
+    by: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO translators.approval_log (edit_key, proposal_id, text, action, user_id, variant, story_id, line, part)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(key)
+    .bind(proposal)
+    .bind(text)
+    .bind(action)
+    .bind(by)
+    .bind(variant)
+    .bind(&place.story_id)
+    .bind(place.line)
+    .bind(place.part)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 /// Who has read a story, first readers first.
 pub async fn story_reads(pool: &PgPool, story_id: &str) -> Result<Vec<StoryRead>, sqlx::Error> {
     let rows: Vec<(Uuid, String, DateTime<Utc>)> = sqlx::query_as(&format!(
@@ -656,7 +801,8 @@ pub async fn set_read(
 }
 
 /// Every story's progress over its lines that can be edited (a letter or a
-/// digit): approved (the entry's approval is current), waiting (a live
+/// digit): approved (the entry's approval is current, the game's Russian
+/// checked included, or a one-place proposal approved here), waiting (a live
 /// proposal for every place or for this one, not approved, not outdated) and
 /// outdated (a decision left here for a previous English, not approved).
 pub async fn progress(pool: &PgPool) -> Result<Vec<StoryProgress>, sqlx::Error> {
@@ -667,6 +813,9 @@ pub async fn progress(pool: &PgPool) -> Result<Vec<StoryProgress>, sqlx::Error> 
          placed AS (
              SELECT DISTINCT story_id, line, part FROM translators.proposals
              WHERE deleted_at IS NULL AND context AND outdated_at IS NULL),
+         placed_ok AS (
+             SELECT DISTINCT story_id, line, part FROM translators.proposals
+             WHERE deleted_at IS NULL AND context AND approved_at IS NOT NULL),
          stale AS (
              SELECT story_id, line, part FROM translators.proposals
              WHERE deleted_at IS NULL AND outdated_at IS NOT NULL
@@ -674,14 +823,15 @@ pub async fn progress(pool: &PgPool) -> Result<Vec<StoryProgress>, sqlx::Error> 
              SELECT story_id, line, part FROM translators.approvals WHERE outdated_at IS NOT NULL)
          SELECT s.story_id,
                 COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE a.edit_key IS NOT NULL)::int AS approved,
-                COUNT(*) FILTER (WHERE a.edit_key IS NULL AND o.story_id IS NULL
+                COUNT(*) FILTER (WHERE a.edit_key IS NOT NULL OR q.story_id IS NOT NULL)::int AS approved,
+                COUNT(*) FILTER (WHERE a.edit_key IS NULL AND q.story_id IS NULL AND o.story_id IS NULL
                                  AND (k.edit_key IS NOT NULL OR p.story_id IS NOT NULL))::int AS waiting,
-                COUNT(*) FILTER (WHERE a.edit_key IS NULL AND o.story_id IS NOT NULL)::int AS outdated
+                COUNT(*) FILTER (WHERE a.edit_key IS NULL AND q.story_id IS NULL AND o.story_id IS NOT NULL)::int AS outdated
          FROM translators.story_lines s
          LEFT JOIN translators.approvals a ON a.edit_key = s.edit_key AND a.outdated_at IS NULL
          LEFT JOIN keyed k ON k.edit_key = s.edit_key
          LEFT JOIN placed p ON p.story_id = s.story_id AND p.line = s.line AND p.part = s.part
+         LEFT JOIN placed_ok q ON q.story_id = s.story_id AND q.line = s.line AND q.part = s.part
          LEFT JOIN (SELECT DISTINCT story_id, line, part FROM stale) o
              ON o.story_id = s.story_id AND o.line = s.line AND o.part = s.part
          WHERE s.server = $1 AND s.edit_key ~ '[[:alnum:]]'
@@ -809,7 +959,12 @@ pub async fn edit_rows(pool: &PgPool, author: Option<Uuid>) -> Result<Vec<EditRo
         .map(|r| {
             let id = r.p.id;
             let outdated = r.p.outdated_at.is_some();
-            let approved = r.approved.then_some(r.approved_proposal);
+            // A one-place proposal is approved on its own; it never stands for the entry.
+            let approved = if r.p.context {
+                r.p.approved_at.is_some().then_some(Some(id))
+            } else {
+                r.approved.then_some(r.approved_proposal)
+            };
             let en = r.en.unwrap_or_else(|| r.p.edit_key.clone());
             let agreed = votes
                 .remove(&(r.p.edit_key.clone(), Some(id)))

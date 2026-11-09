@@ -12822,6 +12822,98 @@
         ]
       }
     },
+    "/api/translators/approvals": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Approve a variant of the line's entry, or withdraw the approval: the lead\nonly. The game's Russian approved means \"checked, as in the game\" (never\nexported); a proposal for one place is approved for that place only.",
+        "operationId": "set_approval",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/approvals/batch": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Approve many lines at once (a scene's recommended variants, or the game's\nRussian for a whole scene): the lead only. Lines with nothing to approve\nare skipped and counted.",
+        "operationId": "approve_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many were approved and skipped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalBatchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/translators/characters": {
       "get": {
         "tags": [
@@ -13062,6 +13154,64 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/export": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Export to the XUnity dictionaries: `approved` (for the game; the lead\nonly) or `review` (every proposal not approved, marked REVIEW; any member),\nas one `00_translators.txt` or as patched copies of 11_ui / 12_story /\n13_names, with plugin.csv, context.csv and the report. Members only.",
+        "operationId": "export",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`approved` (for the game) or `review` (proposals, for checking).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`file` (00_translators.txt) or `patch` (copies of 11_ui / 12_story / 13_names).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export's files and its report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -17688,6 +17838,7 @@
         "type": "object",
         "description": "The lead's decision for an entry.",
         "required": [
+          "variant",
           "text",
           "by",
           "at"
@@ -17706,12 +17857,81 @@
               "null"
             ],
             "format": "int64",
-            "description": "The approved proposal; null = the game's Russian, checked and kept."
+            "description": "The approved proposal; null for the other variants."
           },
           "text": {
             "type": "string"
+          },
+          "variant": {
+            "type": "string",
+            "description": "`game` (checked and kept, never exported), `proposal`, `sova` or `ai`."
           }
         }
+      },
+      "ApprovalBatch": {
+        "type": "object",
+        "description": "Several approvals at once: a whole scene's recommended variants, or the\ngame's Russian for a whole scene.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalInput"
+            }
+          }
+        }
+      },
+      "ApprovalBatchResult": {
+        "type": "object",
+        "description": "How many approvals a batch made.",
+        "required": [
+          "approved",
+          "skipped"
+        ],
+        "properties": {
+          "approved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Items skipped (a line with nothing to translate, a variant it lacks)."
+          }
+        }
+      },
+      "ApprovalInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          {
+            "type": "object",
+            "required": [
+              "variant",
+              "approve"
+            ],
+            "properties": {
+              "approve": {
+                "type": "boolean"
+              },
+              "proposalId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "variant": {
+                "type": "string",
+                "description": "`game`, `sova`, `ai` or `proposal` (with `proposalId`)."
+              }
+            }
+          }
+        ],
+        "description": "Approve a variant of the line's entry (the lead), or withdraw the approval."
       },
       "ArchiveAppearance": {
         "type": "object",
@@ -23359,6 +23579,162 @@
           "excellent",
           "outstanding"
         ]
+      },
+      "ExportFile": {
+        "type": "object",
+        "description": "One file of an export.",
+        "required": [
+          "name",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ExportFileKeys": {
+        "type": "object",
+        "description": "A dictionary file and how many of the exported keys it holds.",
+        "required": [
+          "file",
+          "keys"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "keys": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ExportReport": {
+        "type": "object",
+        "description": "What an export wrote and what to know before putting it in the game.",
+        "required": [
+          "mode",
+          "format",
+          "at",
+          "by",
+          "written",
+          "skipped",
+          "pluginRows",
+          "contextRows",
+          "loadedAfter",
+          "overriddenBy",
+          "replaced",
+          "appended",
+          "withAlternatives"
+        ],
+        "properties": {
+          "appended": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`patch` format: entries none of the files had, added at the end of the 12_story copy."
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds."
+          },
+          "by": {
+            "type": "string"
+          },
+          "contextRows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Rows of `context.csv` (proposals for one place)."
+          },
+          "format": {
+            "type": "string"
+          },
+          "loadedAfter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`file` format: the files the game loads after ours, which win on the same key."
+          },
+          "mode": {
+            "type": "string"
+          },
+          "overriddenBy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFileKeys"
+            },
+            "description": "Of those, the ones holding exported keys, and how many."
+          },
+          "pluginRows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Rows of `plugin.csv` (lines the RichTextFix plugin shows)."
+          },
+          "replaced": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFileKeys"
+            },
+            "description": "`patch` format: values replaced in each copied file."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportSkipped"
+            },
+            "description": "Left out: keys XUnity cannot read back."
+          },
+          "withAlternatives": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`review` mode: entries with more than one proposal (the most agreed is exported)."
+          },
+          "written": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Lines written to the dictionary file (or replaced and appended in the patch)."
+          }
+        }
+      },
+      "ExportResult": {
+        "type": "object",
+        "description": "The export's files and its report.",
+        "required": [
+          "files",
+          "report"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFile"
+            }
+          },
+          "report": {
+            "$ref": "#/components/schemas/ExportReport"
+          }
+        }
+      },
+      "ExportSkipped": {
+        "type": "object",
+        "description": "A translation left out of the dictionary file, and why.",
+        "required": [
+          "key",
+          "reason"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
       },
       "ExtraVoiceConfigData": {
         "type": "object",
@@ -29647,6 +30023,24 @@
               "$ref": "#/components/schemas/EditPerson"
             },
             "description": "Who agrees with it."
+          },
+          "approvedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "approvedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EditPerson",
+                "description": "A proposal for one place approved by the lead (for that place only)."
+              }
+            ]
           },
           "author": {
             "$ref": "#/components/schemas/EditPerson"

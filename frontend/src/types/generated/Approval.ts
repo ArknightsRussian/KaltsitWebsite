@@ -6,7 +6,11 @@ import type { EditPerson } from "./EditPerson";
  */
 export type Approval = {
     /**
-     * The approved proposal; null = the game's Russian, checked and kept.
+     * `game` (checked and kept, never exported), `proposal`, `sova` or `ai`.
+     */
+    variant: string;
+    /**
+     * The approved proposal; null for the other variants.
      */
     proposalId: number | null;
     text: string;

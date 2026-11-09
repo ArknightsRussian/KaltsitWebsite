@@ -638,3 +638,147 @@ pub async fn story_progress(
     require_member(&state, &auth).await?;
     Ok(Json(db::progress(&state.db).await?))
 }
+
+/// Apply one approval or withdrawal for the lead. `Ok(false)` when the line
+/// has nothing to approve for that variant.
+async fn apply_approval(
+    state: &AppState,
+    me: &crate::translators::routes::Member,
+    input: &super::dto::ApprovalInput,
+) -> Result<bool, ApiError> {
+    let line = editable_place(state, &input.place).await?;
+    // A proposal for one place is approved for that place only.
+    if input.variant == "proposal" {
+        let id = input
+            .proposal_id
+            .ok_or_else(|| ApiError::BadRequest("a proposal approval needs its id".into()))?;
+        let (key, _, text, _, context) = db::proposal_owner(&state.db, id)
+            .await?
+            .ok_or(ApiError::NotFound)?;
+        if key != line.edit_key {
+            return Err(ApiError::BadRequest(
+                "the proposal is for another line".into(),
+            ));
+        }
+        if context {
+            db::approve_context(&state.db, &key, id, &input.place, me.id, input.approve).await?;
+            return Ok(true);
+        }
+        if input.approve {
+            db::approve_key(
+                &state.db,
+                &key,
+                "proposal",
+                Some(id),
+                &text,
+                &input.place,
+                me.id,
+            )
+            .await?;
+        } else {
+            db::withdraw_key(&state.db, &key, &input.place, me.id).await?;
+        }
+        return Ok(true);
+    }
+    if !input.approve {
+        db::withdraw_key(&state.db, &line.edit_key, &input.place, me.id).await?;
+        return Ok(true);
+    }
+    let text = match input.variant.as_str() {
+        "game" => line.ru_game.clone(),
+        "sova" => line.sova.clone(),
+        "ai" => line.ai.clone(),
+        _ => {
+            return Err(ApiError::BadRequest(
+                "variant: game, sova, ai or proposal".into(),
+            ));
+        }
+    };
+    let Some(text) = text else {
+        return Ok(false);
+    };
+    db::approve_key(
+        &state.db,
+        &line.edit_key,
+        &input.variant,
+        None,
+        &text,
+        &input.place,
+        me.id,
+    )
+    .await?;
+    Ok(true)
+}
+
+/// Approve a variant of the line's entry, or withdraw the approval: the lead
+/// only. The game's Russian approved means "checked, as in the game" (never
+/// exported); a proposal for one place is approved for that place only.
+#[utoipa::path(
+    put,
+    path = "/translators/approvals",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    request_body = super::dto::ApprovalInput,
+    responses(
+        (status = 204, description = "Recorded."),
+        (status = 400, response = crate::app::openapi::responses::BadRequest),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 404, response = crate::app::openapi::responses::NotFound),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn set_approval(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Json(input): Json<super::dto::ApprovalInput>,
+) -> Result<StatusCode, ApiError> {
+    let me = require_member(&state, &auth).await?;
+    if !me.leads() {
+        return Err(ApiError::Forbidden);
+    }
+    if !apply_approval(&state, &me, &input).await? {
+        return Err(ApiError::BadRequest("this line has no such variant".into()));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Approve many lines at once (a scene's recommended variants, or the game's
+/// Russian for a whole scene): the lead only. Lines with nothing to approve
+/// are skipped and counted.
+#[utoipa::path(
+    post,
+    path = "/translators/approvals/batch",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    request_body = super::dto::ApprovalBatch,
+    responses(
+        (status = 200, description = "How many were approved and skipped.", body = super::dto::ApprovalBatchResult),
+        (status = 400, response = crate::app::openapi::responses::BadRequest),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn approve_batch(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Json(input): Json<super::dto::ApprovalBatch>,
+) -> Result<Json<super::dto::ApprovalBatchResult>, ApiError> {
+    let me = require_member(&state, &auth).await?;
+    if !me.leads() {
+        return Err(ApiError::Forbidden);
+    }
+    if input.items.len() > 5_000 {
+        return Err(ApiError::BadRequest("at most 5000 lines at once".into()));
+    }
+    let (mut approved, mut skipped) = (0, 0);
+    for item in &input.items {
+        match apply_approval(&state, &me, item).await {
+            Ok(true) => approved += 1,
+            Ok(false) | Err(ApiError::BadRequest(_) | ApiError::NotFound) => skipped += 1,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(Json(super::dto::ApprovalBatchResult { approved, skipped }))
+}

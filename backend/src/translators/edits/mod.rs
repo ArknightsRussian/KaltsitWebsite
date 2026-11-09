@@ -33,6 +33,8 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::names))
         .routes(routes!(routes::set_story_read))
         .routes(routes!(routes::story_progress))
+        .routes(routes!(routes::set_approval))
+        .routes(routes!(routes::approve_batch))
 }
 
 /// Fill each line's places and status, and return the edits for the
@@ -57,8 +59,18 @@ pub async fn attach(
         l.places = counts.get(&l.edit_key).copied().unwrap_or(1);
         let e = by_key.get(l.edit_key.as_str());
         let here = (i32::try_from(l.line).unwrap_or(0), l.part);
+        // Approved: the entry, or a one-place proposal here.
+        let approved_here = e.is_some_and(|e| {
+            e.approval.is_some()
+                || e.proposals.iter().any(|p| {
+                    p.context
+                        && p.approved_at.is_some()
+                        && p.place.story_id == story_id
+                        && (p.place.line, p.place.part) == here
+                })
+        });
         l.status = status::line_status(
-            e.is_some_and(|e| e.approval.is_some()),
+            approved_here,
             stale.contains(&here),
             // A proposal for one place counts only there.
             e.map_or(0, |e| {

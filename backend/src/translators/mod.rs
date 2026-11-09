@@ -11,6 +11,7 @@
 pub mod db;
 pub mod dto;
 pub mod edits;
+pub mod export;
 pub mod glossary;
 pub mod import;
 pub mod routes;
@@ -37,5 +38,6 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::glossary))
         .routes(routes!(routes::glossary_lines))
         .routes(routes!(routes::refresh_glossary))
+        .routes(routes!(routes::export))
         .merge(edits::router())
 }

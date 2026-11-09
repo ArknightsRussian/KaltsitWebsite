@@ -53,6 +53,10 @@ pub struct Proposal {
     pub context: bool,
     /// Its English is gone from the story since an import.
     pub outdated: bool,
+    /// A proposal for one place approved by the lead (for that place only).
+    pub approved_by: Option<EditPerson>,
+    #[ts(type = "number | null")]
+    pub approved_at: Option<i64>,
 }
 
 /// One text a proposal has had.
@@ -74,7 +78,9 @@ pub struct ProposalVersion {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct Approval {
-    /// The approved proposal; null = the game's Russian, checked and kept.
+    /// `game` (checked and kept, never exported), `proposal`, `sova` or `ai`.
+    pub variant: String,
+    /// The approved proposal; null for the other variants.
     #[ts(type = "number | null")]
     pub proposal_id: Option<i64>,
     pub text: String,
@@ -337,4 +343,35 @@ pub struct StoryProgress {
     pub approved: i32,
     pub waiting: i32,
     pub outdated: i32,
+}
+
+/// Approve a variant of the line's entry (the lead), or withdraw the approval.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalInput {
+    #[serde(flatten)]
+    pub place: EditPlace,
+    /// `game`, `sova`, `ai` or `proposal` (with `proposalId`).
+    pub variant: String,
+    #[serde(default)]
+    pub proposal_id: Option<i64>,
+    pub approve: bool,
+}
+
+/// Several approvals at once: a whole scene's recommended variants, or the
+/// game's Russian for a whole scene.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalBatch {
+    pub items: Vec<ApprovalInput>,
+}
+
+/// How many approvals a batch made.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ApprovalBatchResult {
+    pub approved: i32,
+    /// Items skipped (a line with nothing to translate, a variant it lacks).
+    pub skipped: i32,
 }

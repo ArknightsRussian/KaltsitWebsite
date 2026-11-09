@@ -20,6 +20,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "t006_votes_reads",
         include_str!("migrations/t006_votes_reads.sql"),
     ),
+    ("t007_approve", include_str!("migrations/t007_approve.sql")),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {

@@ -39,4 +39,9 @@ export type Proposal = {
      * Its English is gone from the story since an import.
      */
     outdated: boolean;
+    /**
+     * A proposal for one place approved by the lead (for that place only).
+     */
+    approvedBy: EditPerson | null;
+    approvedAt: number | null;
 };

@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::dto::ImportStatus;
 use super::import::{self, Sources};
-use super::{SERVER, db, dev_login_enabled, edits, glossary};
+use super::{SERVER, db, dev_login_enabled, edits, export, glossary};
 use crate::app::error::ApiError;
 use crate::app::extractors::auth::{AuthUser, MaybeAuthUser};
 use crate::app::services::auth::LoginResponse;
@@ -553,4 +553,71 @@ pub async fn dev_login(State(state): State<AppState>) -> Result<Json<LoginRespon
         uid: DEV_UID.to_owned(),
         server: server.as_str().to_owned(),
     }))
+}
+
+/// Export to the XUnity dictionaries: `approved` (for the game; the lead
+/// only) or `review` (every proposal not approved, marked REVIEW; any member),
+/// as one `00_translators.txt` or as patched copies of 11_ui / 12_story /
+/// 13_names, with plugin.csv, context.csv and the report. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/export",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    params(export::ExportQuery),
+    responses(
+        (status = 200, description = "The export's files and its report.", body = export::ExportResult),
+        (status = 400, response = crate::app::openapi::responses::BadRequest),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn export(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Query(query): Query<export::ExportQuery>,
+) -> Result<Json<export::ExportResult>, ApiError> {
+    let me = require_member(&state, &auth).await?;
+    let review = match query.mode.as_str() {
+        "review" => true,
+        "approved" => false,
+        _ => return Err(ApiError::BadRequest("mode: approved or review".into())),
+    };
+    let patch = match query.format.as_str() {
+        "patch" => true,
+        "file" => false,
+        _ => return Err(ApiError::BadRequest("format: file or patch".into())),
+    };
+    if !review && !me.leads() {
+        return Err(ApiError::Forbidden);
+    }
+    let sources = Sources::from_env().map_err(ApiError::BadRequest)?;
+    let rows = export::rows(&state.db, review).await?;
+    let context = export::context_rows(&state.db, review).await?;
+    let by = match me.nickname.clone() {
+        Some(n) => n,
+        None => {
+            sqlx::query_scalar::<_, String>("SELECT uid FROM users WHERE id = $1")
+                .bind(me.id)
+                .fetch_one(&state.db)
+                .await?
+        }
+    };
+    let at = chrono::Utc::now().timestamp();
+    let result = tokio::task::spawn_blocking(move || {
+        export::build(
+            &rows,
+            &context,
+            review,
+            patch,
+            &sources.ru_text_dir,
+            &by,
+            at,
+        )
+    })
+    .await
+    .map_err(|e| ApiError::Internal(e.into()))?
+    .map_err(|e| ApiError::Internal(e.into()))?;
+    Ok(Json(result))
 }

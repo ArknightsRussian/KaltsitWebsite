@@ -352,3 +352,83 @@ async fn proposals_votes_comments_and_outdated() {
 
     drop_db(pool, name).await;
 }
+
+#[tokio::test]
+#[ignore = "creates and drops a database on the local Postgres"]
+async fn approvals_progress_and_export_rows() {
+    use backend::translators::export;
+    let (pool, name) = fresh_db().await;
+    let lead = user(&pool, "lead").await;
+    let a = user(&pool, "anna").await;
+    line(&pool, "s1", 1, 0, "Hello.", "Привет.").await;
+    line(&pool, "s1", 2, 1, "Bye.", "Пока.").await;
+    line(&pool, "s1", 3, 2, "Yes.", "Да.").await;
+    let at = |l| place("s1", l);
+
+    // A proposal approved for its entry, the game's Russian checked, a one-place proposal approved there.
+    let p = db::upsert_proposal(&pool, "Hello.", &at(1), "Здравствуй.", "own", false, a)
+        .await
+        .unwrap();
+    db::approve_key(
+        &pool,
+        "Hello.",
+        "proposal",
+        Some(p),
+        "Здравствуй.",
+        &at(1),
+        lead,
+    )
+    .await
+    .unwrap();
+    db::approve_key(&pool, "Bye.", "game", None, "Пока.", &at(2), lead)
+        .await
+        .unwrap();
+    let c = db::upsert_proposal(&pool, "Yes.", &at(3), "Ага.", "own", true, a)
+        .await
+        .unwrap();
+    db::approve_context(&pool, "Yes.", c, &at(3), lead, true)
+        .await
+        .unwrap();
+
+    let s1 = db::progress(&pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|p| p.story_id == "s1")
+        .unwrap();
+    assert_eq!((s1.total, s1.approved, s1.waiting), (3, 3, 0));
+    let mut lines = tdb::story_lines(&pool, "en", "s1", true).await.unwrap();
+    edits::attach(&pool, "s1", &mut lines).await.unwrap();
+    assert!(lines.iter().all(|l| l.status == "approved"));
+
+    // For the game: only the proposal (the game's Russian checked never goes); the one-place one to context.
+    let rows = export::rows(&pool, false).await.unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|r| (r.edit_key.as_str(), r.text.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("Hello.", "Здравствуй.")]
+    );
+    let ctx = export::context_rows(&pool, false).await.unwrap();
+    assert_eq!((ctx[0].text.as_str(), ctx[0].ord), ("Ага.", Some(2)));
+
+    // Withdrawn: back to waiting, and in the review export.
+    db::withdraw_key(&pool, "Hello.", &at(1), lead)
+        .await
+        .unwrap();
+    let s1 = db::progress(&pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|p| p.story_id == "s1")
+        .unwrap();
+    assert_eq!((s1.approved, s1.waiting), (2, 1));
+    let review = export::rows(&pool, true).await.unwrap();
+    assert_eq!(review[0].edit_key, "Hello.");
+    let logged: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM translators.approval_log")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(logged, 4);
+    drop_db(pool, name).await;
+}
