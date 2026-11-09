@@ -880,6 +880,45 @@ mod tests {
         assert!(report.contains("BepInEx\\Translation\\ru\\Text") && report.contains("Alt+R"));
     }
 
+    /// The pack's real dictionaries (read only): no edits gives each file
+    /// byte for byte; one edit changes exactly one line.
+    #[test]
+    #[ignore = "reads the pack's dictionaries from TRANSLATORS_RU_TEXT_DIR"]
+    fn the_pack_files_round_trip() {
+        let dir = std::path::PathBuf::from(
+            std::env::var("TRANSLATORS_RU_TEXT_DIR").expect("TRANSLATORS_RU_TEXT_DIR"),
+        );
+        for name in PATCHED {
+            let orig = std::fs::read_to_string(dir.join(name)).unwrap();
+            let (same, none) = patch_file(name, &orig, &BTreeMap::new());
+            assert_eq!(sha(&same), sha(&orig), "{name}: no edits");
+            assert!(none.is_empty());
+            println!(
+                "{name}: sha256 {} = original; CRLF lines {}; BOM {}",
+                sha(&same),
+                orig.matches("\r\n").count(),
+                orig.starts_with('\u{feff}')
+            );
+            // One edit: the first translation in the file.
+            let (key, value) = orig
+                .split_inclusive('\n')
+                .find_map(|l| decode_line(l.trim_end_matches(['\r', '\n'])))
+                .unwrap();
+            let entries =
+                BTreeMap::from([(key.clone(), (format!("{value} [тест]"), "lead".to_owned()))]);
+            let (one, changes) = patch_file(name, &orig, &entries);
+            let a: Vec<&str> = orig.split_inclusive('\n').collect();
+            let b: Vec<&str> = one.split_inclusive('\n').collect();
+            assert_eq!(a.len(), b.len());
+            let diff: Vec<usize> = (0..a.len()).filter(|&i| a[i] != b[i]).collect();
+            assert_eq!(diff.len(), 1, "{name}: one line");
+            let i = diff[0];
+            println!("{name}: diff line {}\n- {:?}\n+ {:?}", i + 1, a[i], b[i]);
+            assert_eq!(changes.len(), 1);
+            assert_eq!(usize::try_from(changes[0].line).unwrap(), i + 1);
+        }
+    }
+
     #[test]
     fn tsv_cells_escape_tabs_and_breaks() {
         assert_eq!(tsv_cell("a\tb\nc\r\\d"), "a\\tb\\nc\\r\\\\d");
