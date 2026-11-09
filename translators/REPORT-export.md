@@ -107,11 +107,11 @@ T=/mnt/d/Arknights/YostarGames/Arknights_EN/BepInEx/Translation/ru/Text; mv "$T/
 ## Диск
 
 - D: свободно 63 ГБ.
-- Тома: kw-backend-target 30 ГБ (кэш Rust; в конце сессии очищается `cargo clean --profile dev`), kw-cargo-registry 0,6 ГБ, kw-frontend-node-modules 0,7 ГБ.
+- Тома: kw-backend-target очищен (`cargo clean --profile dev`, освободилось 39 ГБ), kw-cargo-registry 0,6 ГБ, kw-frontend-node-modules 0,7 ГБ.
 
 ## Коммиты (ветка translators, не отправлены)
 
 - `b9256dd` — выгрузка: исправленные копии, TSV, архив; «только для этого места» — только сюжет.
 - `82bffff` — SPEC §3, §4.
 - `45927ae` — тест на настоящих файлах пака.
-- следующий — архив упаковывается в фоне после «Подготовить»; этот отчёт.
+- `34917a4` — архив упаковывается в фоне после «Подготовить»; этот отчёт.
