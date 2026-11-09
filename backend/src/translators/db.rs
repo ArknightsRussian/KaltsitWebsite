@@ -21,6 +21,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!("migrations/t006_votes_reads.sql"),
     ),
     ("t007_approve", include_str!("migrations/t007_approve.sql")),
+    (
+        "t008_roles_releases",
+        include_str!("migrations/t008_roles_releases.sql"),
+    ),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -55,14 +59,14 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// The member's role (`translator`, `editor`, `admin`) and game nickname, or
-/// `None` for a non-member.
+/// The member's roles (`translator`, `editor`, `maintainer`, `admin`; several
+/// at once) and game nickname, or `None` for a non-member.
 pub async fn member_role(
     pool: &PgPool,
     user_id: Uuid,
-) -> Result<Option<(String, Option<String>)>, sqlx::Error> {
+) -> Result<Option<(Vec<String>, Option<String>)>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT m.role, NULLIF(u.nickname, '') FROM translators.members m
+        "SELECT m.roles, NULLIF(u.nickname, '') FROM translators.members m
          JOIN users u ON u.id = m.user_id WHERE m.user_id = $1",
     )
     .bind(user_id)

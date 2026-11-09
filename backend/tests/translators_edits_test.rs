@@ -94,12 +94,8 @@ async fn proposals_votes_comments_and_outdated() {
     let a = user(&pool, "anna").await;
     let b = user(&pool, "boris").await;
     assert_eq!(
-        tdb::member_role(&pool, a)
-            .await
-            .unwrap()
-            .map(|r| r.0)
-            .as_deref(),
-        Some("translator")
+        tdb::member_role(&pool, a).await.unwrap().map(|r| r.0),
+        Some(vec!["translator".to_owned()])
     );
 
     line(&pool, "s1", 3, 0, "Doctor?", "Доктор?").await;
@@ -430,5 +426,24 @@ async fn approvals_progress_and_export_rows() {
         .await
         .unwrap();
     assert_eq!(logged, 4);
+
+    // A pack release marks what is approved now (the one-place proposal), once.
+    let r1 = export::mark_release(&pool, "1.0.30", None, lead)
+        .await
+        .unwrap();
+    let r2 = export::mark_release(&pool, "1.0.31", None, lead)
+        .await
+        .unwrap();
+    let all = export::releases(&pool).await.unwrap();
+    let count = |id| {
+        all.iter()
+            .find(|r| r.id == id)
+            .map(|r| (r.dictionary, r.context))
+            .unwrap()
+    };
+    assert_eq!(count(r1), (0, 1));
+    assert_eq!(count(r2), (0, 0), "nothing new");
+    let got = db::key_edits(&pool, &["Yes.".to_owned()]).await.unwrap();
+    assert_eq!(got[0].proposals[0].released_in.as_deref(), Some("1.0.30"));
     drop_db(pool, name).await;
 }

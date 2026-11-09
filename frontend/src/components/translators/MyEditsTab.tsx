@@ -24,7 +24,7 @@ import { deleteProposalFn, editsQueryOptions, proposalVersionsQueryOptions, rewr
 import type { EditRow } from "#/types/generated/EditRow";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
 import { ExportDialog } from "./ExportDialog";
-import { CONFIRM_PLACES, cleanText, isLead, SaveDialog, useEditMutation } from "./LineEdits";
+import { CONFIRM_PLACES, cleanText, exportsForGame, isLead, marksReleases, SaveDialog, useEditMutation } from "./LineEdits";
 import { StoryText } from "./StoryText";
 import { useStoryNames } from "./storyNames";
 import { TokenEditor } from "./TokenEditor";
@@ -211,7 +211,7 @@ export function MyEditsTab(): React.ReactElement {
                             <span className="font-medium text-sm">{t("edits.all")}</span>
                         </label>
                     ) : null}
-                    <ExportDialog lead={lead} t={t} />
+                    <ExportDialog forGame={exportsForGame(me.data)} releases={marksReleases(me.data)} t={t} />
                 </div>
             </div>
             {rows.length === 0 ? (

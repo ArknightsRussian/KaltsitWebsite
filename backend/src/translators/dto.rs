@@ -13,8 +13,9 @@ pub struct TranslatorsMe {
     pub member: bool,
     /// The member's user id, to tell their own proposals and votes.
     pub user_id: Option<String>,
-    /// `translator`, `editor` (the lead) or `admin`; null for a non-member.
-    pub role: Option<String>,
+    /// `translator`, `editor` (the lead), `maintainer` (builds the pack), `admin`;
+    /// several at once; empty for a non-member.
+    pub roles: Vec<String>,
     /// The member's game nickname, shown for `{@nickname}`; null when unknown.
     pub nickname: Option<String>,
     /// The development sign-in is switched on for this backend.

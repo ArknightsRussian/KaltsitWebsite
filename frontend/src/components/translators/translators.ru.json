@@ -282,7 +282,7 @@
     "export.title": "Выгрузка в словари XUnity",
     "export.mode": "Что",
     "export.mode.approved": "Утверждённое — для игры",
-    "export.mode.approvedHint": "Выгружает только ведущий.",
+    "export.mode.approvedHint": "Выгружают только ведущий и сборщик пака.",
     "export.mode.review": "Все предложения — на проверку (REVIEW)",
     "export.format": "Формат",
     "export.format.file": "Отдельный файл 00_translators.txt",
@@ -297,5 +297,14 @@
     "export.afterNone": "После нашего файла ничего не грузится: он побеждает.",
     "export.files": "Файлы",
     "export.download": "Скачать",
-    "export.howTo": "Положите файл в BepInEx\\Translation\\ru\\Text и нажмите в игре Alt+R (или перезапустите игру)."
+    "export.howTo": "Положите файл в BepInEx\\Translation\\ru\\Text и нажмите в игре Alt+R (или перезапустите игру).",
+    "release.in": "вышло в паке {version}",
+    "release.title": "Вышло в паке",
+    "release.hint": "После сборки пака из этой выгрузки отметьте выпуск: все утверждённые записи, ещё не выходившие с тем же текстом, отметятся как вышедшие в этой версии.",
+    "release.version": "Версия пака",
+    "release.note": "Примечание",
+    "release.mark": "Отметить: вышло",
+    "release.done": "Отмечено в {version}: словарь {dictionary}, плагин {plugin}, с привязкой к месту {context}.",
+    "release.last": "Последний: {version} ({date}, {by})",
+    "release.failed": "Не удалось отметить выпуск."
 }

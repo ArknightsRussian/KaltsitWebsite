@@ -16,4 +16,8 @@ export type Approval = {
     text: string;
     by: EditPerson;
     at: number;
+    /**
+     * The pack version this text went out in, if it has.
+     */
+    releasedIn: string | null;
 };

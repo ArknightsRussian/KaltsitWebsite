@@ -83,12 +83,27 @@ export function cleanText(s: string): string {
     return s.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trim();
 }
 
+function hasRole(me: TranslatorsMe, role: string): boolean {
+    return me.roles.includes(role) || me.roles.includes("admin");
+}
+
+/** The lead (editor): approves, sees everyone's edits, resolves any remark. */
 export function isLead(me: TranslatorsMe): boolean {
-    return me.role === "editor" || me.role === "admin";
+    return hasRole(me, "editor");
+}
+
+/** Exports the approved entries for the game: the lead or the pack's maintainer. */
+export function exportsForGame(me: TranslatorsMe): boolean {
+    return hasRole(me, "editor") || hasRole(me, "maintainer");
+}
+
+/** Marks what went out in a pack version: the pack's maintainer. */
+export function marksReleases(me: TranslatorsMe): boolean {
+    return hasRole(me, "maintainer");
 }
 
 /** Run an edit, then refresh every story's lines and My edits; a failure is a toast in the section's words. */
-export function useEditMutation<V>(fn: (v: V) => Promise<unknown>, failed: string) {
+export function useEditMutation<V, R = unknown>(fn: (v: V) => Promise<R>, failed: string) {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: fn,
@@ -336,6 +351,11 @@ export function ApprovedVariant({ edits, place, me, nickname, marks, t }: { edit
                 <>
                     {a.variant === "game" ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}
                     {marks}
+                    {a.releasedIn ? (
+                        <Badge variant="success" size="sm">
+                            {t("release.in", { version: a.releasedIn })}
+                        </Badge>
+                    ) : null}
                     <ApproveButton place={place} variant={a.variant as AgreeVariant} proposalId={a.proposalId ?? undefined} me={me} approved t={t} />
                 </>
             }
@@ -379,7 +399,7 @@ export function Proposals({ edits, place, me, nickname, onEdit, marks, t }: IPro
                                     <AgreeButton place={place} variant="proposal" proposalId={p.id} people={p.agreements} me={me} own={mine} t={t} />
                                     {p.context && p.approvedAt !== null ? (
                                         <Badge variant="success" size="sm">
-                                            {t("approved.here")}
+                                            {p.releasedIn ? t("release.in", { version: p.releasedIn }) : t("approved.here")}
                                         </Badge>
                                     ) : null}
                                     <ApproveButton place={place} variant="proposal" proposalId={p.id} me={me} approved={p.context ? p.approvedAt !== null : edits?.approval?.proposalId === p.id} t={t} />

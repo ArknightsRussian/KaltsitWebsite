@@ -136,6 +136,9 @@ pub struct Row {
 /// One proposal for one place.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ContextRow {
+    pub edit_key: String,
+    pub line: i32,
+    pub part: i16,
     pub story_id: String,
     pub ord: Option<i32>,
     pub en: Option<String>,
@@ -185,7 +188,7 @@ pub async fn rows(pool: &PgPool, review: bool) -> Result<Vec<Row>, sqlx::Error> 
 /// Proposals for one place: approved ones (`approved` mode) or the others (`review`).
 pub async fn context_rows(pool: &PgPool, review: bool) -> Result<Vec<ContextRow>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT p.story_id, s.ord, s.en, s.ru_game, p.text,
+        "SELECT p.edit_key, p.line, p.part, p.story_id, s.ord, s.en, s.ru_game, p.text,
                 COALESCE(NULLIF(u.nickname, ''), u.uid) AS author, p.approved_at IS NOT NULL AS approved
          FROM translators.proposals p
          JOIN users u ON u.id = p.author_id
@@ -603,4 +606,132 @@ mod tests {
         assert_eq!(out.report.appended, 1);
         assert_eq!(out.report.written, 3);
     }
+}
+
+/// A pack version and what went out in it.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Release {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub version: String,
+    pub note: Option<String>,
+    pub by: Option<String>,
+    #[ts(type = "number")]
+    pub at: i64,
+    /// Entries marked: dictionary lines, plugin lines, one-place lines.
+    pub dictionary: i32,
+    pub plugin: i32,
+    pub context: i32,
+}
+
+/// Mark a pack version: which version, and a note.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseInput {
+    pub version: String,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+/// Mark every approved entry for the game that has not gone out with the same
+/// text as gone out in `version` (dictionary, plugin and one-place lines).
+/// Returns the release with its counts; nothing new is still a release (0).
+pub async fn mark_release(
+    pool: &PgPool,
+    version: &str,
+    note: Option<&str>,
+    by: uuid::Uuid,
+) -> Result<i64, sqlx::Error> {
+    let rows = rows(pool, false).await?;
+    let context = context_rows(pool, false).await?;
+    let mut tx = pool.begin().await?;
+    let id: i64 = sqlx::query_scalar(
+        "INSERT INTO translators.releases (version, note, released_by) VALUES ($1, $2, $3) RETURNING id",
+    )
+    .bind(version)
+    .bind(note)
+    .bind(by)
+    .fetch_one(&mut *tx)
+    .await?;
+    let new_item = "INSERT INTO translators.release_items (release_id, edit_key, text, kind, story_id, line, part)
+         SELECT $1, $2, $3, $4, $5, $6, $7
+         WHERE NOT EXISTS (SELECT 1 FROM translators.release_items i
+                           WHERE i.edit_key = $2 AND i.text = $3
+                             AND i.story_id IS NOT DISTINCT FROM $5 AND i.line IS NOT DISTINCT FROM $6
+                             AND i.part IS NOT DISTINCT FROM $7)";
+    for r in &rows {
+        if r.ru_game.as_deref() == Some(r.text.as_str()) {
+            continue;
+        }
+        let kind = if r.plugin_role.as_deref() == Some("story") {
+            "plugin"
+        } else {
+            "dictionary"
+        };
+        sqlx::query(new_item)
+            .bind(id)
+            .bind(&r.edit_key)
+            .bind(&r.text)
+            .bind(kind)
+            .bind(None::<String>)
+            .bind(None::<i32>)
+            .bind(None::<i16>)
+            .execute(&mut *tx)
+            .await?;
+    }
+    for c in &context {
+        sqlx::query(new_item)
+            .bind(id)
+            .bind(&c.edit_key)
+            .bind(&c.text)
+            .bind("context")
+            .bind(&c.story_id)
+            .bind(c.line)
+            .bind(c.part)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await?;
+    Ok(id)
+}
+
+/// Every pack version marked, newest first, with its counts.
+pub async fn releases(pool: &PgPool) -> Result<Vec<Release>, sqlx::Error> {
+    #[allow(clippy::type_complexity)]
+    let rows: Vec<(
+        i64,
+        String,
+        Option<String>,
+        Option<String>,
+        chrono::DateTime<chrono::Utc>,
+        i64,
+        i64,
+        i64,
+    )> = sqlx::query_as(
+        "SELECT r.id, r.version, r.note, COALESCE(NULLIF(u.nickname, ''), u.uid), r.released_at,
+                    COUNT(*) FILTER (WHERE i.kind = 'dictionary'),
+                    COUNT(*) FILTER (WHERE i.kind = 'plugin'),
+                    COUNT(*) FILTER (WHERE i.kind = 'context')
+             FROM translators.releases r
+             LEFT JOIN users u ON u.id = r.released_by
+             LEFT JOIN translators.release_items i ON i.release_id = r.id
+             GROUP BY r.id, u.nickname, u.uid ORDER BY r.id DESC",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, version, note, by, at, d, p, c)| Release {
+            id,
+            version,
+            note,
+            by,
+            at: at.timestamp(),
+            dictionary: i32::try_from(d).unwrap_or(i32::MAX),
+            plugin: i32::try_from(p).unwrap_or(i32::MAX),
+            context: i32::try_from(c).unwrap_or(i32::MAX),
+        })
+        .collect())
 }

@@ -44,4 +44,8 @@ export type Proposal = {
      */
     approvedBy: EditPerson | null;
     approvedAt: number | null;
+    /**
+     * A one-place proposal: the pack version its text went out in, if it has.
+     */
+    releasedIn: string | null;
 };

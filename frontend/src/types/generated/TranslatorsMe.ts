@@ -13,9 +13,10 @@ export type TranslatorsMe = {
      */
     userId: string | null;
     /**
-     * `translator`, `editor` (the lead) or `admin`; null for a non-member.
+     * `translator`, `editor` (the lead), `maintainer` (builds the pack), `admin`;
+     * several at once; empty for a non-member.
      */
-    role: string | null;
+    roles: Array<string>;
     /**
      * The member's game nickname, shown for `{@nickname}`; null when unknown.
      */

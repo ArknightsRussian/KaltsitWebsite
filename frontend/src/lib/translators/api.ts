@@ -23,6 +23,7 @@ import type { KeyPlaces } from "#/types/generated/KeyPlaces";
 import type { LoginResponse } from "#/types/generated/LoginResponse";
 import type { NameRu } from "#/types/generated/NameRu";
 import type { ProposalVersion } from "#/types/generated/ProposalVersion";
+import type { Release } from "#/types/generated/Release";
 import type { StoryProgress } from "#/types/generated/StoryProgress";
 import type { TranslatorStoryLines } from "#/types/generated/TranslatorStoryLines";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
@@ -172,6 +173,24 @@ export const exportFn = createServerFn({ method: "GET" })
         const res = await send(`/translators/export?mode=${data.mode}&format=${data.format}&only=`, "GET");
         return (await res.json()) as ExportResult;
     });
+
+/** Mark what went out in a pack version (the pack's maintainer). */
+export const markReleaseFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { version: string; note: string }) => d)
+    .handler(async ({ data }): Promise<Release> => {
+        const res = await send("/translators/releases", "POST", { version: data.version, note: data.note || null });
+        return (await res.json()) as Release;
+    });
+
+export const getReleasesFn = createServerFn({ method: "GET" }).handler(async (): Promise<Release[]> => {
+    const res = await send("/translators/releases", "GET");
+    return (await res.json()) as Release[];
+});
+
+/** Every pack version marked, newest first (refreshed with the edits). */
+export function releasesQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", "releases"], queryFn: () => getReleasesFn() });
+}
 
 /** Mark a story read by me ("I have read this scene"), or not. */
 export const setStoryReadFn = createServerFn({ method: "POST" })

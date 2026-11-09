@@ -164,6 +164,7 @@ impl ProposalRow {
                 .approved_by
                 .map(|id| person(id, self.approver_name.unwrap_or_default())),
             approved_at: self.approved_at.map(|t| t.timestamp()),
+            released_in: None,
         }
     }
 }
@@ -280,6 +281,7 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
     }
     for (key, variant, proposal_id, text, by, name, at) in approvals {
         entry(&mut out, &key).approval = Some(Approval {
+            released_in: None,
             variant,
             proposal_id,
             text,
@@ -300,6 +302,49 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
             },
             people,
         });
+    }
+    // What went out in a pack, with the very text approved.
+    #[allow(clippy::type_complexity)]
+    let released: Vec<(
+        String,
+        String,
+        Option<String>,
+        Option<i32>,
+        Option<i16>,
+        String,
+    )> = sqlx::query_as(
+        "SELECT DISTINCT ON (i.edit_key, i.text, i.story_id, i.line, i.part)
+                i.edit_key, i.text, i.story_id, i.line, i.part, r.version
+         FROM translators.release_items i JOIN translators.releases r ON r.id = i.release_id
+         WHERE i.edit_key = ANY($1)
+         ORDER BY i.edit_key, i.text, i.story_id, i.line, i.part, r.id DESC",
+    )
+    .bind(keys)
+    .fetch_all(pool)
+    .await?;
+    for (key, text, story, line, part, version) in released {
+        let Some(e) = out.get_mut(&key) else { continue };
+        match (story, line, part) {
+            (Some(story), Some(line), Some(part)) => {
+                for p in &mut e.proposals {
+                    if p.context
+                        && p.text == text
+                        && p.place.story_id == story
+                        && p.place.line == line
+                        && p.place.part == part
+                    {
+                        p.released_in = Some(version.clone());
+                    }
+                }
+            }
+            _ => {
+                if let Some(a) = &mut e.approval
+                    && a.text == text
+                {
+                    a.released_in = Some(version);
+                }
+            }
+        }
     }
     let mut out: Vec<KeyEdits> = out.into_values().collect();
     for e in &mut out {

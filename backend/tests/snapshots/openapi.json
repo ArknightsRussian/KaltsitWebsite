@@ -13177,7 +13177,7 @@
         "tags": [
           "translators"
         ],
-        "summary": "Export to the XUnity dictionaries: `approved` (for the game; the lead\nonly) or `review` (every proposal not approved, marked REVIEW; any member),\nas one `00_translators.txt` or as patched copies of 11_ui / 12_story /\n13_names, with plugin.csv, context.csv and the report. Members only.",
+        "summary": "Export to the XUnity dictionaries: `approved` (for the game; the lead\nor the pack's maintainer) or `review` (every proposal not approved, marked REVIEW; any member),\nas one `00_translators.txt` or as patched copies of 11_ui / 12_story /\n13_names, with plugin.csv, context.csv and the report. Members only.",
         "operationId": "export",
         "parameters": [
           {
@@ -13808,6 +13808,90 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/releases": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Every pack version marked, newest first. Members only.",
+        "operationId": "list_releases",
+        "responses": {
+          "200": {
+            "description": "The releases with their counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Release"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Mark what went out in a pack version: every approved entry for the game\nnot yet out with the same text. The pack's maintainer only.",
+        "operationId": "mark_release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The release with what it marked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -17867,6 +17951,13 @@
             ],
             "format": "int64",
             "description": "The approved proposal; null for the other variants."
+          },
+          "releasedIn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pack version this text went out in, if it has."
           },
           "text": {
             "type": "string"
@@ -30091,6 +30182,13 @@
           "place": {
             "$ref": "#/components/schemas/EditPlace"
           },
+          "releasedIn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A one-place proposal: the pack version its text went out in, if it has."
+          },
           "source": {
             "type": "string",
             "description": "`own`, `sova`, `ai` (or `kit`, unused for now)."
@@ -30990,6 +31088,56 @@
           }
         }
       },
+      "Release": {
+        "type": "object",
+        "description": "A pack version and what went out in it.",
+        "required": [
+          "id",
+          "version",
+          "at",
+          "dictionary",
+          "plugin",
+          "context"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dictionary": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Entries marked: dictionary lines, plugin lines, one-place lines."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plugin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "ReleaseBanner": {
         "type": "object",
         "required": [
@@ -31191,6 +31339,24 @@
                 "$ref": "#/components/schemas/EventShop"
               }
             ]
+          }
+        }
+      },
+      "ReleaseInput": {
+        "type": "object",
+        "description": "Mark a pack version: which version, and a note.",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
           }
         }
       },
@@ -37630,6 +37796,7 @@
         "description": "What the page needs to know about the caller.",
         "required": [
           "member",
+          "roles",
           "devLogin"
         ],
         "properties": {
@@ -37648,12 +37815,12 @@
             ],
             "description": "The member's game nickname, shown for `{@nickname}`; null when unknown."
           },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`translator`, `editor` (the lead) or `admin`; null for a non-member."
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`translator`, `editor` (the lead), `maintainer` (builds the pack), `admin`;\nseveral at once; empty for a non-member."
           },
           "userId": {
             "type": [

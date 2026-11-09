@@ -57,6 +57,8 @@ pub struct Proposal {
     pub approved_by: Option<EditPerson>,
     #[ts(type = "number | null")]
     pub approved_at: Option<i64>,
+    /// A one-place proposal: the pack version its text went out in, if it has.
+    pub released_in: Option<String>,
 }
 
 /// One text a proposal has had.
@@ -87,6 +89,8 @@ pub struct Approval {
     pub by: EditPerson,
     #[ts(type = "number")]
     pub at: i64,
+    /// The pack version this text went out in, if it has.
+    pub released_in: Option<String>,
 }
 
 /// A note on an entry.

@@ -5,19 +5,22 @@
  * each file to download (plugin.csv, context.csv and report.txt too). The
  * files come from the section's own `/translators/export` download route.
  */
-import { useMutation } from "@tanstack/react-query";
-import { Download, FileOutput } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Download, FileOutput, PackageCheck } from "lucide-react";
 import type React from "react";
 import { useId, useState } from "react";
 import { Alert, AlertDescription } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle, DialogTrigger } from "#/components/ui/dialog";
+import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
 import { LoadFailed } from "#/components/ui/load-failed";
 import { Radio, RadioGroup } from "#/components/ui/radio-group";
 import { Spinner } from "#/components/ui/spinner";
 import { useFormatters } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
-import { type ExportFormat, type ExportMode, exportFn } from "#/lib/translators/api";
+import { type ExportFormat, type ExportMode, exportFn, markReleaseFn, releasesQueryOptions } from "#/lib/translators/api";
+import { useEditMutation } from "./LineEdits";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
@@ -35,9 +38,43 @@ function Choice({ value, label, hint, disabled }: { value: string; label: string
     );
 }
 
-export function ExportDialog({ lead, t }: { lead: boolean; t: T }): React.ReactElement {
+/** "Went out in pack <version>": the pack's maintainer marks it after exporting for the game. */
+function MarkRelease({ t }: { t: T }): React.ReactElement {
+    const f = useFormatters();
+    const ids = { version: useId(), note: useId() };
+    const [version, setVersion] = useState("");
+    const [note, setNote] = useState("");
+    const releases = useQuery(releasesQueryOptions());
+    const mark = useEditMutation(() => markReleaseFn({ data: { version: version.trim(), note: note.trim() } }), t("release.failed"));
+    const last = releases.data?.[0];
+    return (
+        <div className="flex flex-col gap-2 border-t pt-3">
+            <span className="font-medium text-sm">{t("release.title")}</span>
+            <span className="text-muted-foreground text-xs">{t("release.hint")}</span>
+            <div className="flex flex-wrap items-end gap-2">
+                <div className="flex w-32 flex-col gap-1">
+                    <Label htmlFor={ids.version}>{t("release.version")}</Label>
+                    <Input id={ids.version} size="sm" value={version} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVersion(e.target.value)} placeholder="1.0.30" />
+                </div>
+                <div className="flex min-w-48 flex-1 flex-col gap-1">
+                    <Label htmlFor={ids.note}>{t("release.note")}</Label>
+                    <Input id={ids.note} size="sm" value={note} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNote(e.target.value)} />
+                </div>
+                <Button size="sm" onClick={() => mark.mutate(undefined)} disabled={mark.isPending || version.trim() === ""}>
+                    {mark.isPending ? <Spinner /> : <PackageCheck aria-hidden="true" />}
+                    {t("release.mark")}
+                </Button>
+            </div>
+            {mark.data ? <span className="text-success-foreground text-xs">{t("release.done", { version: mark.data.version, dictionary: mark.data.dictionary, plugin: mark.data.plugin, context: mark.data.context })}</span> : null}
+            {last ? <span className="text-subtle-foreground text-xs">{t("release.last", { version: last.version, date: f.date(last.at * 1000, { dateStyle: "medium" }), by: last.by ?? "" })}</span> : null}
+        </div>
+    );
+}
+
+export function ExportDialog({ forGame, releases, t }: { forGame: boolean; releases: boolean; t: T }): React.ReactElement {
     const f = useFormatters();
     const ids = { mode: useId(), format: useId() };
+    const lead = forGame;
     const [mode, setMode] = useState<ExportMode>(lead ? "approved" : "review");
     const [format, setFormat] = useState<ExportFormat>("file");
     const run = useMutation({ mutationFn: () => exportFn({ data: { mode, format } }) });
@@ -94,6 +131,7 @@ export function ExportDialog({ lead, t }: { lead: boolean; t: T }): React.ReactE
                         </Button>
                     </div>
                     {run.isError ? <LoadFailed layout="inline" message={t("export.load")} onRetry={() => run.mutate()} /> : null}
+                    {r && run.data && mode === "approved" && releases ? <MarkRelease t={t} /> : null}
                     {r && run.data ? (
                         <div className="flex flex-col gap-2 text-sm">
                             <ul className="flex flex-col gap-0.5">

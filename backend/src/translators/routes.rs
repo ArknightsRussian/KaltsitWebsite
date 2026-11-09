@@ -29,15 +29,29 @@ const DEV_UID: &str = "dev-translator";
 /// A section member making a request.
 pub struct Member {
     pub id: Uuid,
-    /// `translator`, `editor` or `admin`.
-    pub role: String,
+    /// `translator`, `editor`, `maintainer`, `admin`: one or several.
+    pub roles: Vec<String>,
     pub nickname: Option<String>,
 }
 
 impl Member {
-    /// The lead (or an admin): approves, sees everyone's edits, resolves any comment.
+    fn has(&self, role: &str) -> bool {
+        self.roles.iter().any(|r| r == role || r == "admin")
+    }
+
+    /// The lead: approves, sees everyone's edits, resolves any remark.
     pub fn leads(&self) -> bool {
-        self.role == "editor" || self.role == "admin"
+        self.has("editor")
+    }
+
+    /// Exports the approved entries for the game: the lead or the pack's maintainer.
+    pub fn exports_for_game(&self) -> bool {
+        self.has("editor") || self.has("maintainer")
+    }
+
+    /// Marks what went out in a pack version: the pack's maintainer.
+    pub fn releases(&self) -> bool {
+        self.has("maintainer")
     }
 }
 
@@ -50,7 +64,11 @@ async fn member_of(state: &AppState, auth: &MaybeAuthUser) -> Result<Option<Memb
     };
     Ok(db::member_role(&state.db, id)
         .await?
-        .map(|(role, nickname)| Member { id, role, nickname }))
+        .map(|(roles, nickname)| Member {
+            id,
+            roles,
+            nickname,
+        }))
 }
 
 /// Whether the caller is a signed-in translator, and whether the development sign-in is on.
@@ -73,7 +91,7 @@ pub async fn me(
         member: member.is_some(),
         user_id: member.as_ref().map(|m| m.id.to_string()),
         nickname: member.as_ref().and_then(|m| m.nickname.clone()),
-        role: member.map(|m| m.role),
+        roles: member.map(|m| m.roles).unwrap_or_default(),
         dev_login: dev_login_enabled(),
     }))
 }
@@ -556,7 +574,7 @@ pub async fn dev_login(State(state): State<AppState>) -> Result<Json<LoginRespon
 }
 
 /// Export to the XUnity dictionaries: `approved` (for the game; the lead
-/// only) or `review` (every proposal not approved, marked REVIEW; any member),
+/// or the pack's maintainer) or `review` (every proposal not approved, marked REVIEW; any member),
 /// as one `00_translators.txt` or as patched copies of 11_ui / 12_story /
 /// 13_names, with plugin.csv, context.csv and the report. Members only.
 #[utoipa::path(
@@ -589,7 +607,7 @@ pub async fn export(
         "file" => false,
         _ => return Err(ApiError::BadRequest("format: file or patch".into())),
     };
-    if !review && !me.leads() {
+    if !review && !me.exports_for_game() {
         return Err(ApiError::Forbidden);
     }
     let sources = Sources::from_env().map_err(ApiError::BadRequest)?;
@@ -627,4 +645,68 @@ pub async fn export(
         None => {}
     }
     Ok(Json(result))
+}
+
+/// Mark what went out in a pack version: every approved entry for the game
+/// not yet out with the same text. The pack's maintainer only.
+#[utoipa::path(
+    post,
+    path = "/translators/releases",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    request_body = export::ReleaseInput,
+    responses(
+        (status = 200, description = "The release with what it marked.", body = export::Release),
+        (status = 400, response = crate::app::openapi::responses::BadRequest),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn mark_release(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Json(input): Json<export::ReleaseInput>,
+) -> Result<Json<export::Release>, ApiError> {
+    let me = require_member(&state, &auth).await?;
+    if !me.releases() {
+        return Err(ApiError::Forbidden);
+    }
+    let version = input.version.trim();
+    if version.is_empty() || version.chars().count() > 40 {
+        return Err(ApiError::BadRequest("version: 1 to 40 characters".into()));
+    }
+    let note = input
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty());
+    let id = export::mark_release(&state.db, version, note, me.id).await?;
+    export::releases(&state.db)
+        .await?
+        .into_iter()
+        .find(|r| r.id == id)
+        .map(Json)
+        .ok_or(ApiError::NotFound)
+}
+
+/// Every pack version marked, newest first. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/releases",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "The releases with their counts.", body = Vec<export::Release>),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn list_releases(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+) -> Result<Json<Vec<export::Release>>, ApiError> {
+    require_member(&state, &auth).await?;
+    Ok(Json(export::releases(&state.db).await?))
 }

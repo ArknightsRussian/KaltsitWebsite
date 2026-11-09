@@ -1064,7 +1064,7 @@ export const messages = {
         description: "Export mode: the lead's approvals (the lead only).",
     },
     "export.mode.approvedHint": {
-        text: "Only the lead can export it.",
+        text: "Only the lead or the pack maintainer can export it.",
         description: "Hint under the approved mode for other members.",
     },
     "export.mode.review": {
@@ -1126,6 +1126,42 @@ export const messages = {
     "export.howTo": {
         text: "Put the file in BepInEx\\Translation\\ru\\Text and press Alt+R in the game (or restart the game).",
         description: "Hint in the export dialog: how to try an exported dictionary file in the game. Keep the folder path and the key as they are.",
+    },
+    "release.in": {
+        text: "went out in pack {version}",
+        description: "Badge on an approved variant whose text went out in a pack version.",
+    },
+    "release.title": {
+        text: "Went out in a pack",
+        description: "Heading of the pack maintainer's block in the export dialog.",
+    },
+    "release.hint": {
+        text: "After building the pack from this export, mark it: every approved entry not yet out with the same text is marked as gone out in this version.",
+        description: "Text of the pack maintainer's block.",
+    },
+    "release.version": {
+        text: "Pack version",
+        description: "Label of the pack version field.",
+    },
+    "release.note": {
+        text: "Note",
+        description: "Label of the optional note of a pack release.",
+    },
+    "release.mark": {
+        text: "Mark as gone out",
+        description: "Button marking the approved entries as gone out in the pack version.",
+    },
+    "release.done": {
+        text: "Marked in {version}: dictionary {dictionary}, plugin {plugin}, tied to a place {context}.",
+        description: "After marking a release: how many entries of each kind.",
+    },
+    "release.last": {
+        text: "Last: {version} ({date}, {by})",
+        description: "The last pack version marked.",
+    },
+    "release.failed": {
+        text: "Couldn't mark the release.",
+        description: "Toast when marking a pack release fails.",
     },
 } satisfies MessageMap;
 
