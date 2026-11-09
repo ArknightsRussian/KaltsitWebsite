@@ -13310,6 +13310,44 @@
         ]
       }
     },
+    "/api/translators/names": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The story library's chapter and story names with the Russian the game\nshows (ArknightsRU dictionaries), for the pickers. Members only.",
+        "operationId": "names",
+        "responses": {
+          "200": {
+            "description": "English name -> Russian, where the dictionaries have one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NameRu"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/translators/places": {
       "get": {
         "tags": [
@@ -20734,12 +20772,17 @@
         "description": "Who a story sprite is, for the Service rows (\"On stage: Amiya\").",
         "required": [
           "charId",
-          "nameEn"
+          "nameEn",
+          "guessed"
         ],
         "properties": {
           "charId": {
             "type": "string",
             "description": "The sprite's id without pose and face (`char_002_amiya`)."
+          },
+          "guessed": {
+            "type": "boolean",
+            "description": "Named by who talks right after it (not an operator): a guess."
           },
           "nameEn": {
             "type": "string"
@@ -26565,6 +26608,22 @@
           }
         }
       },
+      "MissingTerm": {
+        "type": "object",
+        "description": "A glossary term missing from a variant: as in the English line, and the glossary's Russian.",
+        "required": [
+          "en",
+          "ru"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
+          }
+        }
+      },
       "ModuleLevelStats": {
         "type": "object",
         "description": "How far E2 owners take one module's level.",
@@ -27379,6 +27438,22 @@
           "listens": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "NameRu": {
+        "type": "object",
+        "description": "A chapter or story name of the library with the game's Russian.",
+        "required": [
+          "en",
+          "ru"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
           }
         }
       },
@@ -36765,7 +36840,8 @@
           "editKey",
           "editable",
           "places",
-          "status"
+          "status",
+          "variantGlossary"
         ],
         "properties": {
           "ai": {
@@ -36879,6 +36955,13 @@
               "$ref": "#/components/schemas/LineTerm"
             },
             "description": "Glossary terms found in the English, in order."
+          },
+          "variantGlossary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantGlossary"
+            },
+            "description": "The variants whose Russian lacks a glossary term's form (a variant not\nlisted holds them all): `game`, `sova`, `ai`, `approved`, `proposal:<id>`."
           }
         }
       },
@@ -37808,6 +37891,25 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "VariantGlossary": {
+        "type": "object",
+        "description": "One variant of a line and the glossary terms its Russian lacks.",
+        "required": [
+          "variant",
+          "missing"
+        ],
+        "properties": {
+          "missing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingTerm"
+            }
+          },
+          "variant": {
+            "type": "string"
           }
         }
       },

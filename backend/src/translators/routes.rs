@@ -5,8 +5,8 @@ use axum::extract::{Path, Query, State};
 use uuid::Uuid;
 
 use super::dto::{
-    Glossary, GlossaryLine, GlossaryLines, GlossaryLinesQuery, GlossaryTerm, LineTerm,
-    TranslatorStoryLines, TranslatorsMe,
+    Glossary, GlossaryLine, GlossaryLines, GlossaryLinesQuery, GlossaryTerm, LineTerm, MissingTerm,
+    TranslatorStoryLines, TranslatorsMe, VariantGlossary,
 };
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -111,21 +111,30 @@ pub async fn story_lines(
     require_member(&state, &auth).await?;
     let mut lines = db::story_lines(&state.db, SERVER, &story_id, true).await?;
     let stored = glossary::load(&state.db).await?;
+    let terms: Vec<_> = stored.iter().map(glossary::StoredTerm::as_term).collect();
+    // Per line: the checked terms (not Sova's sheet) by the English they matched.
+    let mut checked: Vec<Vec<(String, Vec<usize>)>> = vec![Vec::new(); lines.len()];
     if !stored.is_empty() {
-        let terms: Vec<_> = stored.iter().map(glossary::StoredTerm::as_term).collect();
         let finder = glossary::matcher::Finder::new(&terms);
-        for line in &mut lines {
+        for (line, groups) in lines.iter_mut().zip(checked.iter_mut()) {
             let mut seen = std::collections::HashSet::new();
             for found in finder.find(&line.en) {
+                let matched = line.en[found.start..found.end].to_owned();
                 for t in found.terms {
                     if !seen.insert(t) {
                         continue;
                     }
                     let term = &terms[t];
+                    if !term.from_sova {
+                        match groups.iter_mut().find(|g| g.0 == matched) {
+                            Some(g) => g.1.push(t),
+                            None => groups.push((matched.clone(), vec![t])),
+                        }
+                    }
                     let checked = !term.from_sova && line.ru_game.is_some();
                     line.terms.push(LineTerm {
                         term_id: stored[t].id,
-                        matched: line.en[found.start..found.end].to_owned(),
+                        matched: matched.clone(),
                         sheet: term.sheet.clone(),
                         ru: term.ru.clone(),
                         ru_plural: term.ru_plural.clone(),
@@ -145,6 +154,54 @@ pub async fn story_lines(
     }
     let (edits, outdated) = edits::attach(&state.db, &story_id, &mut lines).await?;
     let sova_notes = edits::db::sova_notes(&state.db, &story_id).await?;
+    // Every variant of every line against the line's glossary terms.
+    let by_key: std::collections::HashMap<&str, &edits::dto::KeyEdits> =
+        edits.iter().map(|e| (e.edit_key.as_str(), e)).collect();
+    for (line, groups) in lines.iter_mut().zip(&checked) {
+        if groups.is_empty() {
+            continue;
+        }
+        let here = (i32::try_from(line.line).unwrap_or(0), line.part);
+        let mut variants: Vec<(String, String)> = Vec::new();
+        for (name, text) in [
+            ("game", &line.ru_game),
+            ("sova", &line.sova),
+            ("ai", &line.ai),
+        ] {
+            if let Some(t) = text {
+                variants.push((name.to_owned(), t.clone()));
+            }
+        }
+        if let Some(e) = by_key.get(line.edit_key.as_str()) {
+            if let Some(a) = &e.approval {
+                variants.push(("approved".to_owned(), a.text.clone()));
+            }
+            for p in &e.proposals {
+                if !p.context
+                    || (p.place.story_id == story_id && (p.place.line, p.place.part) == here)
+                {
+                    variants.push((format!("proposal:{}", p.id), p.text.clone()));
+                }
+            }
+        }
+        for (variant, text) in variants {
+            let missing: Vec<MissingTerm> = groups
+                .iter()
+                .filter(|(_, ts)| {
+                    !ts.iter()
+                        .any(|&t| glossary::matcher::term_found(&text, &terms[t]))
+                })
+                .map(|(en, ts)| MissingTerm {
+                    en: en.clone(),
+                    ru: terms[ts[0]].ru.clone(),
+                })
+                .collect();
+            if !missing.is_empty() {
+                line.variant_glossary
+                    .push(VariantGlossary { variant, missing });
+            }
+        }
+    }
     let imported_at = db::last_import(&state.db, SERVER)
         .await?
         .map(|t| t.timestamp());
@@ -410,20 +467,32 @@ async fn import_now(state: &AppState, sources: Sources) -> Result<(), ApiError> 
         .map(|(id, r)| (id.clone(), r.clone()))
         .collect();
     stories.sort_by(|a, b| a.0.cmp(&b.0));
-    let built = tokio::task::spawn_blocking(move || import::build(&sources, &assets_dir, &stories))
-        .await
-        .map_err(|e| ApiError::Internal(e.into()))??;
-    let summary = built.summary;
-    import::store(
-        &state.db,
-        SERVER,
-        started_at,
-        &built.stories,
-        &built.chars,
-        &built.sova_notes,
-        &summary,
-    )
-    .await?;
+    let gd = server_data.game_data.load_full();
+    let mut game = import::GameNames {
+        operators: gd
+            .operators
+            .iter()
+            .map(|(id, op)| (id.clone(), op.name.clone()))
+            .collect(),
+        library: Vec::new(),
+    };
+    for g in &index.index.groups {
+        game.library.push(g.name.clone());
+        if let Some(z) = &g.zone {
+            game.library
+                .extend(z.name_first.iter().chain(&z.chapter_name).cloned());
+        }
+        for st in &g.stories {
+            game.library.push(st.name.clone());
+            game.library.extend(st.avg_tag.clone());
+        }
+    }
+    let built =
+        tokio::task::spawn_blocking(move || import::build(&sources, &assets_dir, &stories, &game))
+            .await
+            .map_err(|e| ApiError::Internal(e.into()))??;
+    let summary = &built.summary;
+    import::store(&state.db, SERVER, started_at, &built).await?;
     edits::db::mark_outdated(&state.db).await?;
     // The glossary rides along: a failed download keeps the stored copy, and
     // the counts are redone over the new lines either way.

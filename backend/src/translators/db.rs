@@ -15,6 +15,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ),
     ("t003_edits", include_str!("migrations/t003_edits.sql")),
     ("t004_context", include_str!("migrations/t004_context.sql")),
+    ("t005_names", include_str!("migrations/t005_names.sql")),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -141,6 +142,7 @@ pub async fn story_lines(
             edit_key: r.edit_key,
             places: 1,
             status: String::new(),
+            variant_glossary: Vec::new(),
         })
         .collect())
 }

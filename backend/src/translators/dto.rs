@@ -61,6 +61,27 @@ pub struct TranslatorLine {
     pub places: i32,
     /// `unchecked`, `proposed`, `approved` or `outdated`.
     pub status: String,
+    /// The variants whose Russian lacks a glossary term's form (a variant not
+    /// listed holds them all): `game`, `sova`, `ai`, `approved`, `proposal:<id>`.
+    pub variant_glossary: Vec<VariantGlossary>,
+}
+
+/// One variant of a line and the glossary terms its Russian lacks.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct VariantGlossary {
+    pub variant: String,
+    pub missing: Vec<MissingTerm>,
+}
+
+/// A glossary term missing from a variant: as in the English line, and the glossary's Russian.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MissingTerm {
+    pub en: String,
+    pub ru: String,
 }
 
 /// One story's lines.

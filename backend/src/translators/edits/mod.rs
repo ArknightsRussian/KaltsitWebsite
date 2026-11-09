@@ -30,6 +30,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::places))
         .routes(routes!(routes::edits))
         .routes(routes!(routes::characters))
+        .routes(routes!(routes::names))
 }
 
 /// Fill each line's places and status, and return the edits for the

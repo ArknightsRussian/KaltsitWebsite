@@ -280,4 +280,15 @@ pub struct CharName {
     pub char_id: String,
     pub name_en: String,
     pub name_ru: Option<String>,
+    /// Named by who talks right after it (not an operator): a guess.
+    pub guessed: bool,
+}
+
+/// A chapter or story name of the library with the game's Russian.
+#[derive(Debug, Serialize, TS, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NameRu {
+    pub en: String,
+    pub ru: String,
 }

@@ -10,4 +10,8 @@ export type CharName = {
     charId: string;
     nameEn: string;
     nameRu: string | null;
+    /**
+     * Named by who talks right after it (not an operator): a guess.
+     */
+    guessed: boolean;
 };

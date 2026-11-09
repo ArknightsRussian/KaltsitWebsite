@@ -154,6 +154,10 @@ pub fn char_votes(commands: &[StoryCommand], votes: &mut HashMap<String, HashMap
         };
         match cmd.kind.as_str() {
             "character" | "charslot" => {
+                // Every sprite on stage is listed, voted for or not.
+                for n in [arg("name"), arg("name2")].into_iter().flatten() {
+                    votes.entry(char_base(n)).or_default();
+                }
                 let pick = if arg("focus") == Some("2") {
                     arg("name2")
                 } else {
@@ -404,7 +408,7 @@ mod tests {
         char_votes(&parse(script), &mut votes);
         assert_eq!(votes["char_002_amiya"]["Amiya"], 1);
         assert_eq!(votes["char_2_b"]["B"], 1);
-        assert!(!votes.contains_key("char_1_a"));
+        assert!(votes["char_1_a"].is_empty(), "on stage, never voted for");
     }
 
     #[test]

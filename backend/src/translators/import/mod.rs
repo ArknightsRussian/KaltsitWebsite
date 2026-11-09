@@ -110,6 +110,8 @@ pub struct CharName {
     pub name_ru: Option<String>,
     pub votes: u32,
     pub total: u32,
+    /// Named by who talks after it, not by the game's character table.
+    pub guessed: bool,
 }
 
 /// The import's output: every story's lines, the sprites' names, the summary.
@@ -118,15 +120,27 @@ pub struct Built {
     pub chars: Vec<CharName>,
     /// Sova's chapter notes by site story id.
     pub sova_notes: Vec<(String, Vec<String>)>,
+    /// The library's chapter and story names with the game's Russian (`en`, `ru`).
+    pub names_ru: Vec<(String, String)>,
     pub summary: ImportSummary,
 }
 
 /// Build every line of every story. Synchronous and CPU-bound: run it off the
 /// async workers.
+/// What the game data gives the import besides the scripts.
+#[derive(Debug, Default, Clone)]
+pub struct GameNames {
+    /// Operator id (`char_002_amiya`) -> English name, from the character table.
+    pub operators: HashMap<String, String>,
+    /// The library's chapter and story names, to look up in the dictionaries.
+    pub library: Vec<String>,
+}
+
 pub fn build(
     sources: &Sources,
     assets_dir: &Path,
     stories: &[(String, StoryRef)],
+    game: &GameNames,
 ) -> anyhow::Result<Built> {
     let started = std::time::Instant::now();
     let mut summary = ImportSummary {
@@ -233,6 +247,17 @@ pub fn build(
         .into_iter()
         .filter_map(|(char_id, by)| {
             let total: u32 = by.values().sum();
+            // An operator's sprite: its name from the character table, certain.
+            if let Some(name) = game.operators.get(&char_id) {
+                return Some(CharName {
+                    name_ru: matcher.dict(name).map(|(v, _, _)| v),
+                    name_en: name.clone(),
+                    votes: by.get(name).copied().unwrap_or(0),
+                    total,
+                    guessed: false,
+                    char_id,
+                });
+            }
             let (name, n) = by
                 .into_iter()
                 .max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0)))?;
@@ -243,16 +268,30 @@ pub fn build(
                 name_en: name,
                 votes: n,
                 total,
+                guessed: true,
             })
         })
         .collect();
     chars.sort_by(|a, b| a.char_id.cmp(&b.char_id));
     summary.millis = started.elapsed().as_millis();
     summary.sova_notes = sova_notes.iter().map(|(_, n)| n.len()).sum();
+    let mut names_ru: Vec<(String, String)> = game
+        .library
+        .iter()
+        .filter(|n| !n.trim().is_empty())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .filter_map(|en| {
+            let (ru, _, how) = matcher.dict(en)?;
+            (how != "lines" && ru != *en).then(|| (en.clone(), ru))
+        })
+        .collect();
+    names_ru.sort();
     Ok(Built {
         stories: out,
         chars,
         sova_notes,
+        names_ru,
         summary,
     })
 }
@@ -262,11 +301,15 @@ pub async fn store(
     pool: &PgPool,
     server: &str,
     started_at: chrono::DateTime<chrono::Utc>,
-    stories: &[StoryLines],
-    chars: &[CharName],
-    sova_notes: &[(String, Vec<String>)],
-    summary: &ImportSummary,
+    built: &Built,
 ) -> Result<(), sqlx::Error> {
+    let Built {
+        stories,
+        chars,
+        sova_notes,
+        names_ru,
+        summary,
+    } = built;
     // 20 binds per row, under Postgres's 65,535-parameter limit.
     const CHUNK: usize = 2_000;
     let mut tx = pool.begin().await?;
@@ -338,14 +381,26 @@ pub async fn store(
         .await?;
     for chunk in chars.chunks(5_000) {
         let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
-            "INSERT INTO translators.char_names (char_id, name_en, name_ru, votes, total) ",
+            "INSERT INTO translators.char_names (char_id, name_en, name_ru, votes, total, guessed) ",
         );
         qb.push_values(chunk, |mut b, c| {
             b.push_bind(&c.char_id)
                 .push_bind(&c.name_en)
                 .push_bind(&c.name_ru)
                 .push_bind(i32::try_from(c.votes).unwrap_or(i32::MAX))
-                .push_bind(i32::try_from(c.total).unwrap_or(i32::MAX));
+                .push_bind(i32::try_from(c.total).unwrap_or(i32::MAX))
+                .push_bind(c.guessed);
+        });
+        qb.build().execute(&mut *tx).await?;
+    }
+    sqlx::query("DELETE FROM translators.names_ru")
+        .execute(&mut *tx)
+        .await?;
+    for chunk in names_ru.chunks(5_000) {
+        let mut qb: QueryBuilder<Postgres> =
+            QueryBuilder::new("INSERT INTO translators.names_ru (en, ru) ");
+        qb.push_values(chunk, |mut b, (en, ru)| {
+            b.push_bind(en).push_bind(ru);
         });
         qb.build().execute(&mut *tx).await?;
     }

@@ -702,15 +702,24 @@ pub async fn mark_outdated(pool: &PgPool) -> Result<(), sqlx::Error> {
 
 /// Every named story sprite.
 pub async fn char_names(pool: &PgPool) -> Result<Vec<super::dto::CharName>, sqlx::Error> {
-    sqlx::query_as("SELECT char_id, name_en, name_ru FROM translators.char_names ORDER BY char_id")
-        .fetch_all(pool)
-        .await
+    sqlx::query_as(
+        "SELECT char_id, name_en, name_ru, guessed FROM translators.char_names ORDER BY char_id",
+    )
+    .fetch_all(pool)
+    .await
 }
 
 /// Sova's notes to a story's chapter, in order.
 pub async fn sova_notes(pool: &PgPool, story_id: &str) -> Result<Vec<String>, sqlx::Error> {
     sqlx::query_scalar("SELECT text FROM translators.sova_notes WHERE story_id = $1 ORDER BY idx")
         .bind(story_id)
+        .fetch_all(pool)
+        .await
+}
+
+/// The library's names with the game's Russian.
+pub async fn names_ru(pool: &PgPool) -> Result<Vec<super::dto::NameRu>, sqlx::Error> {
+    sqlx::query_as("SELECT en, ru FROM translators.names_ru ORDER BY en")
         .fetch_all(pool)
         .await
 }

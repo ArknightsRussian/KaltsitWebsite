@@ -529,3 +529,25 @@ pub async fn characters(
     require_member(&state, &auth).await?;
     Ok(Json(db::char_names(&state.db).await?))
 }
+
+/// The story library's chapter and story names with the Russian the game
+/// shows (ArknightsRU dictionaries), for the pickers. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/names",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "English name -> Russian, where the dictionaries have one.", body = Vec<super::dto::NameRu>),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn names(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+) -> Result<Json<Vec<super::dto::NameRu>>, ApiError> {
+    require_member(&state, &auth).await?;
+    Ok(Json(db::names_ru(&state.db).await?))
+}
