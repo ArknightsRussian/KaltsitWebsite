@@ -22,6 +22,7 @@ function line(over: Partial<TranslatorLine>): TranslatorLine {
         terms: [],
         editKey: "Doctor, look.",
         editable: true,
+        contextAllowed: true,
         places: 1,
         status: "unchecked",
         variantGlossary: [],

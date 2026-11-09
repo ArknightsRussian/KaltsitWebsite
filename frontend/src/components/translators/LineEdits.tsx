@@ -569,7 +569,7 @@ interface ISaveDialogProps {
     onOpenChange: (open: boolean) => void;
     place: EditPlace;
     places: number;
-    /** Offer "only this place" (a new proposal; a rewrite keeps its scope). */
+    /** Offer "only this place": a story line that is not short (`contextAllowed`); a rewrite keeps its scope. Else the "changes everywhere" note. */
     allowContext: boolean;
     pending: boolean;
     onSave: (context: boolean) => void;
@@ -611,7 +611,9 @@ export function SaveDialog({ open, onOpenChange, place, places, allowContext, pe
                                 </span>
                             </label>
                         </RadioGroup>
-                    ) : null}
+                    ) : (
+                        <p className="pt-2 font-medium text-sm">{t("save.hereShort", { count: places })}</p>
+                    )}
                     {forAll ? (
                         <div className="flex flex-col gap-2 pt-2">
                             <PlacesList place={place} nickname={nickname} t={t} />
@@ -704,7 +706,7 @@ export function ProposalEditor({ line, place, initial, source, context, nickname
                 </Button>
                 <span className="text-subtle-foreground text-xs">{t("editor.keys")}</span>
             </div>
-            {asking ? <SaveDialog open={asking} onOpenChange={setAsking} place={place} places={line.places} allowContext pending={save.isPending} onSave={(c) => save.mutate({ context: c, confirmMany: !c }, done)} nickname={nickname} t={t} /> : null}
+            {asking ? <SaveDialog open={asking} onOpenChange={setAsking} place={place} places={line.places} allowContext={line.contextAllowed} pending={save.isPending} onSave={(c) => save.mutate({ context: c, confirmMany: !c }, done)} nickname={nickname} t={t} /> : null}
         </div>
     );
 }

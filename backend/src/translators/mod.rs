@@ -39,6 +39,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::glossary_lines))
         .routes(routes!(routes::refresh_glossary))
         .routes(routes!(routes::export))
+        .routes(routes!(routes::export_archive))
         .routes(routes!(routes::mark_release, routes::list_releases))
         .merge(edits::router())
 }

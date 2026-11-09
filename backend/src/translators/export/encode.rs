@@ -53,6 +53,17 @@ fn encode_part(s: &str, out: &mut String) {
     }
 }
 
+/// A value alone, for a line whose key part is kept exactly as in the
+/// pack's file (`<key as written>=` + this).
+pub fn encode_value(value: &str) -> Result<String, Unwritable> {
+    if value.is_empty() {
+        return Err(Unwritable::EmptyValue);
+    }
+    let mut out = String::with_capacity(value.len() + 8);
+    encode_part(value, &mut out);
+    Ok(out)
+}
+
 /// The line `key=value` as XUnity reads it back, or why it cannot be written.
 pub fn encode_line(key: &str, value: &str) -> Result<String, Unwritable> {
     if key.is_empty() {

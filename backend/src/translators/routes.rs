@@ -597,6 +597,22 @@ pub async fn export(
     Query(query): Query<export::ExportQuery>,
 ) -> Result<Json<export::ExportResult>, ApiError> {
     let me = require_member(&state, &auth).await?;
+    let mut result = run_export(&state, &me, &query).await?;
+    match query.only.as_deref() {
+        // The list: names and sizes, no contents (a corrected 12_story is ~85 MB).
+        Some("") => result.files.iter_mut().for_each(|f| f.content.clear()),
+        Some(name) => result.files.retain(|f| f.name == name),
+        None => {}
+    }
+    Ok(Json(result))
+}
+
+/// Build an export for a member allowed to make it.
+async fn run_export(
+    state: &AppState,
+    me: &Member,
+    query: &export::ExportQuery,
+) -> Result<export::ExportResult, ApiError> {
     let review = match query.mode.as_str() {
         "review" => true,
         "approved" => false,
@@ -613,6 +629,21 @@ pub async fn export(
     let sources = Sources::from_env().map_err(ApiError::BadRequest)?;
     let rows = export::rows(&state.db, review).await?;
     let context = export::context_rows(&state.db, review).await?;
+    let keys: Vec<String> = rows.iter().map(|r| r.edit_key.clone()).collect();
+    let places = export::places(&state.db, &keys).await?;
+    // Each story's script file, as the bundles name it.
+    let index = cached_index(state, Server::EN).await?;
+    let story_files: std::collections::HashMap<String, String> = places
+        .iter()
+        .map(|p| p.story_id.as_str())
+        .chain(context.iter().map(|c| c.story_id.as_str()))
+        .filter_map(|id| {
+            index
+                .lookup
+                .get(id)
+                .map(|r| (id.to_owned(), r.story_txt.clone()))
+        })
+        .collect();
     let by = match me.nickname.clone() {
         Some(n) => n,
         None => {
@@ -623,10 +654,12 @@ pub async fn export(
         }
     };
     let at = chrono::Utc::now().timestamp();
-    let result = tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         export::build(
             &rows,
             &context,
+            &places,
+            &story_files,
             review,
             patch,
             &sources.ru_text_dir,
@@ -636,15 +669,57 @@ pub async fn export(
     })
     .await
     .map_err(|e| ApiError::Internal(e.into()))?
-    .map_err(|e| ApiError::Internal(e.into()))?;
-    let mut result = result;
-    match query.only.as_deref() {
-        // The list: names and sizes, no contents (a patch is ~140 MB).
-        Some("") => result.files.iter_mut().for_each(|f| f.content.clear()),
-        Some(name) => result.files.retain(|f| f.name == name),
-        None => {}
-    }
-    Ok(Json(result))
+    .map_err(|e| ApiError::Internal(e.into()))
+}
+
+/// The whole export as one ZIP: the changed dictionaries (or
+/// 00_translators.txt), story_lines.tsv and plugin_strings.tsv when there
+/// are rows, report.txt. Same rights as the export.
+#[utoipa::path(
+    get,
+    path = "/translators/export/archive",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    params(export::ExportQuery),
+    responses(
+        (status = 200, description = "The archive.", content_type = "application/zip", body = Vec<u8>),
+        (status = 400, response = crate::app::openapi::responses::BadRequest),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn export_archive(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Query(query): Query<export::ExportQuery>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+    let me = require_member(&state, &auth).await?;
+    let result = run_export(&state, &me, &query).await?;
+    let name = result.report.archive.clone();
+    let at = result.report.at;
+    let files: Vec<(String, Vec<u8>)> = result
+        .files
+        .into_iter()
+        .map(|f| (f.name, f.content.into_bytes()))
+        .collect();
+    let bytes = tokio::task::spawn_blocking(move || export::zip::zip(&files, at))
+        .await
+        .map_err(|e| ApiError::Internal(e.into()))?
+        .map_err(|e| ApiError::Internal(e.into()))?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/zip".to_owned()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{name}\""),
+            ),
+        ],
+        bytes,
+    )
+        .into_response())
 }
 
 /// Mark what went out in a pack version: every approved entry for the game

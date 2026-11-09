@@ -1076,11 +1076,11 @@ export const messages = {
         description: "Label of the export format choice.",
     },
     "export.format.file": {
-        text: "One file 00_translators.txt",
+        text: "One file 00_translators.txt — to check at home",
         description: "Export format: a separate dictionary file.",
     },
     "export.format.patch": {
-        text: "Patch: copies of 11_ui, 12_story, 13_names",
+        text: "Corrected copies of 11_ui, 12_story, 13_names (main)",
         description: "Export format: the pack's files with the changed values.",
     },
     "export.run": {
@@ -1092,16 +1092,12 @@ export const messages = {
         description: "Load failure of the export.",
     },
     "export.written": {
-        text: "Lines written: {count}",
+        text: "Lines changed in the dictionaries: {count}",
         description: "Export report: lines written.",
     },
     "export.plugin": {
-        text: "For the RichTextFix plugin (plugin.csv): {count}",
+        text: "RichTextFix plugin strings (plugin_strings.tsv): {count}",
         description: "Export report: plugin lines.",
-    },
-    "export.context": {
-        text: "Tied to their place (context.csv): {count}",
-        description: "Export report: one-place proposals.",
     },
     "export.skipped": {
         text: "Left out (XUnity cannot read them): {count}",
@@ -1162,6 +1158,30 @@ export const messages = {
     "release.failed": {
         text: "Couldn't mark the release.",
         description: "Toast when marking a pack release fails.",
+    },
+    "export.format.patchHint": {
+        text: "The pack's own files with the approved values put in; only the changed ones go in the archive.",
+        description: "Hint under the main export format.",
+    },
+    "export.format.fileHint": {
+        text: "A separate dictionary file to drop into the game and press Alt+R.",
+        description: "Hint under the to-check-at-home export format.",
+    },
+    "export.story": {
+        text: "Story lines for the bundles (story_lines.tsv): {count}, of them for one place: {context}",
+        description: "Export report: rows of story_lines.tsv and how many are one-place proposals.",
+    },
+    "export.howToPatch": {
+        text: "Replace the files in BepInEx\\\\Translation\\\\ru\\\\Text with the corrected copies (keep the originals) and press Alt+R in the game (or restart it).",
+        description: "Hint in the export dialog for the main format.",
+    },
+    "export.archive": {
+        text: "Download the archive {name}",
+        description: "Button downloading the whole export as a ZIP; name is the archive's file name.",
+    },
+    "save.hereShort": {
+        text: "This text stands in {count} places — the translation changes everywhere.",
+        description: "In the save dialog instead of the one-place choice, for an interface or short line.",
     },
 } satisfies MessageMap;
 

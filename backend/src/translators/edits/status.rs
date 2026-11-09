@@ -8,6 +8,19 @@ use crate::translators::import::normalize::plain;
 /// with the list (a proposal for one place never is).
 pub const CONFIRM_PLACES: i32 = 1;
 
+/// A proposal for one place only (SPEC §3): story lines only, and not a short
+/// one — under this many visible characters or fewer than three words the
+/// same English is one translation everywhere (UI elements and short replies
+/// have no id of their own).
+pub const CONTEXT_MIN_CHARS: usize = 20;
+pub const CONTEXT_MIN_WORDS: usize = 3;
+
+/// Whether a story line may get a proposal for its place only.
+pub fn allows_context(edit_key: &str) -> bool {
+    let p = plain(edit_key);
+    p.chars().count() >= CONTEXT_MIN_CHARS && p.split_whitespace().count() >= CONTEXT_MIN_WORDS
+}
+
 /// The longest quoted fragment of a comment, in characters.
 pub const MAX_QUOTE: usize = 500;
 
@@ -108,6 +121,16 @@ mod tests {
         assert!(!editable("<i>...</i>"));
         assert!(editable("Hm."));
         assert!(editable("3"));
+    }
+
+    #[test]
+    fn short_lines_have_no_one_place_proposal() {
+        assert!(!allows_context("Yes."));
+        assert!(!allows_context("Are you okay?"));
+        assert!(!allows_context("<i>Huh?</i> What?"));
+        assert!(allows_context(
+            "Looks like they didn't have time to notify the others."
+        ));
     }
 
     #[test]

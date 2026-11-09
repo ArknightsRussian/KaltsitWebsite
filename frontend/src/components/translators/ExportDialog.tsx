@@ -76,7 +76,7 @@ export function ExportDialog({ forGame, releases, t }: { forGame: boolean; relea
     const ids = { mode: useId(), format: useId() };
     const lead = forGame;
     const [mode, setMode] = useState<ExportMode>(lead ? "approved" : "review");
-    const [format, setFormat] = useState<ExportFormat>("file");
+    const [format, setFormat] = useState<ExportFormat>("patch");
     const run = useMutation({ mutationFn: () => exportFn({ data: { mode, format } }) });
     const r = run.data?.report;
     return (
@@ -120,8 +120,8 @@ export function ExportDialog({ forGame, releases, t }: { forGame: boolean; relea
                             }}
                             className="gap-2"
                         >
-                            <Choice value="file" label={t("export.format.file")} />
-                            <Choice value="patch" label={t("export.format.patch")} />
+                            <Choice value="patch" label={t("export.format.patch")} hint={t("export.format.patchHint")} />
+                            <Choice value="file" label={t("export.format.file")} hint={t("export.format.fileHint")} />
                         </RadioGroup>
                     </div>
                     <div>
@@ -136,14 +136,27 @@ export function ExportDialog({ forGame, releases, t }: { forGame: boolean; relea
                         <div className="flex flex-col gap-2 text-sm">
                             <ul className="flex flex-col gap-0.5">
                                 <li>{t("export.written", { count: r.written })}</li>
+                                <li>{t("export.story", { count: r.storyRows, context: r.contextRows })}</li>
                                 <li>{t("export.plugin", { count: r.pluginRows })}</li>
-                                <li>{t("export.context", { count: r.contextRows })}</li>
                                 <li className={r.skipped.length > 0 ? "text-warning-foreground" : undefined}>{t("export.skipped", { count: r.skipped.length })}</li>
-                                <li className={r.overriddenBy.length > 0 ? "text-warning-foreground" : "text-muted-foreground"}>{r.loadedAfter.length > 0 ? t("export.after", { files: r.loadedAfter.map((x) => `${x} (${r.overriddenBy.find((o) => o.file === x)?.keys ?? 0})`).join(", ") }) : t("export.afterNone")}</li>
+                                {format === "file" ? (
+                                    <li className={r.overriddenBy.length > 0 ? "text-warning-foreground" : "text-muted-foreground"}>{r.loadedAfter.length > 0 ? t("export.after", { files: r.loadedAfter.map((x) => `${x} (${r.overriddenBy.find((o) => o.file === x)?.keys ?? 0})`).join(", ") }) : t("export.afterNone")}</li>
+                                ) : null}
                             </ul>
                             <Alert variant="info">
-                                <AlertDescription>{t("export.howTo")}</AlertDescription>
+                                <AlertDescription>{format === "patch" ? t("export.howToPatch") : t("export.howTo")}</AlertDescription>
                             </Alert>
+                            <div>
+                                <Button
+                                    size="sm"
+                                    render={
+                                        <a href={`/translators/export?mode=${mode}&format=${format}`} download={r.archive}>
+                                            <Download aria-hidden="true" />
+                                            {t("export.archive", { name: r.archive })}
+                                        </a>
+                                    }
+                                />
+                            </div>
                             <span className="font-medium">{t("export.files")}</span>
                             <ul className="flex flex-col gap-1">
                                 {run.data.files.map((file) => (

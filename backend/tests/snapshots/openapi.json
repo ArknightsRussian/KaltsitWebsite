@@ -13192,7 +13192,7 @@
           {
             "name": "format",
             "in": "query",
-            "description": "`file` (00_translators.txt) or `patch` (copies of 11_ui / 12_story / 13_names).",
+            "description": "`patch` (corrected copies of 11_ui / 12_story / 13_names, the main export) or\n`file` (one 00_translators.txt, to check at home).",
             "required": true,
             "schema": {
               "type": "string"
@@ -13215,6 +13215,78 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/export/archive": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The whole export as one ZIP: the changed dictionaries (or\n00_translators.txt), story_lines.tsv and plugin_strings.tsv when there\nare rows, report.txt. Same rights as the export.",
+        "operationId": "export_archive",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`approved` (for the game) or `review` (proposals, for checking).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`patch` (corrected copies of 11_ui / 12_story / 13_names, the main export) or\n`file` (one 00_translators.txt, to check at home).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "only",
+            "in": "query",
+            "description": "Empty: the report and the file list without contents; a file name: that file only.\nLeft out: everything.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive.",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
                 }
               }
             }
@@ -23680,6 +23752,42 @@
           "outstanding"
         ]
       },
+      "ExportChange": {
+        "type": "object",
+        "description": "One line changed in a corrected copy.",
+        "required": [
+          "file",
+          "line",
+          "key",
+          "before",
+          "after",
+          "by"
+        ],
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string",
+            "description": "The value before; empty for an added entry."
+          },
+          "by": {
+            "type": "string",
+            "description": "Who approved it (`approved`) or proposed it (`review`)."
+          },
+          "file": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based line in the file; for an entry added at the end, its new line."
+          }
+        }
+      },
       "ExportFile": {
         "type": "object",
         "description": "One file of an export.",
@@ -23728,20 +23836,27 @@
           "at",
           "by",
           "written",
+          "changes",
           "skipped",
           "pluginRows",
+          "storyRows",
           "contextRows",
           "loadedAfter",
           "overriddenBy",
           "replaced",
           "appended",
-          "withAlternatives"
+          "withAlternatives",
+          "archive"
         ],
         "properties": {
           "appended": {
             "type": "integer",
             "format": "int32",
             "description": "`patch` format: entries none of the files had, added at the end of the 12_story copy."
+          },
+          "archive": {
+            "type": "string",
+            "description": "The archive's name."
           },
           "at": {
             "type": "integer",
@@ -23751,10 +23866,16 @@
           "by": {
             "type": "string"
           },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportChange"
+            },
+            "description": "Each changed line of the copies."
+          },
           "contextRows": {
             "type": "integer",
-            "format": "int32",
-            "description": "Rows of `context.csv` (proposals for one place)."
+            "format": "int32"
           },
           "format": {
             "type": "string"
@@ -23779,14 +23900,14 @@
           "pluginRows": {
             "type": "integer",
             "format": "int32",
-            "description": "Rows of `plugin.csv` (lines the RichTextFix plugin shows)."
+            "description": "Rows of `plugin_strings.tsv`."
           },
           "replaced": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ExportFileKeys"
             },
-            "description": "`patch` format: values replaced in each copied file."
+            "description": "`patch` format: values replaced in each changed copy."
           },
           "skipped": {
             "type": "array",
@@ -23794,6 +23915,11 @@
               "$ref": "#/components/schemas/ExportSkipped"
             },
             "description": "Left out: keys XUnity cannot read back."
+          },
+          "storyRows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Rows of `story_lines.tsv`, and of them proposals for one place."
           },
           "withAlternatives": {
             "type": "integer",
@@ -23803,7 +23929,7 @@
           "written": {
             "type": "integer",
             "format": "int32",
-            "description": "Lines written to the dictionary file (or replaced and appended in the patch)."
+            "description": "Lines changed or added in the dictionaries (the copies, or 00_translators.txt)."
           }
         }
       },
@@ -23828,7 +23954,7 @@
       },
       "ExportSkipped": {
         "type": "object",
-        "description": "A translation left out of the dictionary file, and why.",
+        "description": "A translation left out of the dictionaries, and why.",
         "required": [
           "key",
           "reason"
@@ -37601,6 +37727,7 @@
           "terms",
           "editKey",
           "editable",
+          "contextAllowed",
           "places",
           "status",
           "variantGlossary"
@@ -37618,6 +37745,10 @@
               "string",
               "null"
             ]
+          },
+          "contextAllowed": {
+            "type": "boolean",
+            "description": "A proposal for this place only is offered (story lines that are not short)."
           },
           "editKey": {
             "type": "string",
