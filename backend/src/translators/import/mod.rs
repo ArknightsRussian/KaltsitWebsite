@@ -212,7 +212,7 @@ pub async fn store(
     stories: &[StoryLines],
     summary: &ImportSummary,
 ) -> Result<(), sqlx::Error> {
-    // 19 binds per row, under Postgres's 65,535-parameter limit.
+    // 20 binds per row, under Postgres's 65,535-parameter limit.
     const CHUNK: usize = 2_000;
     let mut tx = pool.begin().await?;
     sqlx::query("DELETE FROM translators.story_lines WHERE server = $1")
@@ -231,7 +231,7 @@ pub async fn store(
     for chunk in rows.chunks(CHUNK) {
         let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
             "INSERT INTO translators.story_lines (server, story_id, line, part, ord, kind, speaker_en, speaker_ru, en, \
-             ru_game, ru_game_source, ru_game_match, plugin_role, ru_dict, speaker_cn, cn, sova, ai, arktr_match) ",
+             ru_game, ru_game_source, ru_game_match, plugin_role, ru_dict, speaker_cn, cn, sova, ai, arktr_match, edit_key) ",
         );
         qb.push_values(chunk, |mut b, (id, ord, l)| {
             b.push_bind(server)
@@ -252,7 +252,8 @@ pub async fn store(
                 .push_bind(&l.cn)
                 .push_bind(&l.sova)
                 .push_bind(&l.ai)
-                .push_bind(l.arktr_match);
+                .push_bind(l.arktr_match)
+                .push_bind(&l.edit_key);
         });
         // Two texts on one line and part would be a parser change; keep the first.
         qb.push(" ON CONFLICT (server, story_id, line, part) DO NOTHING");

@@ -13,6 +13,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "t002_glossary",
         include_str!("migrations/t002_glossary.sql"),
     ),
+    ("t003_edits", include_str!("migrations/t003_edits.sql")),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -47,10 +48,11 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-pub async fn is_member(pool: &PgPool, user_id: Uuid) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM translators.members WHERE user_id = $1)")
+/// The member's role (`translator`, `editor`, `admin`), or `None` for a non-member.
+pub async fn member_role(pool: &PgPool, user_id: Uuid) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar("SELECT role FROM translators.members WHERE user_id = $1")
         .bind(user_id)
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await
 }
 
@@ -82,6 +84,7 @@ struct Row {
     cn: Option<String>,
     sova: Option<String>,
     ai: Option<String>,
+    edit_key: String,
 }
 
 /// One story's lines in file order. Sova's and the AI's texts only when
@@ -95,7 +98,7 @@ pub async fn story_lines(
 ) -> Result<Vec<TranslatorLine>, sqlx::Error> {
     let rows: Vec<Row> = sqlx::query_as(
         "SELECT line, part, kind, speaker_en, speaker_ru, en, ru_game, ru_game_source, ru_game_match,
-                plugin_role, ru_dict, speaker_cn, cn,
+                plugin_role, ru_dict, speaker_cn, cn, edit_key,
                 CASE WHEN $3 THEN sova END AS sova,
                 CASE WHEN $3 THEN ai END AS ai
          FROM translators.story_lines
@@ -126,6 +129,10 @@ pub async fn story_lines(
             sova: r.sova,
             ai: r.ai,
             terms: Vec::new(),
+            editable: super::edits::status::editable(&r.edit_key),
+            edit_key: r.edit_key,
+            places: 1,
+            status: String::new(),
         })
         .collect())
 }

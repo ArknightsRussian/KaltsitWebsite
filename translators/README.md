@@ -45,3 +45,19 @@ Tables: Postgres schema `translators` (own migrations, `translators._migrations`
 Off unless the backend has `TRANSLATORS_DEV_LOGIN=1`. When on, `/translators/dev-login`
 signs in as a local account (`dev-translator`) that is a member of the section. The
 regular game-account sign-in is not touched.
+
+## Members and roles
+
+Only members (`translators.members`) see the section. To add someone or change their
+role (they must have signed in to the site once):
+
+    ./translators/role.sh <uid> [translator|editor|admin]
+
+`editor` is the lead: the one person who approves lines (translators/PLAN-edit.md §6).
+
+## Editing
+
+Proposals, "keep as in the game" and comments are keyed by the English of the
+dictionary entry the import found for a line (`story_lines.edit_key`): one decision
+holds wherever the line stands. See translators/PLAN-edit.md. Storage test against a
+throwaway database: `cargo test --test translators_edits_test -- --ignored`.

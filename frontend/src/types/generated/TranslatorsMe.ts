@@ -9,6 +9,14 @@ export type TranslatorsMe = {
      */
     member: boolean;
     /**
+     * The member's user id, to tell their own proposals and votes.
+     */
+    userId: string | null;
+    /**
+     * `translator`, `editor` (the lead) or `admin`; null for a non-member.
+     */
+    role: string | null;
+    /**
      * The development sign-in is switched on for this backend.
      */
     devLogin: boolean;

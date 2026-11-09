@@ -54,4 +54,20 @@ export type TranslatorLine = {
      * Glossary terms found in the English, in order.
      */
     terms: Array<LineTerm>;
+    /**
+     * The dictionary entry an edit of this line changes (its English).
+     */
+    editKey: string;
+    /**
+     * False for a line with nothing to translate (only punctuation).
+     */
+    editable: boolean;
+    /**
+     * Story lines holding the same entry, this one included.
+     */
+    places: number;
+    /**
+     * `unchecked`, `proposed`, `approved` or `outdated`.
+     */
+    status: string;
 };

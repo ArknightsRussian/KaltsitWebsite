@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::dto::ImportStatus;
 use super::import::{self, Sources};
-use super::{SERVER, db, dev_login_enabled, glossary};
+use super::{SERVER, db, dev_login_enabled, edits, glossary};
 use crate::app::error::ApiError;
 use crate::app::extractors::auth::{AuthUser, MaybeAuthUser};
 use crate::app::services::auth::LoginResponse;
@@ -23,14 +23,30 @@ use crate::database::queries::users::{create_user, find_raw_by_uid};
 /// The uid of the development account. Real Arknights uids are digits only.
 const DEV_UID: &str = "dev-translator";
 
-async fn member_of(state: &AppState, auth: &MaybeAuthUser) -> Result<bool, ApiError> {
+/// A section member making a request.
+pub struct Member {
+    pub id: Uuid,
+    /// `translator`, `editor` or `admin`.
+    pub role: String,
+}
+
+impl Member {
+    /// The lead (or an admin): approves, sees everyone's edits, resolves any comment.
+    pub fn leads(&self) -> bool {
+        self.role == "editor" || self.role == "admin"
+    }
+}
+
+async fn member_of(state: &AppState, auth: &MaybeAuthUser) -> Result<Option<Member>, ApiError> {
     let Some(user) = &auth.0 else {
-        return Ok(false);
+        return Ok(None);
     };
     let Ok(id) = user.user_id.parse::<Uuid>() else {
-        return Ok(false);
+        return Ok(None);
     };
-    Ok(db::is_member(&state.db, id).await?)
+    Ok(db::member_role(&state.db, id)
+        .await?
+        .map(|role| Member { id, role }))
 }
 
 /// Whether the caller is a signed-in translator, and whether the development sign-in is on.
@@ -48,23 +64,22 @@ pub async fn me(
     State(state): State<AppState>,
     auth: MaybeAuthUser,
 ) -> Result<Json<TranslatorsMe>, ApiError> {
+    let member = member_of(&state, &auth).await?;
     Ok(Json(TranslatorsMe {
-        member: member_of(&state, &auth).await?,
+        member: member.is_some(),
+        user_id: member.as_ref().map(|m| m.id.to_string()),
+        role: member.map(|m| m.role),
         dev_login: dev_login_enabled(),
     }))
 }
 
 /// The caller as a section member, or 403 (401 when signed out). The
 /// section's data is for members only.
-async fn require_member(state: &AppState, auth: &MaybeAuthUser) -> Result<(), ApiError> {
+pub async fn require_member(state: &AppState, auth: &MaybeAuthUser) -> Result<Member, ApiError> {
     if auth.0.is_none() {
         return Err(ApiError::Unauthorized);
     }
-    if member_of(state, auth).await? {
-        Ok(())
-    } else {
-        Err(ApiError::Forbidden)
-    }
+    member_of(state, auth).await?.ok_or(ApiError::Forbidden)
 }
 
 /// One story's lines: English, the Russian the game shows now, Chinese,
@@ -123,6 +138,7 @@ pub async fn story_lines(
             }
         }
     }
+    let (edits, outdated) = edits::attach(&state.db, &story_id, &mut lines).await?;
     let imported_at = db::last_import(&state.db, SERVER)
         .await?
         .map(|t| t.timestamp());
@@ -131,6 +147,8 @@ pub async fn story_lines(
         imported_at,
         hints: true,
         lines,
+        edits,
+        outdated,
     }))
 }
 
@@ -317,6 +335,7 @@ async fn import_now(state: &AppState, sources: Sources) -> Result<(), ApiError> 
             .await
             .map_err(|e| ApiError::Internal(e.into()))??;
     import::store(&state.db, SERVER, started_at, &lines, &summary).await?;
+    edits::db::mark_outdated(&state.db).await?;
     // The glossary rides along: a failed download keeps the stored copy, and
     // the counts are redone over the new lines either way.
     if glossary::refresh(&state.db, &state.http_client)

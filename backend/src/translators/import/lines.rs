@@ -29,6 +29,9 @@ pub struct Line {
     pub sova: Option<String>,
     pub ai: Option<String>,
     pub arktr_match: Option<&'static str>,
+    /// The key of an edit: the dictionary entry found for the whole text,
+    /// else the whole English as the plugin sees it (`plain`).
+    pub edit_key: String,
 }
 
 /// Every text a reader sees, from the parsed commands, the way the book
@@ -162,20 +165,25 @@ impl<'a> Matcher<'a> {
         }
     }
 
-    /// One text through the dictionaries: `(value, file, how)`.
-    fn dict_one(&self, text: &str) -> Option<(&'a str, &'a str, &'static str)> {
-        if let Some(e) = self.dict.entries.get(text) {
-            return Some((&e.value, &e.file, "exact"));
+    /// One text through the dictionaries: `(key, value, file, how)`.
+    fn dict_entry(&self, text: &str) -> Option<(&'a str, &'a str, &'a str, &'static str)> {
+        if let Some((k, e)) = self.dict.entries.get_key_value(text) {
+            return Some((k, &e.value, &e.file, "exact"));
         }
         let p = plain(text);
         if p != text
-            && let Some(e) = self.dict.entries.get(&p)
+            && let Some((k, e)) = self.dict.entries.get_key_value(&p)
         {
-            return Some((&e.value, &e.file, "exact"));
+            return Some((k, &e.value, &e.file, "exact"));
         }
         let key = self.by_search.get(&for_search(text))?;
         let e = &self.dict.entries[*key];
-        Some((&e.value, &e.file, "normalized"))
+        Some((key, &e.value, &e.file, "normalized"))
+    }
+
+    /// One text through the dictionaries: `(value, file, how)`.
+    fn dict_one(&self, text: &str) -> Option<(&'a str, &'a str, &'static str)> {
+        self.dict_entry(text).map(|(_, v, f, how)| (v, f, how))
     }
 
     /// A text through the dictionaries, whole or, failing that, line by line.
@@ -206,6 +214,9 @@ impl<'a> Matcher<'a> {
             line.speaker_ru = self.dict(&line.speaker_en).map(|(v, _, _)| v);
         }
         let p = plain(&line.en);
+        line.edit_key = self
+            .dict_entry(&line.en)
+            .map_or_else(|| p.clone(), |(k, _, _, _)| k.to_owned());
         let dict = self.dict(&line.en);
         if self.ambiguous.is_some_and(|m| m.contains_key(&p)) {
             // The plugin leaves these untranslated on purpose.
@@ -377,6 +388,8 @@ mod tests {
         };
         m.apply(&mut l);
         assert_eq!(l.ru_game_match, Some("normalized"));
+        // The dictionary's own key, not the script's spelling.
+        assert_eq!(l.edit_key, "“Wait—”");
 
         let mut l = Line {
             en: "<i>First.</i>\nSecond.".into(),
@@ -385,6 +398,8 @@ mod tests {
         m.apply(&mut l);
         assert_eq!(l.ru_game.as_deref(), Some("Первое.\nВторое."));
         assert_eq!(l.ru_game_match, Some("lines"));
+        // Matched by parts: the edit is of the whole entry, as the plugin sees it.
+        assert_eq!(l.edit_key, "First.\nSecond.");
     }
 
     #[test]

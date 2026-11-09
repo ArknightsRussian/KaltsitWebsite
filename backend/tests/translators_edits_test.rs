@@ -1,0 +1,222 @@
+//! Line editing of the translators' section against a real Postgres: the
+//! section's migrations apply, a proposal is written, rewritten (with its
+//! history), voted on and deleted, comments resolve, the story's edits and
+//! "My edits" read back, and an import that drops the English marks them
+//! outdated.
+//!
+//! Makes a throwaway database next to the one in `TRANSLATORS_TEST_DB`
+//! (default: the local compose database), with a minimal `users` table, and
+//! drops it at the end. Ignored by default:
+//! `cargo test --test translators_edits_test -- --ignored --nocapture`
+
+use backend::translators::edits::db;
+use backend::translators::edits::dto::EditPlace;
+use backend::translators::{db as tdb, edits};
+use sqlx::{Connection, PgConnection, PgPool};
+use uuid::Uuid;
+
+fn admin_url() -> String {
+    std::env::var("TRANSLATORS_TEST_DB")
+        .unwrap_or_else(|_| "postgres://myrtle:myrtle@127.0.0.1:5432/myrtle".to_owned())
+}
+
+async fn fresh_db() -> (PgPool, String) {
+    let admin = admin_url();
+    let name = format!("tr_edits_{}", &Uuid::new_v4().simple().to_string()[..10]);
+    let mut conn = PgConnection::connect(&admin)
+        .await
+        .expect("admin connection");
+    sqlx::raw_sql(&format!("CREATE DATABASE {name}"))
+        .execute(&mut conn)
+        .await
+        .expect("create database");
+    let base = admin.rsplit_once('/').expect("db url").0;
+    let pool = PgPool::connect(&format!("{base}/{name}"))
+        .await
+        .expect("test pool");
+    sqlx::raw_sql(
+        "CREATE TABLE users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), uid TEXT NOT NULL,
+                             server_id SMALLINT NOT NULL DEFAULT 0, nickname TEXT)",
+    )
+    .execute(&pool)
+    .await
+    .expect("users");
+    tdb::migrate(&pool).await.expect("translators migrations");
+    (pool, name)
+}
+
+async fn drop_db(pool: PgPool, name: String) {
+    pool.close().await;
+    let mut conn = PgConnection::connect(&admin_url()).await.expect("admin");
+    sqlx::raw_sql(&format!("DROP DATABASE {name} WITH (FORCE)"))
+        .execute(&mut conn)
+        .await
+        .expect("drop database");
+}
+
+async fn user(pool: &PgPool, uid: &str) -> Uuid {
+    let id = sqlx::query_scalar("INSERT INTO users (uid, nickname) VALUES ($1, $1) RETURNING id")
+        .bind(uid)
+        .fetch_one(pool)
+        .await
+        .expect("user");
+    tdb::add_member(pool, id, "test").await.expect("member");
+    id
+}
+
+async fn line(pool: &PgPool, story: &str, line: i32, ord: i32, en: &str, ru: &str) {
+    sqlx::query(
+        "INSERT INTO translators.story_lines (server, story_id, line, part, ord, kind, en, ru_game, edit_key)
+         VALUES ('en', $1, $2, 0, $3, 'dialog', $4, $5, $4)",
+    )
+    .bind(story)
+    .bind(line)
+    .bind(ord)
+    .bind(en)
+    .bind(ru)
+    .execute(pool)
+    .await
+    .expect("line");
+}
+
+fn place(story: &str, line: i32) -> EditPlace {
+    EditPlace {
+        story_id: story.to_owned(),
+        line,
+        part: 0,
+    }
+}
+
+#[tokio::test]
+#[ignore = "creates and drops a database on the local Postgres"]
+async fn proposals_votes_comments_and_outdated() {
+    let (pool, name) = fresh_db().await;
+    let a = user(&pool, "anna").await;
+    let b = user(&pool, "boris").await;
+    assert_eq!(
+        tdb::member_role(&pool, a).await.unwrap().as_deref(),
+        Some("translator")
+    );
+
+    line(&pool, "s1", 3, 0, "Doctor?", "Доктор?").await;
+    line(&pool, "s1", 5, 1, "Hello.", "Привет.").await;
+    line(&pool, "s2", 7, 4, "Hello.", "Привет.").await;
+    let key = "Hello.".to_owned();
+
+    let counts = db::place_counts(&pool, std::slice::from_ref(&key))
+        .await
+        .unwrap();
+    assert_eq!(counts.get("Hello."), Some(&2));
+    let places = db::places(&pool, &key, 10).await.unwrap();
+    assert_eq!(
+        places
+            .iter()
+            .map(|p| (p.story_id.as_str(), p.ord))
+            .collect::<Vec<_>>(),
+        vec![("s1", 1), ("s2", 4)]
+    );
+
+    // Anna writes, then takes Sova's: one proposal, two versions.
+    let p1 = db::upsert_proposal(&pool, &key, &place("s1", 5), "Здравствуй.", "own", a)
+        .await
+        .unwrap();
+    let again = db::upsert_proposal(&pool, &key, &place("s2", 7), "Здравствуйте.", "sova", a)
+        .await
+        .unwrap();
+    assert_eq!(p1, again);
+    db::rewrite_proposal(&pool, p1, "Добрый день.", "sova", a)
+        .await
+        .unwrap();
+    let versions = db::versions(&pool, p1).await.unwrap();
+    assert_eq!(
+        versions.iter().map(|v| v.text.as_str()).collect::<Vec<_>>(),
+        vec!["Добрый день.", "Здравствуйте.", "Здравствуй."]
+    );
+    let p2 = db::upsert_proposal(&pool, &key, &place("s1", 5), "Хай.", "own", b)
+        .await
+        .unwrap();
+    assert_ne!(p1, p2);
+
+    // Boris agrees with Anna's; Anna keeps the game's Russian too.
+    db::set_agreement(&pool, &key, Some(p1), b, true)
+        .await
+        .unwrap();
+    db::set_agreement(&pool, &key, Some(p1), b, true)
+        .await
+        .unwrap();
+    db::set_agreement(&pool, &key, None, a, true).await.unwrap();
+    let c = db::add_comment(&pool, &key, &place("s1", 5), "Слишком официально?", b)
+        .await
+        .unwrap();
+    db::resolve_comment(&pool, c, Some(a)).await.unwrap();
+
+    let mut lines = tdb::story_lines(&pool, "en", "s1", true).await.unwrap();
+    let (got, outdated) = edits::attach(&pool, "s1", &mut lines).await.unwrap();
+    assert!(outdated.is_empty());
+    assert_eq!(lines[0].status, "unchecked");
+    assert_eq!(lines[1].status, "proposed");
+    assert_eq!(lines[1].places, 2);
+    let e = got.iter().find(|e| e.edit_key == "Hello.").unwrap();
+    assert_eq!(e.proposals.len(), 2);
+    assert_eq!(e.proposals[0].id, p1, "the most agreed comes first");
+    assert_eq!(e.proposals[0].agreements.len(), 1);
+    assert_eq!(e.proposals[0].versions, 3);
+    assert!(e.proposals[0].edited_at.is_some());
+    assert_eq!(e.proposals[0].source, "sova");
+    assert_eq!(e.game_agreements.len(), 1);
+    assert_eq!(e.comments[0].resolved_by.as_ref().unwrap().name, "anna");
+
+    let mine = db::edit_rows(&pool, Some(a)).await.unwrap();
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0].ru_game.as_deref(), Some("Привет."));
+    assert_eq!(mine[0].state, "proposed");
+    assert_eq!(mine[0].places, 2);
+    assert_eq!(
+        mine[0].ord,
+        Some(4),
+        "the place moved to where it was rewritten"
+    );
+    assert_eq!(db::edit_rows(&pool, None).await.unwrap().len(), 2);
+
+    // Boris deletes his; the vote for Anna's stays, a vote for his would go.
+    db::set_agreement(&pool, &key, Some(p2), a, true)
+        .await
+        .unwrap();
+    db::delete_proposal(&pool, p2).await.unwrap();
+    let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM translators.agreements")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 2);
+
+    // An import changes the English at s1:5 and s2:7: the decisions go stale.
+    sqlx::query(
+        "UPDATE translators.story_lines SET en = 'Hi.', edit_key = 'Hi.' WHERE en = 'Hello.'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    db::mark_outdated(&pool).await.unwrap();
+    let mut lines = tdb::story_lines(&pool, "en", "s2", true).await.unwrap();
+    let (_, outdated) = edits::attach(&pool, "s2", &mut lines).await.unwrap();
+    assert_eq!(lines[0].status, "outdated");
+    assert_eq!(outdated[0].edit_key, "Hello.");
+    assert_eq!(
+        db::edit_rows(&pool, Some(a)).await.unwrap()[0].state,
+        "outdated"
+    );
+    // It comes back: the mark goes.
+    sqlx::query(
+        "UPDATE translators.story_lines SET en = 'Hello.', edit_key = 'Hello.' WHERE en = 'Hi.'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    db::mark_outdated(&pool).await.unwrap();
+    assert_eq!(
+        db::edit_rows(&pool, Some(a)).await.unwrap()[0].state,
+        "proposed"
+    );
+
+    drop_db(pool, name).await;
+}

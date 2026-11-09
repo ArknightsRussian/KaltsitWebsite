@@ -11,6 +11,10 @@ use utoipa::ToSchema;
 pub struct TranslatorsMe {
     /// A signed-in translator: sees Sova's and the AI's texts.
     pub member: bool,
+    /// The member's user id, to tell their own proposals and votes.
+    pub user_id: Option<String>,
+    /// `translator`, `editor` (the lead) or `admin`; null for a non-member.
+    pub role: Option<String>,
     /// The development sign-in is switched on for this backend.
     pub dev_login: bool,
 }
@@ -47,6 +51,14 @@ pub struct TranslatorLine {
     pub ai: Option<String>,
     /// Glossary terms found in the English, in order.
     pub terms: Vec<LineTerm>,
+    /// The dictionary entry an edit of this line changes (its English).
+    pub edit_key: String,
+    /// False for a line with nothing to translate (only punctuation).
+    pub editable: bool,
+    /// Story lines holding the same entry, this one included.
+    pub places: i32,
+    /// `unchecked`, `proposed`, `approved` or `outdated`.
+    pub status: String,
 }
 
 /// One story's lines.
@@ -61,6 +73,10 @@ pub struct TranslatorStoryLines {
     /// The lines carry Sova's and the AI's texts.
     pub hints: bool,
     pub lines: Vec<TranslatorLine>,
+    /// What was proposed, approved and said for the lines' entries (by `editKey`).
+    pub edits: Vec<super::edits::dto::KeyEdits>,
+    /// Decisions left at this story's places for an English that has changed.
+    pub outdated: Vec<super::edits::dto::OutdatedEdit>,
 }
 
 /// The import's state (service key only; not used by the page).
