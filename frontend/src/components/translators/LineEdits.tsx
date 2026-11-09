@@ -245,13 +245,21 @@ export function LineComments({ edits, place, me, t }: ICommentsProps): React.Rea
 }
 
 /** The approved variant: above everything else in the cell. */
-export function ApprovedVariant({ edits, nickname, t }: { edits: KeyEdits | undefined; nickname: string; t: T }): React.ReactElement | null {
+export function ApprovedVariant({ edits, nickname, marks, t }: { edits: KeyEdits | undefined; nickname: string; marks?: React.ReactNode; t: T }): React.ReactElement | null {
     const f = useFormatters();
     const a = edits?.approval;
     if (!a) return null;
     const when = f.date(a.at * 1000, { dateStyle: "medium" });
     return (
-        <Toned tone={TONE.approved} label={a.proposalId === null ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}>
+        <Toned
+            tone={TONE.approved}
+            label={
+                <>
+                    {a.proposalId === null ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}
+                    {marks}
+                </>
+            }
+        >
             <StoryText text={a.text} nickname={nickname} />
         </Toned>
     );
@@ -260,9 +268,11 @@ export function ApprovedVariant({ edits, nickname, t }: { edits: KeyEdits | unde
 interface IProposalsProps extends ICommentsProps {
     nickname: string;
     onEdit: (p: Proposal) => void;
+    /** The proposal's automatic marks, shown in its label line. */
+    marks?: (p: Proposal) => React.ReactNode;
 }
 
-export function Proposals({ edits, place, me, nickname, onEdit, t }: IProposalsProps): React.ReactElement | null {
+export function Proposals({ edits, place, me, nickname, onEdit, marks, t }: IProposalsProps): React.ReactElement | null {
     const f = useFormatters();
     const remove = useEditMutation((id: number) => deleteProposalFn({ data: { id } }), t("edit.failedDelete"));
     const list = proposalsAt(edits, place);
@@ -287,6 +297,7 @@ export function Proposals({ edits, place, me, nickname, onEdit, t }: IProposalsP
                                         </Badge>
                                     ) : null}
                                     {p.agreements.length > 0 ? <span title={names(p.agreements)}>· {t("proposal.agreed", { count: p.agreements.length })}</span> : null}
+                                    {marks?.(p)}
                                 </>
                             }
                             actions={

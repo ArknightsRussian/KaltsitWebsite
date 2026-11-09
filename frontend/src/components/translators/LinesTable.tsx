@@ -23,7 +23,9 @@ import type { OutdatedEdit } from "#/types/generated/OutdatedEdit";
 import type { StoryCommand } from "#/types/generated/StoryCommand";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
-import { ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
+import { type Address, checkVariant, type ICandidate, type IVariantCheck, neighbourAddress, recommend } from "./checks";
+import { ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, proposalsAt, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
+import { Marks } from "./Marks";
 import { StoryText } from "./StoryText";
 import { DISPLAYED_KINDS, describeCommands } from "./service";
 import type { messages } from "./translators.messages";
@@ -111,11 +113,12 @@ function Terms({ terms, t }: { terms: readonly LineTerm[]; t: T }): React.ReactE
 }
 
 /** Sova's or the AI's variant on one line: label, text, and "Propose this" right after it. */
-function InlineVariant({ tone, label, text, nickname, action }: { tone: string; label: string; text: string; nickname: string; action?: React.ReactNode }): React.ReactElement {
+function InlineVariant({ tone, label, text, nickname, action, marks }: { tone: string; label: string; text: string; nickname: string; action?: React.ReactNode; marks?: React.ReactNode }): React.ReactElement {
     return (
         <div className="border-(--tone) border-s-2 ps-2" style={{ "--tone": tone } as React.CSSProperties}>
             <span className="me-1.5 text-subtle-foreground text-xs">{label}</span>
             <StoryText text={text} nickname={nickname} />
+            {marks}
             {action ? <span className="ms-2">{action}</span> : null}
         </div>
     );
@@ -123,6 +126,8 @@ function InlineVariant({ tone, label, text, nickname, action }: { tone: string; 
 
 interface IRuCellProps {
     line: TranslatorLine;
+    /** How the speaker's neighbouring lines address people, for the ты / вы check. */
+    neighbours: Address | null;
     storyId: string;
     nickname: string;
     showVariants: boolean;
@@ -134,10 +139,30 @@ interface IRuCellProps {
     t: T;
 }
 
-function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, editor, onEditor, t }: IRuCellProps): React.ReactElement {
+function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outdated, me, editor, onEditor, t }: IRuCellProps): React.ReactElement {
     const place = placeOf(storyId, line);
     const quotes = quotesAt(edits, place);
     const notes = { edits, place, me, t };
+    // Every variant's checks, and the one recommended (checks.ts holds the rule).
+    const proposals = proposalsAt(edits, place);
+    const checks = new Map<string, IVariantCheck>();
+    const candidates: ICandidate[] = [];
+    const add = (variant: string, text: string | null | undefined, agreements = 0) => {
+        if (!text) return;
+        const check = checkVariant(text, variant, line, neighbours);
+        checks.set(variant, check);
+        candidates.push({ variant, agreements, check });
+    };
+    for (const p of proposals) add(`proposal:${p.id}`, p.text, p.agreements.length);
+    add("sova", line.sova);
+    add("ai", line.ai);
+    add("game", line.ruGame);
+    if (edits?.approval) checks.set("approved", checkVariant(edits.approval.text, "approved", line, neighbours));
+    const recommended = line.editable ? recommend(candidates, Boolean(edits?.approval)) : null;
+    const marks = (variant: string, skipGlossary = false) => {
+        const check = checks.get(variant);
+        return check ? <Marks check={check} recommended={recommended === variant} skipGlossary={skipGlossary} t={t} /> : null;
+    };
     const take = (source: "sova" | "ai", text: string) => (
         <Button variant="link" size="xs" className="h-auto px-0 text-xs" onClick={() => onEditor({ kind: "proposal", text, source, context: false })}>
             {t("action.proposeThis")}
@@ -146,7 +171,7 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
     return (
         <div className="group/cell relative flex flex-col gap-1">
             {editor === null ? <CellActions line={line} onOpen={onEditor} t={t} /> : null}
-            <ApprovedVariant edits={edits} nickname={nickname} t={t} />
+            <ApprovedVariant edits={edits} nickname={nickname} marks={marks("approved")} t={t} />
             {/* biome-ignore lint/a11y/noStaticElementInteractions: a shortcut; the Propose button is the accessible way */}
             <div
                 onDoubleClick={() => {
@@ -156,6 +181,7 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
                 }}
             >
                 {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} quotes={quotes} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
+                {marks("game", true)}
             </div>
             <VariantNotes {...notes} variant="game" />
             {line.pluginRole === "story" ? (
@@ -176,18 +202,18 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
             ) : null}
             {line.ruGameMatch === "lines" ? <span className="text-subtle-foreground text-xs">{t("ru.lineByLine")}</span> : null}
             <Terms terms={line.terms} t={t} />
-            <Proposals {...notes} nickname={nickname} onEdit={(p) => onEditor({ kind: "proposal", text: p.text, source: p.source === "sova" || p.source === "ai" ? p.source : "own", context: p.context })} />
+            <Proposals {...notes} nickname={nickname} marks={(p) => marks(`proposal:${p.id}`)} onEdit={(p) => onEditor({ kind: "proposal", text: p.text, source: p.source === "sova" || p.source === "ai" ? p.source : "own", context: p.context })} />
             {showVariants ? (
                 <>
                     {line.sova ? (
                         <>
-                            <InlineVariant tone={TONE.sova} label={t("hints.sova")} text={line.sova} nickname={nickname} action={line.editable && !editor ? take("sova", line.sova) : undefined} />
+                            <InlineVariant tone={TONE.sova} label={t("hints.sova")} text={line.sova} nickname={nickname} marks={marks("sova")} action={line.editable && !editor ? take("sova", line.sova) : undefined} />
                             <VariantNotes {...notes} variant="sova" />
                         </>
                     ) : null}
                     {line.ai ? (
                         <>
-                            <InlineVariant tone={TONE.ai} label={t("hints.ai")} text={line.ai} nickname={nickname} action={line.editable && !editor ? take("ai", line.ai) : undefined} />
+                            <InlineVariant tone={TONE.ai} label={t("hints.ai")} text={line.ai} nickname={nickname} marks={marks("ai")} action={line.editable && !editor ? take("ai", line.ai) : undefined} />
                             <VariantNotes {...notes} variant="ai" />
                         </>
                     ) : null}
@@ -283,7 +309,19 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
                                     <Speaker line={line} t={t} />
                                 </TableCell>
                                 <TableCell className={PROSE}>
-                                    <RuCell line={line} storyId={storyId} nickname={nickname} showVariants={showVariants} edits={lineEdits} outdated={staleAt.get(id) ?? []} me={me} editor={editing?.id === id ? editing.state : null} onEditor={(state) => setEditing(state ? { id, state } : null)} t={t} />
+                                    <RuCell
+                                        line={line}
+                                        neighbours={neighbourAddress(lines, i)}
+                                        storyId={storyId}
+                                        nickname={nickname}
+                                        showVariants={showVariants}
+                                        edits={lineEdits}
+                                        outdated={staleAt.get(id) ?? []}
+                                        me={me}
+                                        editor={editing?.id === id ? editing.state : null}
+                                        onEditor={(state) => setEditing(state ? { id, state } : null)}
+                                        t={t}
+                                    />
                                 </TableCell>
                                 <TableCell className={PROSE}>
                                     <StoryText text={line.en} nickname={nickname} quotes={quotesAt(lineEdits, placeOf(storyId, line))} />

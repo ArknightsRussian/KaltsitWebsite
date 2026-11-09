@@ -35,7 +35,7 @@ import { LinesTable } from "./LinesTable";
 import { MyEditsTab } from "./MyEditsTab";
 import { SectionLangSwitch, SectionLocale } from "./SectionLocale";
 import { charBase } from "./service";
-import { groupLabel } from "./storyNames";
+import { entryLabel, groupLabel, useRename } from "./storyNames";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
@@ -55,8 +55,16 @@ export interface ITranslatorsSearch {
 
 interface IGroupItem {
     id: string;
+    /** In the section's language (the game's Russian when there is one). */
     label: string;
+    /** In English, shown small and searched too. */
+    en: string;
     kind: string;
+}
+
+/** Search folding: any case, ё = е. */
+function fold(s: string): string {
+    return s.toLowerCase().replaceAll("ё", "е");
 }
 
 interface ILinesProps {
@@ -110,9 +118,10 @@ function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesP
         return (id: string) => {
             const c = byId.get(charBase(id));
             if (!c) return charBase(id);
-            return locale === "ru" ? (c.nameRu ?? c.nameEn) : c.nameEn;
+            const name = locale === "ru" ? (c.nameRu ?? c.nameEn) : c.nameEn;
+            return c.guessed ? t("service.guessed", { name }) : name;
         };
-    }, [chars.data, locale]);
+    }, [chars.data, locale, t]);
     if (query.isError) return <LoadFailed message={t("load.lines")} onRetry={() => query.refetch()} />;
     if (!query.data || !me.data) return <Skeleton className="h-96 w-full rounded-2xl" />;
     const { lines, importedAt, edits, outdated, sovaNotes } = query.data;
@@ -166,7 +175,8 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
     const index = useQuery(storyIndexQueryOptions("en"));
 
     const groups = index.data?.groups ?? [];
-    const items: IGroupItem[] = useMemo(() => groups.map((g) => ({ id: g.id, label: groupLabel(g), kind: g.category })), [groups]);
+    const rename = useRename();
+    const items: IGroupItem[] = useMemo(() => groups.map((g) => ({ id: g.id, label: groupLabel(g, rename), en: groupLabel(g), kind: g.category })), [groups, rename]);
     const group = groups.find((g) => g.id === search.group) ?? null;
     const groupItem = items.find((i) => i.id === search.group) ?? null;
     const stories = useMemo(() => (group ? [...group.stories].sort((a, b) => a.sort - b.sort) : []), [group]);
@@ -183,7 +193,14 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
                 <div className="flex flex-wrap items-end gap-4">
                     <div className="flex w-full flex-col gap-1.5 sm:w-80">
                         <Label htmlFor={ids.chapter}>{t("picker.chapter")}</Label>
-                        <Combobox<IGroupItem, false> items={items} value={groupItem} onValueChange={(v) => v && onSearch({ ...search, group: v.id, story: undefined })} itemToStringLabel={(i) => i.label} itemToStringValue={(i) => i.id}>
+                        <Combobox<IGroupItem, false>
+                            items={items}
+                            value={groupItem}
+                            onValueChange={(v) => v && onSearch({ ...search, group: v.id, story: undefined })}
+                            itemToStringLabel={(i) => i.label}
+                            itemToStringValue={(i) => i.id}
+                            filter={(i: IGroupItem, q: string) => fold(`${i.label} ${i.en}`).includes(fold(q.trim()))}
+                        >
                             <ComboboxInput id={ids.chapter} placeholder={t("picker.chapterPlaceholder", { count: items.length })} disabled={!index.data} />
                             <ComboboxPopup>
                                 <ComboboxEmpty>{t("picker.chapterEmpty")}</ComboboxEmpty>
@@ -192,7 +209,10 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
                                         <ComboboxItem key={item.id} value={item}>
                                             <span className="flex min-w-0 flex-col">
                                                 <span className="truncate">{item.label}</span>
-                                                <span className="text-subtle-foreground text-xs">{t(`category.${item.kind}` as "category.main")}</span>
+                                                <span className="truncate text-subtle-foreground text-xs">
+                                                    {item.en !== item.label ? `${item.en} · ` : ""}
+                                                    {t(`category.${item.kind}` as "category.main")}
+                                                </span>
                                             </span>
                                         </ComboboxItem>
                                     )}
@@ -205,13 +225,18 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
                         <Label htmlFor={ids.story}>{t("picker.story")}</Label>
                         <Select value={story?.id ?? null} onValueChange={(v: string | null) => v && onSearch({ ...search, story: v })} disabled={!group}>
                             <SelectTrigger id={ids.story}>
-                                <SelectValue placeholder={t("picker.storyPlaceholder")}>{() => (story ? storyLabel(story) : t("picker.storyPlaceholder"))}</SelectValue>
+                                <SelectValue placeholder={t("picker.storyPlaceholder")}>{() => (story ? entryLabel(story, rename) : t("picker.storyPlaceholder"))}</SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                                 {stories.map((s) => (
                                     <SelectItem key={s.id} value={s.id}>
-                                        {storyLabel(s)}
-                                        {s.avgTag ? <span className="text-subtle-foreground"> · {s.avgTag}</span> : null}
+                                        <span className="flex min-w-0 flex-col">
+                                            <span className="truncate">
+                                                {entryLabel(s, rename)}
+                                                {s.avgTag ? <span className="text-subtle-foreground"> · {rename(s.avgTag)}</span> : null}
+                                            </span>
+                                            {rename(s.name) !== s.name ? <span className="truncate text-subtle-foreground text-xs">{storyLabel(s)}</span> : null}
+                                        </span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -232,7 +257,7 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
             )}
 
             {story ? (
-                <Lines storyId={story.id} title={storyLabel(story)} showCn={showCn} showService={showService} showVariants={showVariants} t={t} />
+                <Lines storyId={story.id} title={entryLabel(story, rename)} showCn={showCn} showService={showService} showVariants={showVariants} t={t} />
             ) : (
                 <Empty>
                     <EmptyHeader>

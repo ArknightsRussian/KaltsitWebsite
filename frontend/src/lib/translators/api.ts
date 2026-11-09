@@ -19,6 +19,7 @@ import type { Glossary } from "#/types/generated/Glossary";
 import type { GlossaryLines } from "#/types/generated/GlossaryLines";
 import type { KeyPlaces } from "#/types/generated/KeyPlaces";
 import type { LoginResponse } from "#/types/generated/LoginResponse";
+import type { NameRu } from "#/types/generated/NameRu";
 import type { ProposalVersion } from "#/types/generated/ProposalVersion";
 import type { TranslatorStoryLines } from "#/types/generated/TranslatorStoryLines";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
@@ -196,6 +197,16 @@ export const getGlossaryLinesFn = createServerFn({ method: "GET" })
 /** A glossary term's story lines (only those lacking its form with `missing`). */
 export function glossaryLinesQueryOptions(id: number, missing: boolean) {
     return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "glossary", "lines", id, missing], queryFn: () => getGlossaryLinesFn({ data: { id, missing } }), staleTime: 5 * 60_000 });
+}
+
+export const getNamesFn = createServerFn({ method: "GET" }).handler(async (): Promise<NameRu[]> => {
+    const res = await send("/translators/names", "GET");
+    return (await res.json()) as NameRu[];
+});
+
+/** The library's chapter and story names with the game's Russian. */
+export function namesQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "names"], queryFn: () => getNamesFn(), staleTime: 60 * 60_000 });
 }
 
 // The same cookies the site's own sign-in sets (`lib/auth/server.ts`), so the

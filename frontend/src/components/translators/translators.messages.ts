@@ -863,6 +863,58 @@ export const messages = {
         text: "No lines.",
         description: "Shown when a term has no lines (or none without the form).",
     },
+    "checks.recommended": {
+        text: "recommended",
+        description: "Badge on the one variant of a line that passes every check and wins by the rule (most agreed proposal, else Sova's, the AI's, the game's).",
+    },
+    "checks.recommendedHint": {
+        text: "Passes every check; picked by the rule: the most agreed proposal, else Sova's, else the AI's, else the game's.",
+        description: "Tooltip of the recommended badge.",
+    },
+    "checks.glossaryHint": {
+        text: "The glossary's form is missing: {terms}",
+        description: "Tooltip of the missing glossary terms of a variant; terms are 'English → Russian' pairs.",
+    },
+    "checks.tags": {
+        text: "tags",
+        description: "Short mark: the variant's markup tags (italics, colour) differ from the English.",
+    },
+    "checks.tagsHint": {
+        text: "The tags (italics, colour) differ from the English: the emphasis is lost or broken.",
+        description: "Tooltip of the tags mark.",
+    },
+    "checks.placeholdersHint": {
+        text: "A substitution ({0}, the nickname) is missing or extra compared with the English.",
+        description: "Tooltip of the substitutions mark; the mark itself lists them.",
+    },
+    "checks.newlines": {
+        text: "line breaks {ru} / {en}",
+        description: "Short mark: the variant's line breaks differ from the English (variant's count / English's).",
+    },
+    "checks.newlinesHint": {
+        text: "Line breaks: {ru} here, {en} in the English.",
+        description: "Tooltip of the line-breaks mark.",
+    },
+    "checks.longer": {
+        text: "+{share}",
+        description: "Short mark: the variant is noticeably longer than the game's Russian; share is how much longer (a percentage).",
+    },
+    "checks.longerHint": {
+        text: "Noticeably longer than the game's Russian (more than 30% and more than 15 characters): it may not fit the dialogue box.",
+        description: "Tooltip of the length mark.",
+    },
+    "checks.address": {
+        text: "“{form}”",
+        description: "Short mark: the variant addresses with this form, unlike the speaker's neighbouring lines.",
+    },
+    "checks.addressHint": {
+        text: "The speaker's neighbouring lines in this scene say “{form}”.",
+        description: "Tooltip of the ты / вы mark; form is what the neighbouring lines use.",
+    },
+    "service.guessed": {
+        text: "{name} (presumably)",
+        description: "A story sprite's name guessed from who talks after it appears (not an operator).",
+    },
 } satisfies MessageMap;
 
 export const { keys } = defineMessages({ namespace, messages });

@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-09T05:04:27.986Z",
+    "generatedAt": "2026-11-09T06:02:25.723Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -54098,6 +54098,106 @@
             "placeholders": []
         },
         {
+            "key": "translators.checks.address",
+            "namespace": "translators",
+            "source_text": "“{form}”",
+            "description": "Short mark: the variant addresses with this form, unlike the speaker's neighbouring lines.",
+            "placeholders": [
+                "form"
+            ]
+        },
+        {
+            "key": "translators.checks.addressHint",
+            "namespace": "translators",
+            "source_text": "The speaker's neighbouring lines in this scene say “{form}”.",
+            "description": "Tooltip of the ты / вы mark; form is what the neighbouring lines use.",
+            "placeholders": [
+                "form"
+            ]
+        },
+        {
+            "key": "translators.checks.glossaryHint",
+            "namespace": "translators",
+            "source_text": "The glossary's form is missing: {terms}",
+            "description": "Tooltip of the missing glossary terms of a variant; terms are 'English → Russian' pairs.",
+            "placeholders": [
+                "terms"
+            ]
+        },
+        {
+            "key": "translators.checks.longer",
+            "namespace": "translators",
+            "source_text": "+{share}",
+            "description": "Short mark: the variant is noticeably longer than the game's Russian; share is how much longer (a percentage).",
+            "placeholders": [
+                "share"
+            ]
+        },
+        {
+            "key": "translators.checks.longerHint",
+            "namespace": "translators",
+            "source_text": "Noticeably longer than the game's Russian (more than 30% and more than 15 characters): it may not fit the dialogue box.",
+            "description": "Tooltip of the length mark.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.newlines",
+            "namespace": "translators",
+            "source_text": "line breaks {ru} / {en}",
+            "description": "Short mark: the variant's line breaks differ from the English (variant's count / English's).",
+            "placeholders": [
+                "en",
+                "ru"
+            ]
+        },
+        {
+            "key": "translators.checks.newlinesHint",
+            "namespace": "translators",
+            "source_text": "Line breaks: {ru} here, {en} in the English.",
+            "description": "Tooltip of the line-breaks mark.",
+            "placeholders": [
+                "en",
+                "ru"
+            ]
+        },
+        {
+            "key": "translators.checks.placeholdersHint",
+            "namespace": "translators",
+            "source_text": "A substitution ({0}, the nickname) is missing or extra compared with the English.",
+            "description": "Tooltip of the substitutions mark; the mark itself lists them.",
+            "placeholders": [
+                "0"
+            ]
+        },
+        {
+            "key": "translators.checks.recommended",
+            "namespace": "translators",
+            "source_text": "recommended",
+            "description": "Badge on the one variant of a line that passes every check and wins by the rule (most agreed proposal, else Sova's, the AI's, the game's).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.recommendedHint",
+            "namespace": "translators",
+            "source_text": "Passes every check; picked by the rule: the most agreed proposal, else Sova's, else the AI's, else the game's.",
+            "description": "Tooltip of the recommended badge.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.tags",
+            "namespace": "translators",
+            "source_text": "tags",
+            "description": "Short mark: the variant's markup tags (italics, colour) differ from the English.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.tagsHint",
+            "namespace": "translators",
+            "source_text": "The tags (italics, colour) differ from the English: the emphasis is lost or broken.",
+            "description": "Tooltip of the tags mark.",
+            "placeholders": []
+        },
+        {
             "key": "translators.comment.delete",
             "namespace": "translators",
             "source_text": "Delete",
@@ -55330,6 +55430,15 @@
             "source_text": "Fade out",
             "description": "Stage command in words: the screen darkens.",
             "placeholders": []
+        },
+        {
+            "key": "translators.service.guessed",
+            "namespace": "translators",
+            "source_text": "{name} (presumably)",
+            "description": "A story sprite's name guessed from who talks after it appears (not an operator).",
+            "placeholders": [
+                "name"
+            ]
         },
         {
             "key": "translators.service.image",
