@@ -1,12 +1,12 @@
 /**
  * A variant's automatic marks, inline after its text or label so a row never
- * grows: "recommended", and only what is wrong (a glossary form missing,
+ * grows: "recommended" as a small star (it is on most lines, by the rule), and
+ * only what is wrong (a glossary form missing,
  * tags, substitutions, line breaks, noticeably longer, ты / вы against the
  * speaker's neighbouring lines).
  */
 import { AlertTriangle, Star, X } from "lucide-react";
 import type React from "react";
-import { Badge } from "#/components/ui/badge";
 import { useFormatters } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import type { IVariantCheck } from "./checks";
@@ -40,10 +40,10 @@ export function Marks({ check, recommended, skipGlossary = false, t }: IMarksPro
     return (
         <span className="ms-1.5 inline-flex flex-wrap items-center gap-x-1.5 align-baseline text-xs">
             {recommended ? (
-                <Badge variant="success" size="sm" title={t("checks.recommendedHint")}>
-                    <Star aria-hidden="true" />
-                    {t("checks.recommended")}
-                </Badge>
+                <span className="inline-flex items-center text-success-foreground" title={t("checks.recommendedHint")}>
+                    <Star className="size-3.5 fill-current" aria-hidden="true" />
+                    <span className="sr-only">{t("checks.recommended")}</span>
+                </span>
             ) : null}
             {glossary.length > 0 ? (
                 <span className="inline-flex items-center gap-0.5 text-warning-foreground" title={t("checks.glossaryHint", { terms: glossary.map((g) => `${g.en} → ${g.ru}`).join(", ") })}>

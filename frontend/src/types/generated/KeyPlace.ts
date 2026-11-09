@@ -3,17 +3,12 @@
 /**
  * One story line holding the entry.
  */
-export type KeyPlace = {
-    storyId: string;
-    line: number;
-    part: number;
-    /**
-     * The line's 0-based order in its story (the table's № minus one).
-     */
-    ord: number;
-    /**
-     * The line before and after it in the story: the game's Russian, else the English.
-     */
-    before: string | null;
-    after: string | null;
-};
+export type KeyPlace = { storyId: string, line: number, part: number, 
+/**
+ * The line's 0-based order in its story (the table's № minus one).
+ */
+ord: number, 
+/**
+ * The line before and after it in the story: the game's Russian, else the English.
+ */
+before: string | null, after: string | null, };

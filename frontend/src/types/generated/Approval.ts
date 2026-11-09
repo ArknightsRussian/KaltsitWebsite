@@ -4,12 +4,8 @@ import type { EditPerson } from "./EditPerson";
 /**
  * The lead's decision for an entry.
  */
-export type Approval = {
-    /**
-     * The approved proposal; null = the game's Russian, checked and kept.
-     */
-    proposalId: number | null;
-    text: string;
-    by: EditPerson;
-    at: number;
-};
+export type Approval = { 
+/**
+ * The approved proposal; null = the game's Russian, checked and kept.
+ */
+proposalId: number | null, text: string, by: EditPerson, at: number, };

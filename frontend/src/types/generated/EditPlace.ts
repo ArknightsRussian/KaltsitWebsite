@@ -3,14 +3,12 @@
 /**
  * One displayed text of one story: where an edit was made.
  */
-export type EditPlace = {
-    storyId: string;
-    /**
-     * 1-based line in the EN script.
-     */
-    line: number;
-    /**
-     * The option number of a decision, else 0.
-     */
-    part: number;
-};
+export type EditPlace = { storyId: string, 
+/**
+ * 1-based line in the EN script.
+ */
+line: number, 
+/**
+ * The option number of a decision, else 0.
+ */
+part: number, };

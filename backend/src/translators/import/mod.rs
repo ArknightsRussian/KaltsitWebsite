@@ -127,6 +127,68 @@ pub struct Built {
 
 /// Build every line of every story. Synchronous and CPU-bound: run it off the
 /// async workers.
+/// Operators by their number (`char_130_doberm` -> 130), for sprites.
+pub struct OperatorIndex<'a> {
+    by_number: HashMap<&'a str, Vec<(&'a str, &'a String)>>,
+}
+
+impl<'a> OperatorIndex<'a> {
+    pub fn new(operators: &'a HashMap<String, String>) -> Self {
+        let mut by_number: HashMap<&str, Vec<(&str, &String)>> = HashMap::new();
+        for (id, name) in operators {
+            let mut parts = id.splitn(3, '_');
+            if let (Some(_), Some(num), Some(rest)) = (parts.next(), parts.next(), parts.next()) {
+                by_number.entry(num).or_default().push((rest, name));
+            }
+        }
+        Self { by_number }
+    }
+}
+
+/// The operator a story sprite shows, if any: the same number and a sprite
+/// name that starts with the operator's (`char_130_doberm_ex`,
+/// `char_003_kaltsn07`, `avg_1037_amiya3` and `char_002_amiya_summer` are
+/// Dobermann, Kal'tsit, Amiya and Amiya; `char_1002_nsabr` is nobody).
+pub fn operator_of<'a>(sprite: &str, index: &OperatorIndex<'a>) -> Option<&'a String> {
+    let mut parts = sprite.splitn(3, '_');
+    let (_, num, rest) = (parts.next()?, parts.next()?, parts.next()?);
+    index
+        .by_number
+        .get(num)?
+        .iter()
+        .filter(|(op, _)| rest.starts_with(op))
+        .max_by_key(|(op, _)| op.len())
+        .map(|(_, name)| *name)
+}
+
+#[cfg(test)]
+mod operator_tests {
+    use super::*;
+
+    #[test]
+    fn sprites_find_their_operator() {
+        let ops: HashMap<String, String> = [
+            ("char_130_doberm", "Dobermann"),
+            ("char_003_kalts", "Kal'tsit"),
+            ("char_002_amiya", "Amiya"),
+            ("char_1037_amiya3", "Amiya"),
+        ]
+        .into_iter()
+        .map(|(a, b)| (a.to_owned(), b.to_owned()))
+        .collect();
+        let idx = OperatorIndex::new(&ops);
+        let name = |s: &str| operator_of(s, &idx).map(String::as_str);
+        assert_eq!(name("char_130_doberm_ex"), Some("Dobermann"));
+        assert_eq!(name("char_003_kaltsn07"), Some("Kal'tsit"));
+        assert_eq!(name("avg_003_kalts"), Some("Kal'tsit"));
+        assert_eq!(name("avg_1037_amiya3"), Some("Amiya"));
+        assert_eq!(name("char_002_amiya_summer"), Some("Amiya"));
+        assert_eq!(name("char_002_amiya"), Some("Amiya"));
+        assert_eq!(name("char_1002_nsabr"), None);
+        assert_eq!(name("char_130_other"), None);
+    }
+}
+
 /// What the game data gives the import besides the scripts.
 #[derive(Debug, Default, Clone)]
 pub struct GameNames {
@@ -243,12 +305,13 @@ pub fn build(
         }
         out.push((id.clone(), lines));
     }
+    let operators = OperatorIndex::new(&game.operators);
     let mut chars: Vec<CharName> = votes
         .into_iter()
         .filter_map(|(char_id, by)| {
             let total: u32 = by.values().sum();
             // An operator's sprite: its name from the character table, certain.
-            if let Some(name) = game.operators.get(&char_id) {
+            if let Some(name) = operator_of(&char_id, &operators) {
                 return Some(CharName {
                     name_ru: matcher.dict(name).map(|(v, _, _)| v),
                     name_en: name.clone(),

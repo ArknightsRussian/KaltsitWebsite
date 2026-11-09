@@ -7,19 +7,16 @@ import type { Proposal } from "./Proposal";
 /**
  * Everything decided or proposed for one dictionary entry.
  */
-export type KeyEdits = {
-    editKey: string;
-    approval: Approval | null;
-    /**
-     * Who keeps the game's Russian ("agree" with it).
-     */
-    gameAgreements: Array<EditPerson>;
-    /**
-     * Most agreed first, then oldest first.
-     */
-    proposals: Array<Proposal>;
-    /**
-     * Oldest first.
-     */
-    comments: Array<EditComment>;
-};
+export type KeyEdits = { editKey: string, approval: Approval | null, 
+/**
+ * Who keeps the game's Russian ("agree" with it).
+ */
+gameAgreements: Array<EditPerson>, 
+/**
+ * Most agreed first, then oldest first.
+ */
+proposals: Array<Proposal>, 
+/**
+ * Oldest first.
+ */
+comments: Array<EditComment>, };

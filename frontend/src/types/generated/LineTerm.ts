@@ -3,23 +3,16 @@
 /**
  * A glossary term found in a line's English.
  */
-export type LineTerm = {
-    termId: number;
-    /**
-     * The text as it stands in the English line.
-     */
-    matched: string;
-    sheet: string;
-    ru: string;
-    ruPlural: string | null;
-    qualifier: string | null;
-    note: string | null;
-    /**
-     * From the sheet copied from Sova's glossary: a variant, never marked as not found.
-     */
-    fromSova: boolean;
-    /**
-     * Whether the line's Russian holds the glossary form (by stem, ё = е); null when not checked.
-     */
-    found: boolean | null;
-};
+export type LineTerm = { termId: number, 
+/**
+ * The text as it stands in the English line.
+ */
+matched: string, sheet: string, ru: string, ruPlural: string | null, qualifier: string | null, note: string | null, 
+/**
+ * From the sheet copied from Sova's glossary: a variant, never marked as not found.
+ */
+fromSova: boolean, 
+/**
+ * Whether the line's Russian holds the glossary form (by stem, ё = е); null when not checked.
+ */
+found: boolean | null, };
