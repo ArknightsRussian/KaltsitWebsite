@@ -244,5 +244,16 @@
     "checks.longerHint": "Заметно длиннее, чем в игре (больше чем на 30 % и на 15 знаков): может не влезть в окно диалога.",
     "checks.address": "«{form}»",
     "checks.addressHint": "Соседние реплики этого говорящего в сцене — на «{form}».",
-    "service.guessed": "{name} (предположительно)"
+    "service.guessed": "{name} (предположительно)",
+    "agree.label": "Согласен",
+    "agree.hint": "Согласен с этим вариантом",
+    "agree.who": "{count, plural, one {# согласен} few {# согласны} many {# согласны} other {# согласны}}: {names}",
+    "read.button": "Сцену прочитал(а)",
+    "read.by": "Прочитали: {names}",
+    "read.item": "{name} ({date})",
+    "read.failed": "Не удалось сохранить отметку.",
+    "progress.label": "Прогресс истории",
+    "progress.summary": "Проверено {checked} · ждут решения {waiting} · устарело {outdated}",
+    "progress.short": "проверено {checked} · ждут {waiting} · устарело {outdated}",
+    "agree.failed": "Не удалось сохранить голос."
 }

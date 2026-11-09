@@ -21,6 +21,7 @@ import type { KeyPlaces } from "#/types/generated/KeyPlaces";
 import type { LoginResponse } from "#/types/generated/LoginResponse";
 import type { NameRu } from "#/types/generated/NameRu";
 import type { ProposalVersion } from "#/types/generated/ProposalVersion";
+import type { StoryProgress } from "#/types/generated/StoryProgress";
 import type { TranslatorStoryLines } from "#/types/generated/TranslatorStoryLines";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
 
@@ -123,12 +124,32 @@ export function proposalVersionsQueryOptions(id: number) {
 }
 
 /** Agree with a variant of the line's entry or take it back; `proposalId` null = keep as in the game. */
+export type AgreeVariant = "game" | "sova" | "ai" | "proposal";
+
 export const setAgreementFn = createServerFn({ method: "POST" })
-    .inputValidator((d: { place: EditPlace; proposalId: number | null; agree: boolean }) => d)
+    .inputValidator((d: { place: EditPlace; variant: AgreeVariant; proposalId: number | null; agree: boolean }) => d)
     .handler(async ({ data }): Promise<null> => {
-        await send("/translators/agreements", "PUT", { ...data.place, proposalId: data.proposalId, agree: data.agree });
+        await send("/translators/agreements", "PUT", { ...data.place, variant: data.variant, proposalId: data.proposalId, agree: data.agree });
         return null;
     });
+
+/** Mark a story read by me ("I have read this scene"), or not. */
+export const setStoryReadFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { storyId: string; read: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/stories/${encodeURIComponent(data.storyId)}/read`, "PUT", { read: data.read });
+        return null;
+    });
+
+export const getProgressFn = createServerFn({ method: "GET" }).handler(async (): Promise<StoryProgress[]> => {
+    const res = await send("/translators/progress", "GET");
+    return (await res.json()) as StoryProgress[];
+});
+
+/** Every story's progress (refreshed with the edits). */
+export function progressQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", "progress"], queryFn: () => getProgressFn(), staleTime: 60_000 });
+}
 
 /** A remark (`kind: "remark"`) or a translator's note (`"note"`, maybe about one variant), quoting a fragment of the line. */
 export const createCommentFn = createServerFn({ method: "POST" })

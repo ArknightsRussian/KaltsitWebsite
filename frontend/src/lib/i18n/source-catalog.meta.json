@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-09T06:02:25.723Z",
+    "generatedAt": "2026-11-09T08:15:22.064Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -54001,6 +54001,37 @@
             "placeholders": []
         },
         {
+            "key": "translators.agree.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save your vote.",
+            "description": "Toast when agreeing with a variant (or taking it back) fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.hint",
+            "namespace": "translators",
+            "source_text": "Agree with this variant",
+            "description": "Tooltip of the agree button when nobody has agreed yet.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.label",
+            "namespace": "translators",
+            "source_text": "Agree",
+            "description": "Accessible name of the agree button of a variant (a thumbs-up with the count).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.who",
+            "namespace": "translators",
+            "source_text": "{count, plural, one {# agrees} other {# agree}}: {names}",
+            "description": "Tooltip of the agree button: how many and who.",
+            "placeholders": [
+                "count",
+                "names"
+            ]
+        },
+        {
             "key": "translators.ambiguous.badge",
             "namespace": "translators",
             "source_text": "Left in English",
@@ -55185,6 +55216,35 @@
             "placeholders": []
         },
         {
+            "key": "translators.progress.label",
+            "namespace": "translators",
+            "source_text": "Progress of the story",
+            "description": "Accessible name of the story's progress meter.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.progress.short",
+            "namespace": "translators",
+            "source_text": "{checked} checked · {waiting} waiting · {outdated} outdated",
+            "description": "Short progress under a chapter or story name in the pickers.",
+            "placeholders": [
+                "checked",
+                "outdated",
+                "waiting"
+            ]
+        },
+        {
+            "key": "translators.progress.summary",
+            "namespace": "translators",
+            "source_text": "Checked {checked} · waiting {waiting} · outdated {outdated}",
+            "description": "Story progress above the table; checked is a percentage, waiting and outdated are line counts.",
+            "placeholders": [
+                "checked",
+                "outdated",
+                "waiting"
+            ]
+        },
+        {
             "key": "translators.proposal.agreed",
             "namespace": "translators",
             "source_text": "{count, plural, one {# agrees} other {# agree}}",
@@ -55271,6 +55331,39 @@
             "source_text": "Rewrite",
             "description": "Button in My edits: opens the proposal's text for rewriting.",
             "placeholders": []
+        },
+        {
+            "key": "translators.read.button",
+            "namespace": "translators",
+            "source_text": "I have read this scene",
+            "description": "Toggle above the story table: the member marks the story read.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.read.by",
+            "namespace": "translators",
+            "source_text": "Read: {names}",
+            "description": "Who has read the story, with dates; names is a comma-separated list.",
+            "placeholders": [
+                "names"
+            ]
+        },
+        {
+            "key": "translators.read.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save the mark.",
+            "description": "Toast when marking a story read fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.read.item",
+            "namespace": "translators",
+            "source_text": "{name} ({date})",
+            "description": "One reader of the story and when.",
+            "placeholders": [
+                "date",
+                "name"
+            ]
         },
         {
             "key": "translators.remark.editorLabel",

@@ -10,7 +10,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookOpen, NotebookPen } from "lucide-react";
+import { BookCheck, BookOpen, NotebookPen } from "lucide-react";
 import type React from "react";
 import { useEffect, useId, useMemo } from "react";
 import { Button } from "#/components/ui/button";
@@ -19,18 +19,22 @@ import { Combobox, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, Com
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "#/components/ui/empty";
 import { Label } from "#/components/ui/label";
 import { LoadFailed } from "#/components/ui/load-failed";
+import { Meter } from "#/components/ui/meter";
 import { PageHeader } from "#/components/ui/page-header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Switch } from "#/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "#/components/ui/tabs";
+import { Toggle as KitToggle } from "#/components/ui/toggle";
 import { storyIndexQueryOptions, storyQueryOptions } from "#/lib/api/story";
-import { useLocale, useT } from "#/lib/i18n";
+import { useFormatters, useLocale, useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { storyLabel } from "#/lib/story/book/book";
-import { charactersQueryOptions, translatorLinesQueryOptions, translatorsMeQueryOptions } from "#/lib/translators/api";
+import { charactersQueryOptions, progressQueryOptions, setStoryReadFn, translatorLinesQueryOptions, translatorsMeQueryOptions } from "#/lib/translators/api";
+import type { StoryRead } from "#/types/generated/StoryRead";
+import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
 import { GlossaryTab } from "./GlossaryTab";
-import { TONE, Toned } from "./LineEdits";
+import { TONE, Toned, useEditMutation } from "./LineEdits";
 import { LinesTable } from "./LinesTable";
 import { MyEditsTab } from "./MyEditsTab";
 import { SectionLangSwitch, SectionLocale } from "./SectionLocale";
@@ -60,6 +64,7 @@ interface IGroupItem {
     /** In English, shown small and searched too. */
     en: string;
     kind: string;
+    progress: IProgress;
 }
 
 /** Search folding: any case, ё = е. */
@@ -83,6 +88,54 @@ function useScrollToRow(ready: boolean): void {
         if (!ready || !hash.startsWith("n-")) return;
         document.getElementById(hash)?.scrollIntoView({ block: "center" });
     }, [ready, hash]);
+}
+
+interface IProgress {
+    total: number;
+    approved: number;
+    waiting: number;
+    outdated: number;
+}
+
+const NO_PROGRESS: IProgress = { total: 0, approved: 0, waiting: 0, outdated: 0 };
+
+function addProgress(a: IProgress, b: IProgress): IProgress {
+    return { total: a.total + b.total, approved: a.approved + b.approved, waiting: a.waiting + b.waiting, outdated: a.outdated + b.outdated };
+}
+
+/** Every story's progress by id, from one request shared by the pickers and the table. */
+function useProgress(): Map<string, IProgress> {
+    const query = useQuery(progressQueryOptions());
+    return useMemo(() => new Map((query.data ?? []).map((p) => [p.storyId, p])), [query.data]);
+}
+
+/** "12 % checked · 3 waiting · 1 outdated", only once something happened. */
+function ProgressShort({ p, t }: { p: IProgress; t: T }): React.ReactElement | null {
+    const f = useFormatters();
+    if (p.approved + p.waiting + p.outdated === 0) return null;
+    return <span className="truncate text-subtle-foreground text-xs">{t("progress.short", { checked: f.percent(p.total ? p.approved / p.total : 0), waiting: f.number(p.waiting), outdated: f.number(p.outdated) })}</span>;
+}
+
+/** The story's progress and who read it, with my "I have read this scene". */
+function StoryStatus({ storyId, reads, me, t }: { storyId: string; reads: readonly StoryRead[]; me: TranslatorsMe; t: T }): React.ReactElement {
+    const f = useFormatters();
+    const p = useProgress().get(storyId) ?? NO_PROGRESS;
+    const mine = reads.some((r) => r.by.id === me.userId);
+    const mark = useEditMutation((read: boolean) => setStoryReadFn({ data: { storyId, read } }), t("read.failed"));
+    const share = p.total ? p.approved / p.total : 0;
+    return (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <KitToggle size="sm" variant="outline" pressed={mine} onPressedChange={(read: boolean) => mark.mutate(read)} disabled={mark.isPending}>
+                <BookCheck aria-hidden="true" />
+                {t("read.button")}
+            </KitToggle>
+            {reads.length > 0 ? <span className="text-muted-foreground text-xs">{t("read.by", { names: reads.map((r) => t("read.item", { name: r.by.name, date: f.date(r.at * 1000, { dateStyle: "medium" }) })).join(", ") })}</span> : null}
+            <span className="flex items-center gap-2">
+                <Meter value={share * 100} aria-label={t("progress.label")} className="w-32" />
+                <span className="text-subtle-foreground text-xs">{t("progress.summary", { checked: f.percent(share), waiting: f.number(p.waiting), outdated: f.number(p.outdated) })}</span>
+            </span>
+        </div>
+    );
 }
 
 /** Sova's footnotes to the chapter (arktr), folded above the table. */
@@ -124,7 +177,7 @@ function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesP
     }, [chars.data, locale, t]);
     if (query.isError) return <LoadFailed message={t("load.lines")} onRetry={() => query.refetch()} />;
     if (!query.data || !me.data) return <Skeleton className="h-96 w-full rounded-2xl" />;
-    const { lines, importedAt, edits, outdated, sovaNotes } = query.data;
+    const { lines, importedAt, edits, outdated, sovaNotes, reads } = query.data;
     const nickname = me.data.nickname ?? t("nickname.fallback");
     if (importedAt === null)
         return (
@@ -146,6 +199,7 @@ function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesP
     return (
         <div className="flex flex-col gap-2">
             <p className="text-subtle-foreground text-xs">{t("table.summary", { count: lines.length, ru: withRu })}</p>
+            <StoryStatus storyId={storyId} reads={reads} me={me.data} t={t} />
             <SovaNotes notes={sovaNotes} t={t} />
             <LinesTable storyId={storyId} lines={lines} edits={edits} outdated={outdated} me={me.data} label={t("table.label", { story: title })} showCn={showCn} showVariants={showVariants} commands={showService ? (script.data?.commands ?? null) : null} nameOf={nameOf} nickname={nickname} />
         </div>
@@ -176,7 +230,8 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
 
     const groups = index.data?.groups ?? [];
     const rename = useRename();
-    const items: IGroupItem[] = useMemo(() => groups.map((g) => ({ id: g.id, label: groupLabel(g, rename), en: groupLabel(g), kind: g.category })), [groups, rename]);
+    const progress = useProgress();
+    const items: IGroupItem[] = useMemo(() => groups.map((g) => ({ id: g.id, label: groupLabel(g, rename), en: groupLabel(g), kind: g.category, progress: g.stories.reduce((acc, st) => addProgress(acc, progress.get(st.id) ?? NO_PROGRESS), NO_PROGRESS) })), [groups, rename, progress]);
     const group = groups.find((g) => g.id === search.group) ?? null;
     const groupItem = items.find((i) => i.id === search.group) ?? null;
     const stories = useMemo(() => (group ? [...group.stories].sort((a, b) => a.sort - b.sort) : []), [group]);
@@ -213,6 +268,7 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
                                                     {item.en !== item.label ? `${item.en} · ` : ""}
                                                     {t(`category.${item.kind}` as "category.main")}
                                                 </span>
+                                                <ProgressShort p={item.progress} t={t} />
                                             </span>
                                         </ComboboxItem>
                                     )}
@@ -236,6 +292,7 @@ function StoryTab({ search, onSearch }: ISearchProps): React.ReactElement {
                                                 {s.avgTag ? <span className="text-subtle-foreground"> · {rename(s.avgTag)}</span> : null}
                                             </span>
                                             {rename(s.name) !== s.name ? <span className="truncate text-subtle-foreground text-xs">{storyLabel(s)}</span> : null}
+                                            <ProgressShort p={progress.get(s.id) ?? NO_PROGRESS} t={t} />
                                         </span>
                                     </SelectItem>
                                 ))}

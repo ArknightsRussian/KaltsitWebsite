@@ -24,7 +24,7 @@ import type { StoryCommand } from "#/types/generated/StoryCommand";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
 import { type Address, checkVariant, type ICandidate, type IVariantCheck, neighbourAddress, recommend } from "./checks";
-import { ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, proposalsAt, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
+import { AgreeButton, ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, placeVotes, proposalsAt, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
 import { Marks } from "./Marks";
 import { StoryText } from "./StoryText";
 import { DISPLAYED_KINDS, describeCommands } from "./service";
@@ -113,12 +113,13 @@ function Terms({ terms, t }: { terms: readonly LineTerm[]; t: T }): React.ReactE
 }
 
 /** Sova's or the AI's variant on one line: label, text, and "Propose this" right after it. */
-function InlineVariant({ tone, label, text, nickname, action, marks }: { tone: string; label: string; text: string; nickname: string; action?: React.ReactNode; marks?: React.ReactNode }): React.ReactElement {
+function InlineVariant({ tone, label, text, nickname, action, marks, agree }: { tone: string; label: string; text: string; nickname: string; action?: React.ReactNode; marks?: React.ReactNode; agree?: React.ReactNode }): React.ReactElement {
     return (
         <div className="border-(--tone) border-s-2 ps-2" style={{ "--tone": tone } as React.CSSProperties}>
             <span className="me-1.5 text-subtle-foreground text-xs">{label}</span>
             <StoryText text={text} nickname={nickname} />
             {marks}
+            {agree}
             {action ? <span className="ms-2">{action}</span> : null}
         </div>
     );
@@ -182,6 +183,7 @@ function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outd
             >
                 {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} quotes={quotes} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
                 {marks("game", true)}
+                {line.ruGame && line.editable ? <AgreeButton place={place} variant="game" people={edits?.gameAgreements ?? []} me={me} t={t} /> : null}
             </div>
             <VariantNotes {...notes} variant="game" />
             {line.pluginRole === "story" ? (
@@ -207,13 +209,29 @@ function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outd
                 <>
                     {line.sova ? (
                         <>
-                            <InlineVariant tone={TONE.sova} label={t("hints.sova")} text={line.sova} nickname={nickname} marks={marks("sova")} action={line.editable && !editor ? take("sova", line.sova) : undefined} />
+                            <InlineVariant
+                                tone={TONE.sova}
+                                label={t("hints.sova")}
+                                text={line.sova}
+                                nickname={nickname}
+                                marks={marks("sova")}
+                                agree={line.editable ? <AgreeButton place={place} variant="sova" people={placeVotes(edits, place, "sova")} me={me} t={t} /> : undefined}
+                                action={line.editable && !editor ? take("sova", line.sova) : undefined}
+                            />
                             <VariantNotes {...notes} variant="sova" />
                         </>
                     ) : null}
                     {line.ai ? (
                         <>
-                            <InlineVariant tone={TONE.ai} label={t("hints.ai")} text={line.ai} nickname={nickname} marks={marks("ai")} action={line.editable && !editor ? take("ai", line.ai) : undefined} />
+                            <InlineVariant
+                                tone={TONE.ai}
+                                label={t("hints.ai")}
+                                text={line.ai}
+                                nickname={nickname}
+                                marks={marks("ai")}
+                                agree={line.editable ? <AgreeButton place={place} variant="ai" people={placeVotes(edits, place, "ai")} me={me} t={t} /> : undefined}
+                                action={line.editable && !editor ? take("ai", line.ai) : undefined}
+                            />
                             <VariantNotes {...notes} variant="ai" />
                         </>
                     ) : null}

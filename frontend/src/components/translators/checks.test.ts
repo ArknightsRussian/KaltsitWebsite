@@ -71,12 +71,18 @@ describe("recommended", () => {
     const bad = { ...ok, tags: true };
     const c = (variant: string, agreements: number, pass = true): ICandidate => ({ variant, agreements, check: pass ? ok : bad });
 
-    it("prefers the most agreed passing proposal, then Sova, the AI, the game", () => {
-        expect(recommend([c("proposal:1", 1), c("proposal:2", 3), c("sova", 0), c("game", 0)], false)).toBe("proposal:2");
-        expect(recommend([c("proposal:1", 5, false), c("sova", 0), c("ai", 0)], false)).toBe("sova");
-        expect(recommend([c("sova", 0, false), c("ai", 0), c("game", 0)], false)).toBe("ai");
-        expect(recommend([c("sova", 0, false), c("game", 0)], false)).toBe("game");
+    it("rule B: nothing when the game's Russian passes; else the best passing variant", () => {
+        expect(recommend([c("proposal:1", 3), c("sova", 0), c("game", 0)], false)).toBeNull();
+        expect(recommend([c("proposal:1", 1), c("proposal:2", 3), c("sova", 0), c("game", 0, false)], false)).toBe("proposal:2");
+        expect(recommend([c("proposal:1", 5, false), c("sova", 0), c("ai", 0), c("game", 0, false)], false)).toBe("sova");
+        expect(recommend([c("sova", 0, false), c("ai", 0), c("game", 0, false)], false)).toBe("ai");
         expect(recommend([c("sova", 0, false), c("game", 0, false)], false)).toBeNull();
-        expect(recommend([c("sova", 0)], true)).toBeNull();
+        expect(recommend([c("sova", 0), c("game", 0, false)], true)).toBeNull();
+    });
+
+    it("rule A (switched off): the best passing variant, the game's Russian last", () => {
+        expect(recommend([c("proposal:1", 1), c("proposal:2", 3), c("sova", 0), c("game", 0)], false, "A")).toBe("proposal:2");
+        expect(recommend([c("sova", 0, false), c("ai", 0, false), c("game", 0)], false, "A")).toBe("game");
+        expect(recommend([c("sova", 0, false), c("game", 0, false)], false, "A")).toBeNull();
     });
 });

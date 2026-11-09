@@ -8,7 +8,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, MessageSquare, NotebookPen, PenLine, Trash2, Undo2 } from "lucide-react";
+import { Check, MessageSquare, NotebookPen, PenLine, ThumbsUp, Trash2, Undo2 } from "lucide-react";
 import type React from "react";
 import { useId, useState } from "react";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "#/components/ui/alert-dialog";
@@ -25,7 +25,8 @@ import { Textarea } from "#/components/ui/textarea";
 import { toastManager } from "#/components/ui/toast";
 import { useFormatters } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
-import { createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn } from "#/lib/translators/api";
+import { type AgreeVariant, createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn, setAgreementFn } from "#/lib/translators/api";
+import { cn } from "#/lib/utils";
 import type { EditComment } from "#/types/generated/EditComment";
 import type { EditPerson } from "#/types/generated/EditPerson";
 import type { EditPlace } from "#/types/generated/EditPlace";
@@ -244,6 +245,52 @@ export function LineComments({ edits, place, me, t }: ICommentsProps): React.Rea
     );
 }
 
+/** Who agrees with Sova's or the AI's text at this place. */
+export function placeVotes(edits: KeyEdits | undefined, place: EditPlace, variant: "sova" | "ai"): EditPerson[] {
+    return edits?.placeAgreements.find((a) => a.variant === variant && samePlace(a.place, place))?.people ?? [];
+}
+
+interface IAgreeProps {
+    place: EditPlace;
+    variant: AgreeVariant;
+    proposalId?: number;
+    people: readonly EditPerson[];
+    me: TranslatorsMe;
+    /** One's own proposal: the count only. */
+    own?: boolean;
+    t: T;
+}
+
+/**
+ * "Agree" with one variant: a thumb with the count, who in its tooltip; mine
+ * pressed. With no votes it shows on the cell's hover and keyboard focus only
+ * (always on a touch screen), so the dense table stays quiet.
+ */
+export function AgreeButton({ place, variant, proposalId, people, me, own = false, t }: IAgreeProps): React.ReactElement | null {
+    const f = useFormatters();
+    const mine = people.some((p) => p.id === me.userId);
+    const count = people.length;
+    const vote = useEditMutation((agree: boolean) => setAgreementFn({ data: { place, variant, proposalId: proposalId ?? null, agree } }), t("agree.failed"));
+    if (own && count === 0) return null;
+    const title = count > 0 ? t("agree.who", { count, names: names(people) }) : t("agree.hint");
+    return (
+        <Button
+            variant="ghost"
+            size="xs"
+            className={cn("h-auto gap-0.5 px-1 py-0 align-baseline text-xs", count === 0 && "opacity-0 pointer-coarse:opacity-100 focus-visible:opacity-100 group-hover/cell:opacity-100")}
+            aria-pressed={mine}
+            data-pressed={mine ? "" : undefined}
+            disabled={own || vote.isPending}
+            title={title}
+            onClick={() => vote.mutate(!mine)}
+        >
+            <ThumbsUp className={cn("size-3", mine && "fill-current")} aria-hidden="true" />
+            {count > 0 ? f.number(count) : null}
+            <span className="sr-only">{own ? title : t("agree.label")}</span>
+        </Button>
+    );
+}
+
 /** The approved variant: above everything else in the cell. */
 export function ApprovedVariant({ edits, nickname, marks, t }: { edits: KeyEdits | undefined; nickname: string; marks?: React.ReactNode; t: T }): React.ReactElement | null {
     const f = useFormatters();
@@ -296,7 +343,7 @@ export function Proposals({ edits, place, me, nickname, onEdit, marks, t }: IPro
                                             {t("proposal.contextBadge")}
                                         </Badge>
                                     ) : null}
-                                    {p.agreements.length > 0 ? <span title={names(p.agreements)}>· {t("proposal.agreed", { count: p.agreements.length })}</span> : null}
+                                    <AgreeButton place={place} variant="proposal" proposalId={p.id} people={p.agreements} me={me} own={mine} t={t} />
                                     {marks?.(p)}
                                 </>
                             }

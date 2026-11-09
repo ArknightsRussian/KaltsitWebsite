@@ -144,16 +144,34 @@ export interface ICandidate {
     check: IVariantCheck;
 }
 
+/** Which rule picks "recommended": the team's call (translators/PLAN-edit.md §3). */
+export type RecommendRule = "A" | "B";
+
 /**
- * THE RULE for "recommended" (the one place to change it): among the variants
- * that pass every check, the proposal with the most "agree", else Sova's, else
- * the AI's, else the game's Russian. None when nothing passes, or when the
- * lead has already approved a variant.
+ * Rule B (in use): the game's Russian that passes every check needs no
+ * change, so nothing is recommended; only when the game's text has a mark
+ * (glossary, tags, substitutions, line breaks, length, ты / вы) is the best
+ * passing variant recommended: the proposal with the most "agree", else
+ * Sova's, else the AI's.
+ *
+ * Rule A (switched off): among the variants that pass every check, the
+ * proposal with the most "agree", else Sova's, else the AI's, else the
+ * game's Russian; it put a star on most lines.
  */
-export function recommend(candidates: readonly ICandidate[], approved: boolean): string | null {
+export const RECOMMEND_RULE: RecommendRule = "B";
+
+/**
+ * THE RULE for "recommended" (the one place to change it, with
+ * RECOMMEND_RULE): `candidates` hold the game's Russian as `game`. None when
+ * the lead has already approved a variant.
+ */
+export function recommend(candidates: readonly ICandidate[], approved: boolean, rule: RecommendRule = RECOMMEND_RULE): string | null {
     if (approved) return null;
+    const game = candidates.find((c) => c.variant === "game");
+    if (rule === "B" && game && passes(game.check)) return null;
     const ok = candidates.filter((c) => passes(c.check));
     const proposals = ok.filter((c) => c.variant.startsWith("proposal:")).sort((a, b) => b.agreements - a.agreements);
-    const pick = proposals[0] ?? ok.find((c) => c.variant === "sova") ?? ok.find((c) => c.variant === "ai") ?? ok.find((c) => c.variant === "game");
+    const best = proposals[0] ?? ok.find((c) => c.variant === "sova") ?? ok.find((c) => c.variant === "ai");
+    const pick = rule === "A" ? (best ?? ok.find((c) => c.variant === "game")) : best;
     return pick?.variant ?? null;
 }

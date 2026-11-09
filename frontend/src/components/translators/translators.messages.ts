@@ -915,6 +915,50 @@ export const messages = {
         text: "{name} (presumably)",
         description: "A story sprite's name guessed from who talks after it appears (not an operator).",
     },
+    "agree.label": {
+        text: "Agree",
+        description: "Accessible name of the agree button of a variant (a thumbs-up with the count).",
+    },
+    "agree.hint": {
+        text: "Agree with this variant",
+        description: "Tooltip of the agree button when nobody has agreed yet.",
+    },
+    "agree.who": {
+        text: "{count, plural, one {# agrees} other {# agree}}: {names}",
+        description: "Tooltip of the agree button: how many and who.",
+    },
+    "read.button": {
+        text: "I have read this scene",
+        description: "Toggle above the story table: the member marks the story read.",
+    },
+    "read.by": {
+        text: "Read: {names}",
+        description: "Who has read the story, with dates; names is a comma-separated list.",
+    },
+    "read.item": {
+        text: "{name} ({date})",
+        description: "One reader of the story and when.",
+    },
+    "read.failed": {
+        text: "Couldn't save the mark.",
+        description: "Toast when marking a story read fails.",
+    },
+    "progress.label": {
+        text: "Progress of the story",
+        description: "Accessible name of the story's progress meter.",
+    },
+    "progress.summary": {
+        text: "Checked {checked} · waiting {waiting} · outdated {outdated}",
+        description: "Story progress above the table; checked is a percentage, waiting and outdated are line counts.",
+    },
+    "progress.short": {
+        text: "{checked} checked · {waiting} waiting · {outdated} outdated",
+        description: "Short progress under a chapter or story name in the pickers.",
+    },
+    "agree.failed": {
+        text: "Couldn't save your vote.",
+        description: "Toast when agreeing with a variant (or taking it back) fails.",
+    },
 } satisfies MessageMap;
 
 export const { keys } = defineMessages({ namespace, messages });
