@@ -959,6 +959,170 @@ export const messages = {
         text: "Couldn't save your vote.",
         description: "Toast when agreeing with a variant (or taking it back) fails.",
     },
+    "approve.button": {
+        text: "Approve",
+        description: "The lead's button on a variant: approve it for the game (the game's Russian: checked, kept).",
+    },
+    "approve.withdraw": {
+        text: "Withdraw approval",
+        description: "The lead's button on the approved variant.",
+    },
+    "approve.failed": {
+        text: "Couldn't save the approval.",
+        description: "Toast when approving or withdrawing fails.",
+    },
+    "approved.here": {
+        text: "approved for this place",
+        description: "Badge on a one-place proposal the lead approved.",
+    },
+    "filter.label": {
+        text: "Show",
+        description: "Label of the filter above the story table.",
+    },
+    "filter.all": {
+        text: "All lines",
+        description: "Filter option: every line.",
+    },
+    "filter.proposals": {
+        text: "With proposals",
+        description: "Filter option: lines with translators' proposals.",
+    },
+    "filter.recommended": {
+        text: "With a recommendation",
+        description: "Filter option: lines where a variant is recommended (the game's text has a mark).",
+    },
+    "filter.outdated": {
+        text: "Outdated",
+        description: "Filter option: lines with a decision left for a previous English.",
+    },
+    "filter.remarks": {
+        text: "With open remarks",
+        description: "Filter option: lines with remarks not yet resolved.",
+    },
+    "filter.count": {
+        text: "{shown} of {total}",
+        description: "How many lines the filter shows.",
+    },
+    "bulk.recommended": {
+        text: "Approve the recommended in the whole scene…",
+        description: "The lead's button above the table: opens the list of recommended variants to approve.",
+    },
+    "bulk.game": {
+        text: "Whole scene as in the game, checked…",
+        description: "The lead's button above the table: marks the game's Russian of the scene's lines checked.",
+    },
+    "bulk.recommendedTitle": {
+        text: "Approve {count, plural, one {# recommended variant} other {# recommended variants}}",
+        description: "Heading of the dialog approving a scene's recommended variants.",
+    },
+    "bulk.recommendedHint": {
+        text: "Untick the lines to leave out. Each approval holds for every place of its line.",
+        description: "Text of the dialog approving recommended variants.",
+    },
+    "bulk.gameTitle": {
+        text: "Mark the game's Russian checked in {count, plural, one {# line} other {# lines}}",
+        description: "Heading of the dialog marking a scene as in the game.",
+    },
+    "bulk.gameHint": {
+        text: "Lines already approved are left as they are. Checked means the game's text stays; it is never exported.",
+        description: "Text of the dialog marking a scene as in the game.",
+    },
+    "bulk.gameSkipped": {
+        text: "Left out: {proposals} with proposals, {marks} with a mark on the game's text.",
+        description: "In the as-in-the-game dialog: how many lines are left out by default.",
+    },
+    "bulk.gameInclude": {
+        text: "Include them too",
+        description: "Checkbox in the as-in-the-game dialog: also mark the left-out lines checked.",
+    },
+    "bulk.confirm": {
+        text: "Approve",
+        description: "Button confirming a batch approval.",
+    },
+    "bulk.done": {
+        text: "Approved: {approved}, skipped: {skipped}.",
+        description: "Toast after a batch approval.",
+    },
+    "bulk.failed": {
+        text: "Couldn't approve the scene.",
+        description: "Toast when a batch approval fails.",
+    },
+    "export.open": {
+        text: "Export…",
+        description: "Button in My edits opening the export to the XUnity dictionaries.",
+    },
+    "export.title": {
+        text: "Export to the XUnity dictionaries",
+        description: "Heading of the export dialog.",
+    },
+    "export.mode": {
+        text: "What",
+        description: "Label of the export mode choice.",
+    },
+    "export.mode.approved": {
+        text: "Approved — for the game",
+        description: "Export mode: the lead's approvals (the lead only).",
+    },
+    "export.mode.approvedHint": {
+        text: "Only the lead can export it.",
+        description: "Hint under the approved mode for other members.",
+    },
+    "export.mode.review": {
+        text: "All proposals — for checking (REVIEW)",
+        description: "Export mode: every proposal not approved, marked REVIEW, not for the game.",
+    },
+    "export.format": {
+        text: "Format",
+        description: "Label of the export format choice.",
+    },
+    "export.format.file": {
+        text: "One file 00_translators.txt",
+        description: "Export format: a separate dictionary file.",
+    },
+    "export.format.patch": {
+        text: "Patch: copies of 11_ui, 12_story, 13_names",
+        description: "Export format: the pack's files with the changed values.",
+    },
+    "export.run": {
+        text: "Prepare",
+        description: "Button preparing the export.",
+    },
+    "export.load": {
+        text: "Couldn't prepare the export.",
+        description: "Load failure of the export.",
+    },
+    "export.written": {
+        text: "Lines written: {count}",
+        description: "Export report: lines written.",
+    },
+    "export.plugin": {
+        text: "For the RichTextFix plugin (plugin.csv): {count}",
+        description: "Export report: plugin lines.",
+    },
+    "export.context": {
+        text: "Tied to their place (context.csv): {count}",
+        description: "Export report: one-place proposals.",
+    },
+    "export.skipped": {
+        text: "Left out (XUnity cannot read them): {count}",
+        description: "Export report: unwritable keys.",
+    },
+    "export.after": {
+        text: "Loaded after ours (they win on the same key): {files}",
+        description: "Export report: files that override ours.",
+    },
+    "export.afterNone": {
+        text: "No file loads after ours: it wins.",
+        description: "Export report: nothing overrides ours.",
+    },
+    "export.files": {
+        text: "Files",
+        description: "Heading of the list of exported files.",
+    },
+    "export.download": {
+        text: "Download",
+        description: "Link downloading one exported file.",
+    },
 } satisfies MessageMap;
 
 export const { keys } = defineMessages({ namespace, messages });

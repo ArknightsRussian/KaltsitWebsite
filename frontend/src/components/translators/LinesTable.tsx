@@ -9,22 +9,26 @@
  */
 import { Check, X } from "lucide-react";
 import type React from "react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { InfoHint } from "#/components/ui/info-hint";
+import { Label } from "#/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/components/ui/table";
 import { useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { cn } from "#/lib/utils";
+import type { EditPlace } from "#/types/generated/EditPlace";
 import type { KeyEdits } from "#/types/generated/KeyEdits";
 import type { LineTerm } from "#/types/generated/LineTerm";
 import type { OutdatedEdit } from "#/types/generated/OutdatedEdit";
 import type { StoryCommand } from "#/types/generated/StoryCommand";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
+import { BulkApprove, type IBulkLine } from "./BulkApprove";
 import { type Address, checkVariant, type ICandidate, type IVariantCheck, neighbourAddress, recommend } from "./checks";
-import { AgreeButton, ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, placeVotes, proposalsAt, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
+import { AgreeButton, ApproveButton, ApprovedVariant, approvedVariant, CellActions, CommentEditor, type EditorState, isLead, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, placeVotes, proposalsAt, quotesAt, StatusDot, TONE, VariantNotes } from "./LineEdits";
 import { Marks } from "./Marks";
 import { StoryText } from "./StoryText";
 import { DISPLAYED_KINDS, describeCommands } from "./service";
@@ -125,10 +129,33 @@ function InlineVariant({ tone, label, text, nickname, action, marks, agree }: { 
     );
 }
 
+/** A line's checks per variant and its recommended variant (checks.ts holds the rule). */
+export interface IAnalysis {
+    checks: Map<string, IVariantCheck>;
+    recommended: string | null;
+}
+
+export function analyse(line: TranslatorLine, edits: KeyEdits | undefined, place: EditPlace, neighbours: Address | null): IAnalysis {
+    const checks = new Map<string, IVariantCheck>();
+    const candidates: ICandidate[] = [];
+    const add = (variant: string, text: string | null | undefined, agreements = 0) => {
+        if (!text) return;
+        const check = checkVariant(text, variant, line, neighbours);
+        checks.set(variant, check);
+        candidates.push({ variant, agreements, check });
+    };
+    for (const p of proposalsAt(edits, place)) add(`proposal:${p.id}`, p.text, p.agreements.length);
+    add("sova", line.sova);
+    add("ai", line.ai);
+    add("game", line.ruGame);
+    if (edits?.approval) checks.set("approved", checkVariant(edits.approval.text, "approved", line, neighbours));
+    const approvedHere = Boolean(edits?.approval) || proposalsAt(edits, place).some((p) => p.context && p.approvedAt !== null);
+    return { checks, recommended: line.editable ? recommend(candidates, approvedHere) : null };
+}
+
 interface IRuCellProps {
     line: TranslatorLine;
-    /** How the speaker's neighbouring lines address people, for the ты / вы check. */
-    neighbours: Address | null;
+    analysis: IAnalysis;
     storyId: string;
     nickname: string;
     showVariants: boolean;
@@ -140,30 +167,22 @@ interface IRuCellProps {
     t: T;
 }
 
-function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outdated, me, editor, onEditor, t }: IRuCellProps): React.ReactElement {
+function RuCell({ line, analysis, storyId, nickname, showVariants, edits, outdated, me, editor, onEditor, t }: IRuCellProps): React.ReactElement {
     const place = placeOf(storyId, line);
     const quotes = quotesAt(edits, place);
     const notes = { edits, place, me, t };
-    // Every variant's checks, and the one recommended (checks.ts holds the rule).
-    const proposals = proposalsAt(edits, place);
-    const checks = new Map<string, IVariantCheck>();
-    const candidates: ICandidate[] = [];
-    const add = (variant: string, text: string | null | undefined, agreements = 0) => {
-        if (!text) return;
-        const check = checkVariant(text, variant, line, neighbours);
-        checks.set(variant, check);
-        candidates.push({ variant, agreements, check });
-    };
-    for (const p of proposals) add(`proposal:${p.id}`, p.text, p.agreements.length);
-    add("sova", line.sova);
-    add("ai", line.ai);
-    add("game", line.ruGame);
-    if (edits?.approval) checks.set("approved", checkVariant(edits.approval.text, "approved", line, neighbours));
-    const recommended = line.editable ? recommend(candidates, Boolean(edits?.approval)) : null;
+    const { checks, recommended } = analysis;
+    const approved = approvedVariant(edits);
     const marks = (variant: string, skipGlossary = false) => {
         const check = checks.get(variant);
         return check ? <Marks check={check} recommended={recommended === variant} skipGlossary={skipGlossary} t={t} /> : null;
     };
+    const voteAndApprove = (variant: "sova" | "ai") => (
+        <>
+            <AgreeButton place={place} variant={variant} people={placeVotes(edits, place, variant)} me={me} t={t} />
+            {approved !== variant ? <ApproveButton place={place} variant={variant} me={me} approved={false} t={t} /> : null}
+        </>
+    );
     const take = (source: "sova" | "ai", text: string) => (
         <Button variant="link" size="xs" className="h-auto px-0 text-xs" onClick={() => onEditor({ kind: "proposal", text, source, context: false })}>
             {t("action.proposeThis")}
@@ -172,7 +191,7 @@ function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outd
     return (
         <div className="group/cell relative flex flex-col gap-1">
             {editor === null ? <CellActions line={line} onOpen={onEditor} t={t} /> : null}
-            <ApprovedVariant edits={edits} nickname={nickname} marks={marks("approved")} t={t} />
+            <ApprovedVariant edits={edits} place={place} me={me} nickname={nickname} marks={marks("approved")} t={t} />
             {/* biome-ignore lint/a11y/noStaticElementInteractions: a shortcut; the Propose button is the accessible way */}
             <div
                 onDoubleClick={() => {
@@ -184,6 +203,7 @@ function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outd
                 {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} quotes={quotes} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
                 {marks("game", true)}
                 {line.ruGame && line.editable ? <AgreeButton place={place} variant="game" people={edits?.gameAgreements ?? []} me={me} t={t} /> : null}
+                {line.ruGame && line.editable && approved !== "game" ? <ApproveButton place={place} variant="game" me={me} approved={false} t={t} /> : null}
             </div>
             <VariantNotes {...notes} variant="game" />
             {line.pluginRole === "story" ? (
@@ -209,29 +229,13 @@ function RuCell({ line, neighbours, storyId, nickname, showVariants, edits, outd
                 <>
                     {line.sova ? (
                         <>
-                            <InlineVariant
-                                tone={TONE.sova}
-                                label={t("hints.sova")}
-                                text={line.sova}
-                                nickname={nickname}
-                                marks={marks("sova")}
-                                agree={line.editable ? <AgreeButton place={place} variant="sova" people={placeVotes(edits, place, "sova")} me={me} t={t} /> : undefined}
-                                action={line.editable && !editor ? take("sova", line.sova) : undefined}
-                            />
+                            <InlineVariant tone={TONE.sova} label={t("hints.sova")} text={line.sova} nickname={nickname} marks={marks("sova")} agree={line.editable ? voteAndApprove("sova") : undefined} action={line.editable && !editor ? take("sova", line.sova) : undefined} />
                             <VariantNotes {...notes} variant="sova" />
                         </>
                     ) : null}
                     {line.ai ? (
                         <>
-                            <InlineVariant
-                                tone={TONE.ai}
-                                label={t("hints.ai")}
-                                text={line.ai}
-                                nickname={nickname}
-                                marks={marks("ai")}
-                                agree={line.editable ? <AgreeButton place={place} variant="ai" people={placeVotes(edits, place, "ai")} me={me} t={t} /> : undefined}
-                                action={line.editable && !editor ? take("ai", line.ai) : undefined}
-                            />
+                            <InlineVariant tone={TONE.ai} label={t("hints.ai")} text={line.ai} nickname={nickname} marks={marks("ai")} agree={line.editable ? voteAndApprove("ai") : undefined} action={line.editable && !editor ? take("ai", line.ai) : undefined} />
                             <VariantNotes {...notes} variant="ai" />
                         </>
                     ) : null}
@@ -262,6 +266,9 @@ function ServiceRow({ commands, columns, nameOf, t }: { commands: readonly Story
         </TableRow>
     );
 }
+
+type LineFilter = "all" | "proposals" | "recommended" | "outdated" | "remarks";
+const FILTERS: readonly LineFilter[] = ["all", "proposals", "recommended", "outdated", "remarks"];
 
 export interface ILinesTableProps {
     storyId: string;
@@ -296,66 +303,109 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
     }, [outdated]);
     // One editor open at a time: the row's id and what it is open for.
     const [editing, setEditing] = useState<{ id: string; state: EditorState } | null>(null);
+    const [filter, setFilter] = useState<LineFilter>("all");
+    const filterId = useId();
+    // Every line's checks and recommendation, for its cell, the filter and the batch approvals.
+    const analyses = useMemo(() => lines.map((line, i) => analyse(line, byKey.get(line.editKey), placeOf(storyId, line), neighbourAddress(lines, i))), [lines, byKey, storyId]);
+    const shows = (line: TranslatorLine, i: number): boolean => {
+        if (filter === "all") return true;
+        const place = placeOf(storyId, line);
+        const e = byKey.get(line.editKey);
+        if (filter === "proposals") return proposalsAt(e, place).length > 0;
+        if (filter === "recommended") return analyses[i].recommended !== null;
+        if (filter === "outdated") return line.status === "outdated";
+        return (e?.comments ?? []).some((c) => c.kind !== "note" && !c.resolvedBy);
+    };
+    const shown = lines.filter(shows).length;
+    const bulk: IBulkLine[] = lines.map((line, i) => {
+        const place = placeOf(storyId, line);
+        const e = byKey.get(line.editKey);
+        const rec = analyses[i].recommended;
+        const recText = rec === "sova" ? line.sova : rec === "ai" ? line.ai : (proposalsAt(e, place).find((p) => `proposal:${p.id}` === rec)?.text ?? null);
+        return { n: i + 1, place, recommended: line.editable ? rec : null, recommendedText: recText, approved: line.status === "approved", hasGame: Boolean(line.ruGame) && line.editable, hasProposals: proposalsAt(e, place).length > 0 };
+    });
     return (
-        <Table aria-label={label}>
-            <TableHeader>
-                <TableRow>
-                    <TableHead className="w-12">{t("table.line")}</TableHead>
-                    <TableHead className="w-36">{t("table.speaker")}</TableHead>
-                    <TableHead>{t("table.ru")}</TableHead>
-                    <TableHead>{t("table.en")}</TableHead>
-                    {showCn ? <TableHead>{t("table.cn")}</TableHead> : null}
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {lines.map((line, i) => {
-                    const id = `${line.line}.${line.part}`;
-                    const previous = i > 0 ? lines[i - 1].line : 0;
-                    const lineEdits = byKey.get(line.editKey);
-                    return (
-                        <Fragment key={id}>
-                            {commands ? <ServiceRow commands={commandsBetween(commands, previous, line.line)} columns={columns} nameOf={nameOf} t={t} /> : null}
-                            <TableRow id={`n-${i + 1}`} className={cn("scroll-mt-(--site-header-height) target:bg-primary/10", line.kind === "option" && "bg-primary/5")} data-line={line.line} data-kind={line.kind} data-status={line.status}>
-                                <TableCell className="py-1.5 align-top text-subtle-foreground text-xs tabular-nums leading-snug">
-                                    <span className="flex items-center gap-1.5">
-                                        {i + 1}
-                                        <StatusDot status={line.status} t={t} />
-                                    </span>
-                                    {commands ? <span className="block font-mono">{t("table.scriptLine", { line: line.line })}</span> : null}
-                                </TableCell>
-                                <TableCell className={PROSE}>
-                                    <Speaker line={line} t={t} />
-                                </TableCell>
-                                <TableCell className={PROSE}>
-                                    <RuCell
-                                        line={line}
-                                        neighbours={neighbourAddress(lines, i)}
-                                        storyId={storyId}
-                                        nickname={nickname}
-                                        showVariants={showVariants}
-                                        edits={lineEdits}
-                                        outdated={staleAt.get(id) ?? []}
-                                        me={me}
-                                        editor={editing?.id === id ? editing.state : null}
-                                        onEditor={(state) => setEditing(state ? { id, state } : null)}
-                                        t={t}
-                                    />
-                                </TableCell>
-                                <TableCell className={PROSE}>
-                                    <StoryText text={line.en} nickname={nickname} quotes={quotesAt(lineEdits, placeOf(storyId, line))} />
-                                </TableCell>
-                                {showCn ? (
-                                    <TableCell className={PROSE}>
-                                        {line.speakerCn ? <span className="block text-muted-foreground text-xs">{line.speakerCn}</span> : null}
-                                        {line.cn ? <span className="whitespace-pre-line">{line.cn.replaceAll("\\n", "\n")}</span> : null}
+        <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-end gap-3">
+                <div className="flex w-full flex-col gap-1.5 sm:w-64">
+                    <Label htmlFor={filterId}>{t("filter.label")}</Label>
+                    <Select value={filter} onValueChange={(v: string | null) => setFilter((v as LineFilter) ?? "all")}>
+                        <SelectTrigger id={filterId} size="sm">
+                            <SelectValue>{() => t(`filter.${filter}` as "filter.all")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {FILTERS.map((f) => (
+                                <SelectItem key={f} value={f}>
+                                    {t(`filter.${f}` as "filter.all")}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                {filter !== "all" ? <span className="pb-1.5 text-subtle-foreground text-xs">{t("filter.count", { shown, total: lines.length })}</span> : null}
+                {isLead(me) ? <BulkApprove lines={bulk} nickname={nickname} t={t} /> : null}
+            </div>
+            <Table aria-label={label}>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-12">{t("table.line")}</TableHead>
+                        <TableHead className="w-36">{t("table.speaker")}</TableHead>
+                        <TableHead>{t("table.ru")}</TableHead>
+                        <TableHead>{t("table.en")}</TableHead>
+                        {showCn ? <TableHead>{t("table.cn")}</TableHead> : null}
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {lines.map((line, i) => {
+                        const id = `${line.line}.${line.part}`;
+                        const previous = i > 0 ? lines[i - 1].line : 0;
+                        const lineEdits = byKey.get(line.editKey);
+                        if (!shows(line, i)) return null;
+                        return (
+                            <Fragment key={id}>
+                                {commands && filter === "all" ? <ServiceRow commands={commandsBetween(commands, previous, line.line)} columns={columns} nameOf={nameOf} t={t} /> : null}
+                                <TableRow id={`n-${i + 1}`} className={cn("scroll-mt-(--site-header-height) target:bg-primary/10", line.kind === "option" && "bg-primary/5")} data-line={line.line} data-kind={line.kind} data-status={line.status}>
+                                    <TableCell className="py-1.5 align-top text-subtle-foreground text-xs tabular-nums leading-snug">
+                                        <span className="flex items-center gap-1.5">
+                                            {i + 1}
+                                            <StatusDot status={line.status} t={t} />
+                                        </span>
+                                        {commands ? <span className="block font-mono">{t("table.scriptLine", { line: line.line })}</span> : null}
                                     </TableCell>
-                                ) : null}
-                            </TableRow>
-                        </Fragment>
-                    );
-                })}
-                {commands && lines.length > 0 ? <ServiceRow commands={commandsBetween(commands, lines[lines.length - 1].line, Number.POSITIVE_INFINITY)} columns={columns} nameOf={nameOf} t={t} /> : null}
-            </TableBody>
-        </Table>
+                                    <TableCell className={PROSE}>
+                                        <Speaker line={line} t={t} />
+                                    </TableCell>
+                                    <TableCell className={PROSE}>
+                                        <RuCell
+                                            line={line}
+                                            analysis={analyses[i]}
+                                            storyId={storyId}
+                                            nickname={nickname}
+                                            showVariants={showVariants}
+                                            edits={lineEdits}
+                                            outdated={staleAt.get(id) ?? []}
+                                            me={me}
+                                            editor={editing?.id === id ? editing.state : null}
+                                            onEditor={(state) => setEditing(state ? { id, state } : null)}
+                                            t={t}
+                                        />
+                                    </TableCell>
+                                    <TableCell className={PROSE}>
+                                        <StoryText text={line.en} nickname={nickname} quotes={quotesAt(lineEdits, placeOf(storyId, line))} />
+                                    </TableCell>
+                                    {showCn ? (
+                                        <TableCell className={PROSE}>
+                                            {line.speakerCn ? <span className="block text-muted-foreground text-xs">{line.speakerCn}</span> : null}
+                                            {line.cn ? <span className="whitespace-pre-line">{line.cn.replaceAll("\\n", "\n")}</span> : null}
+                                        </TableCell>
+                                    ) : null}
+                                </TableRow>
+                            </Fragment>
+                        );
+                    })}
+                    {commands && filter === "all" && lines.length > 0 ? <ServiceRow commands={commandsBetween(commands, lines[lines.length - 1].line, Number.POSITIVE_INFINITY)} columns={columns} nameOf={nameOf} t={t} /> : null}
+                </TableBody>
+            </Table>
+        </div>
     );
 }

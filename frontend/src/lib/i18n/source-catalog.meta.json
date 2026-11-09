@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-09T08:15:22.064Z",
+    "generatedAt": "2026-11-09T09:21:42.389Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -54046,6 +54046,27 @@
             "placeholders": []
         },
         {
+            "key": "translators.approve.button",
+            "namespace": "translators",
+            "source_text": "Approve",
+            "description": "The lead's button on a variant: approve it for the game (the game's Russian: checked, kept).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approve.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save the approval.",
+            "description": "Toast when approving or withdrawing fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approve.withdraw",
+            "namespace": "translators",
+            "source_text": "Withdraw approval",
+            "description": "The lead's button on the approved variant.",
+            "placeholders": []
+        },
+        {
             "key": "translators.approved.game",
             "namespace": "translators",
             "source_text": "Checked as in the game by {name}, {date}",
@@ -54054,6 +54075,13 @@
                 "date",
                 "name"
             ]
+        },
+        {
+            "key": "translators.approved.here",
+            "namespace": "translators",
+            "source_text": "approved for this place",
+            "description": "Badge on a one-place proposal the lead approved.",
+            "placeholders": []
         },
         {
             "key": "translators.approved.label",
@@ -54078,6 +54106,93 @@
             "source_text": "Book view",
             "description": "Link that opens the chosen story in the site's book view.",
             "placeholders": []
+        },
+        {
+            "key": "translators.bulk.confirm",
+            "namespace": "translators",
+            "source_text": "Approve",
+            "description": "Button confirming a batch approval.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.done",
+            "namespace": "translators",
+            "source_text": "Approved: {approved}, skipped: {skipped}.",
+            "description": "Toast after a batch approval.",
+            "placeholders": [
+                "approved",
+                "skipped"
+            ]
+        },
+        {
+            "key": "translators.bulk.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't approve the scene.",
+            "description": "Toast when a batch approval fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.game",
+            "namespace": "translators",
+            "source_text": "Whole scene as in the game, checked…",
+            "description": "The lead's button above the table: marks the game's Russian of the scene's lines checked.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.gameHint",
+            "namespace": "translators",
+            "source_text": "Lines already approved are left as they are. Checked means the game's text stays; it is never exported.",
+            "description": "Text of the dialog marking a scene as in the game.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.gameInclude",
+            "namespace": "translators",
+            "source_text": "Include them too",
+            "description": "Checkbox in the as-in-the-game dialog: also mark the left-out lines checked.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.gameSkipped",
+            "namespace": "translators",
+            "source_text": "Left out: {proposals} with proposals, {marks} with a mark on the game's text.",
+            "description": "In the as-in-the-game dialog: how many lines are left out by default.",
+            "placeholders": [
+                "marks",
+                "proposals"
+            ]
+        },
+        {
+            "key": "translators.bulk.gameTitle",
+            "namespace": "translators",
+            "source_text": "Mark the game's Russian checked in {count, plural, one {# line} other {# lines}}",
+            "description": "Heading of the dialog marking a scene as in the game.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.bulk.recommended",
+            "namespace": "translators",
+            "source_text": "Approve the recommended in the whole scene…",
+            "description": "The lead's button above the table: opens the list of recommended variants to approve.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.recommendedHint",
+            "namespace": "translators",
+            "source_text": "Untick the lines to leave out. Each approval holds for every place of its line.",
+            "description": "Text of the dialog approving recommended variants.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.recommendedTitle",
+            "namespace": "translators",
+            "source_text": "Approve {count, plural, one {# recommended variant} other {# recommended variants}}",
+            "description": "Heading of the dialog approving a scene's recommended variants.",
+            "placeholders": [
+                "count"
+            ]
         },
         {
             "key": "translators.category.is",
@@ -54535,6 +54650,201 @@
             "namespace": "translators",
             "source_text": "The story text has not been imported yet.",
             "description": "Shown when the section's database is empty.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.after",
+            "namespace": "translators",
+            "source_text": "Loaded after ours (they win on the same key): {files}",
+            "description": "Export report: files that override ours.",
+            "placeholders": [
+                "files"
+            ]
+        },
+        {
+            "key": "translators.export.afterNone",
+            "namespace": "translators",
+            "source_text": "No file loads after ours: it wins.",
+            "description": "Export report: nothing overrides ours.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.context",
+            "namespace": "translators",
+            "source_text": "Tied to their place (context.csv): {count}",
+            "description": "Export report: one-place proposals.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.export.download",
+            "namespace": "translators",
+            "source_text": "Download",
+            "description": "Link downloading one exported file.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.files",
+            "namespace": "translators",
+            "source_text": "Files",
+            "description": "Heading of the list of exported files.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format",
+            "namespace": "translators",
+            "source_text": "Format",
+            "description": "Label of the export format choice.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format.file",
+            "namespace": "translators",
+            "source_text": "One file 00_translators.txt",
+            "description": "Export format: a separate dictionary file.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format.patch",
+            "namespace": "translators",
+            "source_text": "Patch: copies of 11_ui, 12_story, 13_names",
+            "description": "Export format: the pack's files with the changed values.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.load",
+            "namespace": "translators",
+            "source_text": "Couldn't prepare the export.",
+            "description": "Load failure of the export.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode",
+            "namespace": "translators",
+            "source_text": "What",
+            "description": "Label of the export mode choice.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode.approved",
+            "namespace": "translators",
+            "source_text": "Approved — for the game",
+            "description": "Export mode: the lead's approvals (the lead only).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode.approvedHint",
+            "namespace": "translators",
+            "source_text": "Only the lead can export it.",
+            "description": "Hint under the approved mode for other members.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode.review",
+            "namespace": "translators",
+            "source_text": "All proposals — for checking (REVIEW)",
+            "description": "Export mode: every proposal not approved, marked REVIEW, not for the game.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.open",
+            "namespace": "translators",
+            "source_text": "Export…",
+            "description": "Button in My edits opening the export to the XUnity dictionaries.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.plugin",
+            "namespace": "translators",
+            "source_text": "For the RichTextFix plugin (plugin.csv): {count}",
+            "description": "Export report: plugin lines.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.export.run",
+            "namespace": "translators",
+            "source_text": "Prepare",
+            "description": "Button preparing the export.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.skipped",
+            "namespace": "translators",
+            "source_text": "Left out (XUnity cannot read them): {count}",
+            "description": "Export report: unwritable keys.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.export.title",
+            "namespace": "translators",
+            "source_text": "Export to the XUnity dictionaries",
+            "description": "Heading of the export dialog.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.written",
+            "namespace": "translators",
+            "source_text": "Lines written: {count}",
+            "description": "Export report: lines written.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.filter.all",
+            "namespace": "translators",
+            "source_text": "All lines",
+            "description": "Filter option: every line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.count",
+            "namespace": "translators",
+            "source_text": "{shown} of {total}",
+            "description": "How many lines the filter shows.",
+            "placeholders": [
+                "shown",
+                "total"
+            ]
+        },
+        {
+            "key": "translators.filter.label",
+            "namespace": "translators",
+            "source_text": "Show",
+            "description": "Label of the filter above the story table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.outdated",
+            "namespace": "translators",
+            "source_text": "Outdated",
+            "description": "Filter option: lines with a decision left for a previous English.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.proposals",
+            "namespace": "translators",
+            "source_text": "With proposals",
+            "description": "Filter option: lines with translators' proposals.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.recommended",
+            "namespace": "translators",
+            "source_text": "With a recommendation",
+            "description": "Filter option: lines where a variant is recommended (the game's text has a mark).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.remarks",
+            "namespace": "translators",
+            "source_text": "With open remarks",
+            "description": "Filter option: lines with remarks not yet resolved.",
             "placeholders": []
         },
         {

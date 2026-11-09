@@ -2,7 +2,7 @@
  * The My edits tab: my proposals (everyone's for the lead) as was (the
  * game's Russian now) / now (the proposal) / where, with its state, and
  * rewrite, delete and the history of its texts. Export to the XUnity
- * dictionaries comes with part 4 (translators/PLAN-edit.md §6).
+ * dictionaries: the Export… dialog (translators/PLAN-edit.md §6).
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -23,6 +23,7 @@ import type { TypedT } from "#/lib/i18n/messages";
 import { deleteProposalFn, editsQueryOptions, proposalVersionsQueryOptions, rewriteProposalFn, translatorsMeQueryOptions } from "#/lib/translators/api";
 import type { EditRow } from "#/types/generated/EditRow";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
+import { ExportDialog } from "./ExportDialog";
 import { CONFIRM_PLACES, cleanText, isLead, SaveDialog, useEditMutation } from "./LineEdits";
 import { StoryText } from "./StoryText";
 import { useStoryNames } from "./storyNames";
@@ -203,12 +204,15 @@ export function MyEditsTab(): React.ReactElement {
         <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-muted-foreground text-sm">{t("edits.intro")}</p>
-                {lead ? (
-                    <label htmlFor={allId} className="flex items-center gap-3">
-                        <Switch id={allId} checked={all} onCheckedChange={setAll} />
-                        <span className="font-medium text-sm">{t("edits.all")}</span>
-                    </label>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-4">
+                    {lead ? (
+                        <label htmlFor={allId} className="flex items-center gap-3">
+                            <Switch id={allId} checked={all} onCheckedChange={setAll} />
+                            <span className="font-medium text-sm">{t("edits.all")}</span>
+                        </label>
+                    ) : null}
+                    <ExportDialog lead={lead} t={t} />
+                </div>
             </div>
             {rows.length === 0 ? (
                 <Empty>

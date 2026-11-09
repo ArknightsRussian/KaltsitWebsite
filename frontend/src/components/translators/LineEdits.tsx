@@ -8,7 +8,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, MessageSquare, NotebookPen, PenLine, ThumbsUp, Trash2, Undo2 } from "lucide-react";
+import { Check, CheckCheck, MessageSquare, NotebookPen, PenLine, ThumbsUp, Trash2, Undo2 } from "lucide-react";
 import type React from "react";
 import { useId, useState } from "react";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "#/components/ui/alert-dialog";
@@ -25,7 +25,7 @@ import { Textarea } from "#/components/ui/textarea";
 import { toastManager } from "#/components/ui/toast";
 import { useFormatters } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
-import { type AgreeVariant, createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn, setAgreementFn } from "#/lib/translators/api";
+import { type AgreeVariant, createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn, setAgreementFn, setApprovalFn } from "#/lib/translators/api";
 import { cn } from "#/lib/utils";
 import type { EditComment } from "#/types/generated/EditComment";
 import type { EditPerson } from "#/types/generated/EditPerson";
@@ -292,7 +292,39 @@ export function AgreeButton({ place, variant, proposalId, people, me, own = fals
 }
 
 /** The approved variant: above everything else in the cell. */
-export function ApprovedVariant({ edits, nickname, marks, t }: { edits: KeyEdits | undefined; nickname: string; marks?: React.ReactNode; t: T }): React.ReactElement | null {
+interface IApproveProps {
+    place: EditPlace;
+    variant: AgreeVariant;
+    proposalId?: number;
+    me: TranslatorsMe;
+    /** This variant is the approved one: the button withdraws. */
+    approved: boolean;
+    t: T;
+}
+
+/**
+ * The lead's "Approve" on a variant (shown on the cell's hover and keyboard
+ * focus), or "Withdraw" on the approved one. Nothing for other members.
+ */
+export function ApproveButton({ place, variant, proposalId, me, approved, t }: IApproveProps): React.ReactElement | null {
+    const set = useEditMutation((approve: boolean) => setApprovalFn({ data: { place, variant, proposalId: proposalId ?? null, approve } }), t("approve.failed"));
+    if (!isLead(me)) return null;
+    return (
+        <Button variant="ghost" size="xs" className={cn("h-auto gap-0.5 px-1 py-0 align-baseline text-xs", !approved && "opacity-0 pointer-coarse:opacity-100 focus-visible:opacity-100 group-hover/cell:opacity-100")} disabled={set.isPending} onClick={() => set.mutate(!approved)}>
+            {approved ? <Undo2 className="size-3" aria-hidden="true" /> : <CheckCheck className="size-3" aria-hidden="true" />}
+            {approved ? t("approve.withdraw") : t("approve.button")}
+        </Button>
+    );
+}
+
+/** The approved variant of the entry, if any: `game`, `sova`, `ai` or `proposal:<id>`. */
+export function approvedVariant(edits: KeyEdits | undefined): string | null {
+    const a = edits?.approval;
+    if (!a) return null;
+    return a.variant === "proposal" ? `proposal:${a.proposalId}` : a.variant;
+}
+
+export function ApprovedVariant({ edits, place, me, nickname, marks, t }: { edits: KeyEdits | undefined; place: EditPlace; me: TranslatorsMe; nickname: string; marks?: React.ReactNode; t: T }): React.ReactElement | null {
     const f = useFormatters();
     const a = edits?.approval;
     if (!a) return null;
@@ -302,8 +334,9 @@ export function ApprovedVariant({ edits, nickname, marks, t }: { edits: KeyEdits
             tone={TONE.approved}
             label={
                 <>
-                    {a.proposalId === null ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}
+                    {a.variant === "game" ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}
                     {marks}
+                    <ApproveButton place={place} variant={a.variant as AgreeVariant} proposalId={a.proposalId ?? undefined} me={me} approved t={t} />
                 </>
             }
         >
@@ -344,6 +377,12 @@ export function Proposals({ edits, place, me, nickname, onEdit, marks, t }: IPro
                                         </Badge>
                                     ) : null}
                                     <AgreeButton place={place} variant="proposal" proposalId={p.id} people={p.agreements} me={me} own={mine} t={t} />
+                                    {p.context && p.approvedAt !== null ? (
+                                        <Badge variant="success" size="sm">
+                                            {t("approved.here")}
+                                        </Badge>
+                                    ) : null}
+                                    <ApproveButton place={place} variant="proposal" proposalId={p.id} me={me} approved={p.context ? p.approvedAt !== null : edits?.approval?.proposalId === p.id} t={t} />
                                     {marks?.(p)}
                                 </>
                             }

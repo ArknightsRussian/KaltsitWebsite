@@ -51,6 +51,7 @@ import { Route as ToolsReleaseRouteImport } from './routes/tools.release'
 import { Route as ToolsSquadBuilderRouteImport } from './routes/tools.squad-builder'
 import { Route as TranslatorsBookRouteImport } from './routes/translators_.book'
 import { Route as TranslatorsDevLoginRouteImport } from './routes/translators_.dev-login'
+import { Route as TranslatorsExportRouteImport } from './routes/translators_.export'
 import { Route as UserIdRouteImport } from './routes/user.$id'
 import { Route as UserLeaderboardRouteImport } from './routes/user.leaderboard'
 import { Route as UserSearchRouteImport } from './routes/user.search'
@@ -284,6 +285,11 @@ const TranslatorsDevLoginRoute = TranslatorsDevLoginRouteImport.update({
   path: '/translators/dev-login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TranslatorsExportRoute = TranslatorsExportRouteImport.update({
+  id: '/translators_/export',
+  path: '/translators/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UserIdRoute = UserIdRouteImport.update({
   id: '/user/$id',
   path: '/user/$id',
@@ -444,6 +450,7 @@ export interface FileRoutesByFullPath {
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
   '/translators/book': typeof TranslatorsBookRoute
   '/translators/dev-login': typeof TranslatorsDevLoginRoute
+  '/translators/export': typeof TranslatorsExportRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
   '/user/search': typeof UserSearchRoute
@@ -509,6 +516,7 @@ export interface FileRoutesByTo {
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
   '/translators/book': typeof TranslatorsBookRoute
   '/translators/dev-login': typeof TranslatorsDevLoginRoute
+  '/translators/export': typeof TranslatorsExportRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
   '/user/search': typeof UserSearchRoute
@@ -577,6 +585,7 @@ export interface FileRoutesById {
   '/tools/squad-builder': typeof ToolsSquadBuilderRoute
   '/translators_/book': typeof TranslatorsBookRoute
   '/translators_/dev-login': typeof TranslatorsDevLoginRoute
+  '/translators_/export': typeof TranslatorsExportRoute
   '/user/$id': typeof UserIdRoute
   '/user/leaderboard': typeof UserLeaderboardRoute
   '/user/search': typeof UserSearchRoute
@@ -645,6 +654,7 @@ export interface FileRouteTypes {
     | '/tools/squad-builder'
     | '/translators/book'
     | '/translators/dev-login'
+    | '/translators/export'
     | '/user/$id'
     | '/user/leaderboard'
     | '/user/search'
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
     | '/tools/squad-builder'
     | '/translators/book'
     | '/translators/dev-login'
+    | '/translators/export'
     | '/user/$id'
     | '/user/leaderboard'
     | '/user/search'
@@ -777,6 +788,7 @@ export interface FileRouteTypes {
     | '/tools/squad-builder'
     | '/translators_/book'
     | '/translators_/dev-login'
+    | '/translators_/export'
     | '/user/$id'
     | '/user/leaderboard'
     | '/user/search'
@@ -844,6 +856,7 @@ export interface RootRouteChildren {
   ToolsSquadBuilderRoute: typeof ToolsSquadBuilderRoute
   TranslatorsBookRoute: typeof TranslatorsBookRoute
   TranslatorsDevLoginRoute: typeof TranslatorsDevLoginRoute
+  TranslatorsExportRoute: typeof TranslatorsExportRoute
   UserIdRoute: typeof UserIdRoute
   UserLeaderboardRoute: typeof UserLeaderboardRoute
   UserSearchRoute: typeof UserSearchRoute
@@ -1150,6 +1163,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TranslatorsDevLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/translators_/export': {
+      id: '/translators_/export'
+      path: '/translators/export'
+      fullPath: '/translators/export'
+      preLoaderRoute: typeof TranslatorsExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/user/$id': {
       id: '/user/$id'
       path: '/user/$id'
@@ -1407,6 +1427,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsSquadBuilderRoute: ToolsSquadBuilderRoute,
   TranslatorsBookRoute: TranslatorsBookRoute,
   TranslatorsDevLoginRoute: TranslatorsDevLoginRoute,
+  TranslatorsExportRoute: TranslatorsExportRoute,
   UserIdRoute: UserIdRoute,
   UserLeaderboardRoute: UserLeaderboardRoute,
   UserSearchRoute: UserSearchRoute,

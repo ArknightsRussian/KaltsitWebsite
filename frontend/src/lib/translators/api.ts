@@ -11,10 +11,12 @@ import { env } from "#/env";
 import { parseError } from "#/lib/api/_shared";
 import { optionalSiteToken } from "#/lib/api/_shared.server";
 import { backendFetch } from "#/lib/fetch";
+import type { ApprovalBatchResult } from "#/types/generated/ApprovalBatchResult";
 import type { CharName } from "#/types/generated/CharName";
 import type { EditCreated } from "#/types/generated/EditCreated";
 import type { EditPlace } from "#/types/generated/EditPlace";
 import type { EditRows } from "#/types/generated/EditRows";
+import type { ExportResult } from "#/types/generated/ExportResult";
 import type { Glossary } from "#/types/generated/Glossary";
 import type { GlossaryLines } from "#/types/generated/GlossaryLines";
 import type { KeyPlaces } from "#/types/generated/KeyPlaces";
@@ -131,6 +133,44 @@ export const setAgreementFn = createServerFn({ method: "POST" })
     .handler(async ({ data }): Promise<null> => {
         await send("/translators/agreements", "PUT", { ...data.place, variant: data.variant, proposalId: data.proposalId, agree: data.agree });
         return null;
+    });
+
+export interface IApprovalInput {
+    place: EditPlace;
+    variant: AgreeVariant;
+    proposalId: number | null;
+    approve: boolean;
+}
+
+function approvalBody(a: IApprovalInput) {
+    return { ...a.place, variant: a.variant, proposalId: a.proposalId, approve: a.approve };
+}
+
+/** Approve a variant of the line's entry, or withdraw it (the lead). */
+export const setApprovalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: IApprovalInput) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send("/translators/approvals", "PUT", approvalBody(data));
+        return null;
+    });
+
+/** Approve many lines at once (the lead). */
+export const approveBatchFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { items: IApprovalInput[] }) => d)
+    .handler(async ({ data }): Promise<ApprovalBatchResult> => {
+        const res = await send("/translators/approvals/batch", "POST", { items: data.items.map(approvalBody) });
+        return (await res.json()) as ApprovalBatchResult;
+    });
+
+export type ExportMode = "approved" | "review";
+export type ExportFormat = "file" | "patch";
+
+/** The export's report and file list (no contents: each file downloads from `/translators/export`). */
+export const exportFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { mode: ExportMode; format: ExportFormat }) => d)
+    .handler(async ({ data }): Promise<ExportResult> => {
+        const res = await send(`/translators/export?mode=${data.mode}&format=${data.format}&only=`, "GET");
+        return (await res.json()) as ExportResult;
     });
 
 /** Mark a story read by me ("I have read this scene"), or not. */
