@@ -282,17 +282,49 @@ pub fn stats(terms: &[Term], lines: &[StatLine]) -> Vec<TermStats> {
                     .count(),
             )
             .unwrap_or(i32::MAX);
-            // Stems in the term's lines: (lines, spellings).
+            // Stems in the term's lines; a stem that starts with a shorter one of
+            // four letters or more is the same word with another ending
+            // ("заражённых" -> "заражен"), counted under the shorter one.
+            let mut all_stems: Vec<String> = with_ru
+                .iter()
+                .flat_map(|ru| ru_stems(ru).into_iter().map(|(st, _)| st))
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect();
+            all_stems.sort_by_key(|st| st.chars().count());
+            let mut canonical: HashMap<String, String> = HashMap::new();
+            let mut roots: Vec<String> = Vec::new();
+            for st in &all_stems {
+                let root = roots
+                    .iter()
+                    .find(|r| r.chars().count() >= 4 && st.starts_with(r.as_str()))
+                    .cloned();
+                match root {
+                    Some(r) => {
+                        canonical.insert(st.clone(), r);
+                    }
+                    None => {
+                        roots.push(st.clone());
+                        canonical.insert(st.clone(), st.clone());
+                    }
+                }
+            }
+            // (lines, spellings) per root, and the story-wide lines of each root.
             let mut counts: HashMap<String, (u32, HashMap<String, u32>)> = HashMap::new();
             for ru in &with_ru {
                 let mut seen = HashSet::new();
                 for (st, orig) in ru_stems(ru) {
-                    let e = counts.entry(st.clone()).or_default();
-                    if seen.insert(st) {
+                    let root = canonical.get(&st).cloned().unwrap_or(st);
+                    let e = counts.entry(root.clone()).or_default();
+                    if seen.insert(root) {
                         e.0 += 1;
                     }
                     *e.1.entry(orig).or_default() += 1;
                 }
+            }
+            let mut root_df: HashMap<&str, u32> = HashMap::new();
+            for (st, root) in &canonical {
+                *root_df.entry(root.as_str()).or_default() += df.get(st).copied().unwrap_or(0);
             }
             let n = with_ru.len() as f64;
             let forms: Vec<String> = term
@@ -304,7 +336,14 @@ pub fn stats(terms: &[Term], lines: &[StatLine]) -> Vec<TermStats> {
             let mut variants: Vec<GameVariant> = counts
                 .into_iter()
                 .filter(|(st, (c, _))| {
-                    let global = f64::from(df.get(st).copied().unwrap_or(*c).max(1));
+                    let global = f64::from(
+                        root_df
+                            .get(st.as_str())
+                            .copied()
+                            .unwrap_or(*c)
+                            .max(*c)
+                            .max(1),
+                    );
                     *c >= VARIANT_MIN_LINES
                         && f64::from(*c) >= VARIANT_MIN_SHARE * n
                         && f64::from(*c) / global >= VARIANT_MIN_PRECISION
@@ -418,6 +457,20 @@ mod stats_tests {
             speaker_en: String::new(),
             speaker_cn: None,
         }
+    }
+
+    #[test]
+    fn endings_of_one_word_are_one_variant() {
+        let terms = vec![term("Infected", "Заражённый")];
+        let lines = vec![
+            line("The Infected.", "Заражённые."),
+            line("An Infected.", "Заражённый."),
+            line("Of the Infected.", "Из заражённых."),
+        ];
+        let s = &stats(&terms, &lines)[0];
+        assert_eq!(s.game_variants.len(), 1, "{:?}", s.game_variants);
+        assert_eq!(s.game_variants[0].lines, 3);
+        assert!(s.game_variants[0].glossary);
     }
 
     #[test]
