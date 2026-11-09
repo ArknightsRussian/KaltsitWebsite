@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::dto::{
     Approval, EditComment, EditPerson, EditPlace, EditRow, KeyEdits, KeyPlace, OutdatedEdit,
-    Proposal, ProposalVersion,
+    PlaceAgreement, Proposal, ProposalVersion, StoryProgress, StoryRead,
 };
 use super::status;
 use crate::translators::SERVER;
@@ -160,25 +160,55 @@ impl ProposalRow {
     }
 }
 
-/// Who agrees with what, for the keys: `(key, proposal or None) -> people`.
+/// Who agrees with what, for the keys: `(key, proposal or None) -> people`
+/// for the game's Russian and the proposals.
 type Votes = HashMap<(String, Option<i64>), Vec<EditPerson>>;
 
-async fn votes(pool: &PgPool, keys: &[String]) -> Result<Votes, sqlx::Error> {
-    let rows: Vec<(String, Option<i64>, Uuid, String)> = sqlx::query_as(&format!(
-        "SELECT a.edit_key, a.proposal_id, a.user_id, {NAME}
+/// Votes for Sova's and the AI's variants: `(key, variant, place) -> people`.
+type PlaceVotes = HashMap<(String, String, EditPlaceKey), Vec<EditPerson>>;
+type EditPlaceKey = (String, i32, i16);
+
+#[derive(sqlx::FromRow)]
+struct VoteRow {
+    edit_key: String,
+    variant: String,
+    proposal_id: Option<i64>,
+    story_id: Option<String>,
+    line: Option<i32>,
+    part: Option<i16>,
+    user_id: Uuid,
+    name: String,
+}
+
+async fn all_votes(pool: &PgPool, keys: &[String]) -> Result<(Votes, PlaceVotes), sqlx::Error> {
+    let rows: Vec<VoteRow> = sqlx::query_as(&format!(
+        "SELECT a.edit_key, a.variant, a.proposal_id, a.story_id, a.line, a.part, a.user_id, {NAME} AS name
          FROM translators.agreements a JOIN users u ON u.id = a.user_id
          WHERE a.edit_key = ANY($1) ORDER BY a.created_at"
     ))
     .bind(keys)
     .fetch_all(pool)
     .await?;
-    let mut out: Votes = HashMap::new();
-    for (key, proposal, id, name) in rows {
-        out.entry((key, proposal))
-            .or_default()
-            .push(person(id, name));
+    let mut votes: Votes = HashMap::new();
+    let mut places: PlaceVotes = HashMap::new();
+    for r in rows {
+        let who = person(r.user_id, r.name);
+        match (r.variant.as_str(), r.story_id, r.line, r.part) {
+            ("sova" | "ai", Some(story), Some(line), Some(part)) => places
+                .entry((r.edit_key, r.variant, (story, line, part)))
+                .or_default()
+                .push(who),
+            _ => votes
+                .entry((r.edit_key, r.proposal_id))
+                .or_default()
+                .push(who),
+        }
     }
-    Ok(out)
+    Ok((votes, places))
+}
+
+async fn votes(pool: &PgPool, keys: &[String]) -> Result<Votes, sqlx::Error> {
+    Ok(all_votes(pool, keys).await?.0)
 }
 
 fn entry<'m>(out: &'m mut HashMap<String, KeyEdits>, key: &str) -> &'m mut KeyEdits {
@@ -186,6 +216,7 @@ fn entry<'m>(out: &'m mut HashMap<String, KeyEdits>, key: &str) -> &'m mut KeyEd
         edit_key: key.to_owned(),
         approval: None,
         game_agreements: Vec::new(),
+        place_agreements: Vec::new(),
         proposals: Vec::new(),
         comments: Vec::new(),
     })
@@ -197,7 +228,7 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
     if keys.is_empty() {
         return Ok(Vec::new());
     }
-    let mut votes = votes(pool, keys).await?;
+    let (mut votes, place_votes) = all_votes(pool, keys).await?;
     let proposals: Vec<ProposalRow> = sqlx::query_as(&format!(
         "SELECT {PROPOSAL_COLUMNS} FROM translators.proposals p JOIN users u ON u.id = p.author_id
          WHERE p.deleted_at IS NULL AND p.edit_key = ANY($1) ORDER BY p.created_at"
@@ -242,6 +273,17 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
     }
     for (key, c) in comments {
         entry(&mut out, &key).comments.push(c);
+    }
+    for ((key, variant, (story_id, line, part)), people) in place_votes {
+        entry(&mut out, &key).place_agreements.push(PlaceAgreement {
+            variant,
+            place: EditPlace {
+                story_id,
+                line,
+                part,
+            },
+            people,
+        });
     }
     let mut out: Vec<KeyEdits> = out.into_values().collect();
     for e in &mut out {
@@ -518,35 +560,136 @@ pub async fn versions(pool: &PgPool, id: i64) -> Result<Vec<ProposalVersion>, sq
         .collect())
 }
 
+/// One member's vote for a variant of an entry: `game`, a `proposal`, or
+/// `sova` / `ai` at a place (with that variant's text as it is now).
+pub struct Vote<'a> {
+    pub key: &'a str,
+    pub variant: &'a str,
+    pub proposal: Option<i64>,
+    pub place: Option<&'a EditPlace>,
+    pub text: Option<&'a str>,
+}
+
 pub async fn set_agreement(
     pool: &PgPool,
-    key: &str,
-    proposal: Option<i64>,
+    v: &Vote<'_>,
     user: Uuid,
     agree: bool,
 ) -> Result<(), sqlx::Error> {
+    let (story, line, part) = match v.place {
+        Some(p) => (Some(p.story_id.as_str()), Some(p.line), Some(p.part)),
+        None => (None, None, None),
+    };
     if agree {
         sqlx::query(
-            "INSERT INTO translators.agreements (edit_key, proposal_id, user_id) VALUES ($1, $2, $3)
+            "INSERT INTO translators.agreements
+                 (edit_key, variant, proposal_id, story_id, line, part, variant_text, user_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT DO NOTHING",
         )
-        .bind(key)
-        .bind(proposal)
+        .bind(v.key)
+        .bind(v.variant)
+        .bind(v.proposal)
+        .bind(story)
+        .bind(line)
+        .bind(part)
+        .bind(v.text)
         .bind(user)
         .execute(pool)
         .await?;
     } else {
         sqlx::query(
             "DELETE FROM translators.agreements
-             WHERE edit_key = $1 AND proposal_id IS NOT DISTINCT FROM $2 AND user_id = $3",
+             WHERE edit_key = $1 AND variant = $2 AND proposal_id IS NOT DISTINCT FROM $3
+               AND story_id IS NOT DISTINCT FROM $4 AND line IS NOT DISTINCT FROM $5
+               AND part IS NOT DISTINCT FROM $6 AND user_id = $7",
         )
-        .bind(key)
-        .bind(proposal)
+        .bind(v.key)
+        .bind(v.variant)
+        .bind(v.proposal)
+        .bind(story)
+        .bind(line)
+        .bind(part)
         .bind(user)
         .execute(pool)
         .await?;
     }
     Ok(())
+}
+
+/// Who has read a story, first readers first.
+pub async fn story_reads(pool: &PgPool, story_id: &str) -> Result<Vec<StoryRead>, sqlx::Error> {
+    let rows: Vec<(Uuid, String, DateTime<Utc>)> = sqlx::query_as(&format!(
+        "SELECT r.user_id, {NAME}, r.read_at FROM translators.story_reads r
+         JOIN users u ON u.id = r.user_id WHERE r.story_id = $1 ORDER BY r.read_at"
+    ))
+    .bind(story_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, name, at)| StoryRead {
+            by: person(id, name),
+            at: at.timestamp(),
+        })
+        .collect())
+}
+
+pub async fn set_read(
+    pool: &PgPool,
+    story_id: &str,
+    user: Uuid,
+    read: bool,
+) -> Result<(), sqlx::Error> {
+    let sql = if read {
+        "INSERT INTO translators.story_reads (story_id, user_id) VALUES ($1, $2)
+         ON CONFLICT (story_id, user_id) DO UPDATE SET read_at = NOW()"
+    } else {
+        "DELETE FROM translators.story_reads WHERE story_id = $1 AND user_id = $2"
+    };
+    sqlx::query(sql)
+        .bind(story_id)
+        .bind(user)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Every story's progress over its lines that can be edited (a letter or a
+/// digit): approved (the entry's approval is current), waiting (a live
+/// proposal for every place or for this one, not approved, not outdated) and
+/// outdated (a decision left here for a previous English, not approved).
+pub async fn progress(pool: &PgPool) -> Result<Vec<StoryProgress>, sqlx::Error> {
+    sqlx::query_as(
+        "WITH keyed AS (
+             SELECT DISTINCT edit_key FROM translators.proposals
+             WHERE deleted_at IS NULL AND NOT context AND outdated_at IS NULL),
+         placed AS (
+             SELECT DISTINCT story_id, line, part FROM translators.proposals
+             WHERE deleted_at IS NULL AND context AND outdated_at IS NULL),
+         stale AS (
+             SELECT story_id, line, part FROM translators.proposals
+             WHERE deleted_at IS NULL AND outdated_at IS NOT NULL
+             UNION
+             SELECT story_id, line, part FROM translators.approvals WHERE outdated_at IS NOT NULL)
+         SELECT s.story_id,
+                COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE a.edit_key IS NOT NULL)::int AS approved,
+                COUNT(*) FILTER (WHERE a.edit_key IS NULL AND o.story_id IS NULL
+                                 AND (k.edit_key IS NOT NULL OR p.story_id IS NOT NULL))::int AS waiting,
+                COUNT(*) FILTER (WHERE a.edit_key IS NULL AND o.story_id IS NOT NULL)::int AS outdated
+         FROM translators.story_lines s
+         LEFT JOIN translators.approvals a ON a.edit_key = s.edit_key AND a.outdated_at IS NULL
+         LEFT JOIN keyed k ON k.edit_key = s.edit_key
+         LEFT JOIN placed p ON p.story_id = s.story_id AND p.line = s.line AND p.part = s.part
+         LEFT JOIN (SELECT DISTINCT story_id, line, part FROM stale) o
+             ON o.story_id = s.story_id AND o.line = s.line AND o.part = s.part
+         WHERE s.server = $1 AND s.edit_key ~ '[[:alnum:]]'
+         GROUP BY s.story_id",
+    )
+    .bind(SERVER)
+    .fetch_all(pool)
+    .await
 }
 
 /// What a new comment or note is: its kind and, for a note on one variant,

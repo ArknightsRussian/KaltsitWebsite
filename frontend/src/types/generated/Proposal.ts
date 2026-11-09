@@ -5,32 +5,38 @@ import type { EditPlace } from "./EditPlace";
 /**
  * A translator's proposed Russian for one dictionary entry.
  */
-export type Proposal = { id: number, editKey: string, text: string, 
-/**
- * `own`, `sova`, `ai` (or `kit`, unused for now).
- */
-source: string, author: EditPerson, 
-/**
- * Unix seconds.
- */
-createdAt: number, 
-/**
- * Unix seconds of the last rewrite, null when never rewritten.
- */
-editedAt: number | null, 
-/**
- * Texts it has had, the current one included.
- */
-versions: number, 
-/**
- * Who agrees with it.
- */
-agreements: Array<EditPerson>, place: EditPlace, 
-/**
- * For this place only: never exported to the dictionaries.
- */
-context: boolean, 
-/**
- * Its English is gone from the story since an import.
- */
-outdated: boolean, };
+export type Proposal = {
+    id: number;
+    editKey: string;
+    text: string;
+    /**
+     * `own`, `sova`, `ai` (or `kit`, unused for now).
+     */
+    source: string;
+    author: EditPerson;
+    /**
+     * Unix seconds.
+     */
+    createdAt: number;
+    /**
+     * Unix seconds of the last rewrite, null when never rewritten.
+     */
+    editedAt: number | null;
+    /**
+     * Texts it has had, the current one included.
+     */
+    versions: number;
+    /**
+     * Who agrees with it.
+     */
+    agreements: Array<EditPerson>;
+    place: EditPlace;
+    /**
+     * For this place only: never exported to the dictionaries.
+     */
+    context: boolean;
+    /**
+     * Its English is gone from the story since an import.
+     */
+    outdated: boolean;
+};

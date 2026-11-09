@@ -3,12 +3,16 @@
 /**
  * One story line holding a glossary term.
  */
-export type GlossaryLine = { storyId: string, 
-/**
- * 0-based order in its story (the table's № minus one).
- */
-ord: number, en: string, ruGame: string | null, 
-/**
- * The Russian holds the glossary's form; null when not checked.
- */
-found: boolean | null, };
+export type GlossaryLine = {
+    storyId: string;
+    /**
+     * 0-based order in its story (the table's № minus one).
+     */
+    ord: number;
+    en: string;
+    ruGame: string | null;
+    /**
+     * The Russian holds the glossary's form; null when not checked.
+     */
+    found: boolean | null;
+};

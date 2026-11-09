@@ -102,6 +102,8 @@ pub struct TranslatorStoryLines {
     pub outdated: Vec<super::edits::dto::OutdatedEdit>,
     /// Sova's footnotes to the story's chapter (arktr), members only like her texts.
     pub sova_notes: Vec<String>,
+    /// Who has read the story ("I have read this scene"), first readers first.
+    pub reads: Vec<super::edits::dto::StoryRead>,
 }
 
 /// The import's state (service key only; not used by the page).

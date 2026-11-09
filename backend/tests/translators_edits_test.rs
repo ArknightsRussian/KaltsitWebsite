@@ -156,13 +156,48 @@ async fn proposals_votes_comments_and_outdated() {
     assert_ne!(p1, p2);
 
     // Boris agrees with Anna's; Anna keeps the game's Russian too.
-    db::set_agreement(&pool, &key, Some(p1), b, true)
-        .await
-        .unwrap();
-    db::set_agreement(&pool, &key, Some(p1), b, true)
-        .await
-        .unwrap();
-    db::set_agreement(&pool, &key, None, a, true).await.unwrap();
+    db::set_agreement(
+        &pool,
+        &db::Vote {
+            key: &key,
+            variant: "proposal",
+            proposal: Some(p1),
+            place: None,
+            text: None,
+        },
+        b,
+        true,
+    )
+    .await
+    .unwrap();
+    db::set_agreement(
+        &pool,
+        &db::Vote {
+            key: &key,
+            variant: "proposal",
+            proposal: Some(p1),
+            place: None,
+            text: None,
+        },
+        b,
+        true,
+    )
+    .await
+    .unwrap();
+    db::set_agreement(
+        &pool,
+        &db::Vote {
+            key: &key,
+            variant: "game",
+            proposal: None,
+            place: None,
+            text: None,
+        },
+        a,
+        true,
+    )
+    .await
+    .unwrap();
     let c = db::add_comment(
         &pool,
         &key,
@@ -234,15 +269,57 @@ async fn proposals_votes_comments_and_outdated() {
     assert_eq!(db::edit_rows(&pool, None).await.unwrap().len(), 2);
 
     // Boris deletes his; the vote for Anna's stays, a vote for his would go.
-    db::set_agreement(&pool, &key, Some(p2), a, true)
-        .await
-        .unwrap();
+    db::set_agreement(
+        &pool,
+        &db::Vote {
+            key: &key,
+            variant: "proposal",
+            proposal: Some(p2),
+            place: None,
+            text: None,
+        },
+        a,
+        true,
+    )
+    .await
+    .unwrap();
     db::delete_proposal(&pool, p2).await.unwrap();
     let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM translators.agreements")
         .fetch_one(&pool)
         .await
         .unwrap();
     assert_eq!(left, 2);
+
+    // A vote for Sova's text at one place, a read, and the progress.
+    let at = place("s1", 3);
+    db::set_agreement(
+        &pool,
+        &db::Vote {
+            key: "Doctor?",
+            variant: "sova",
+            proposal: None,
+            place: Some(&at),
+            text: Some("Доктор?"),
+        },
+        b,
+        true,
+    )
+    .await
+    .unwrap();
+    let got = db::key_edits(&pool, &["Doctor?".to_owned()]).await.unwrap();
+    assert_eq!(got[0].place_agreements[0].variant, "sova");
+    assert_eq!(got[0].place_agreements[0].people[0].name, "boris");
+    db::set_read(&pool, "s1", a, true).await.unwrap();
+    db::set_read(&pool, "s1", a, true).await.unwrap();
+    assert_eq!(db::story_reads(&pool, "s1").await.unwrap().len(), 1);
+    db::set_read(&pool, "s1", a, false).await.unwrap();
+    assert!(db::story_reads(&pool, "s1").await.unwrap().is_empty());
+    let progress = db::progress(&pool).await.unwrap();
+    let s1 = progress.iter().find(|p| p.story_id == "s1").unwrap();
+    assert_eq!(
+        (s1.total, s1.approved, s1.waiting, s1.outdated),
+        (2, 0, 1, 0)
+    );
 
     // An import changes the English at s1:5 and s2:7: the decisions go stale.
     sqlx::query(

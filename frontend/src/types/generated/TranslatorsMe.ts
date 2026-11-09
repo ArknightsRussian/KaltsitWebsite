@@ -3,24 +3,25 @@
 /**
  * What the page needs to know about the caller.
  */
-export type TranslatorsMe = { 
-/**
- * A signed-in translator: sees Sova's and the AI's texts.
- */
-member: boolean, 
-/**
- * The member's user id, to tell their own proposals and votes.
- */
-userId: string | null, 
-/**
- * `translator`, `editor` (the lead) or `admin`; null for a non-member.
- */
-role: string | null, 
-/**
- * The member's game nickname, shown for `{@nickname}`; null when unknown.
- */
-nickname: string | null, 
-/**
- * The development sign-in is switched on for this backend.
- */
-devLogin: boolean, };
+export type TranslatorsMe = {
+    /**
+     * A signed-in translator: sees Sova's and the AI's texts.
+     */
+    member: boolean;
+    /**
+     * The member's user id, to tell their own proposals and votes.
+     */
+    userId: string | null;
+    /**
+     * `translator`, `editor` (the lead) or `admin`; null for a non-member.
+     */
+    role: string | null;
+    /**
+     * The member's game nickname, shown for `{@nickname}`; null when unknown.
+     */
+    nickname: string | null;
+    /**
+     * The development sign-in is switched on for this backend.
+     */
+    devLogin: boolean;
+};

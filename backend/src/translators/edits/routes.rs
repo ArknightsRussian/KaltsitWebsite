@@ -225,8 +225,9 @@ pub async fn proposal_versions(
     Ok(Json(db::versions(&state.db, id).await?))
 }
 
-/// Agree with a variant of the line's entry, or take it back. A null
-/// proposal is the game's Russian: "keep as in the game". Members only.
+/// Agree with a variant of the line's entry, or take it back: the game's
+/// Russian ("keep as in the game"), a proposal (not one's own), or Sova's or
+/// the AI's text at this place. Members only.
 #[utoipa::path(
     put,
     path = "/translators/agreements",
@@ -249,29 +250,67 @@ pub async fn set_agreement(
 ) -> Result<StatusCode, ApiError> {
     let me = require_member(&state, &auth).await?;
     let line = editable_place(&state, &input.place).await?;
-    if let Some(id) = input.proposal_id {
-        let (key, author, _, _, _) = db::proposal_owner(&state.db, id)
-            .await?
-            .ok_or(ApiError::NotFound)?;
-        if key != line.edit_key {
+    let variant = input.variant.clone().unwrap_or_else(|| {
+        if input.proposal_id.is_some() {
+            "proposal".into()
+        } else {
+            "game".into()
+        }
+    });
+    let (proposal, place, text) = match variant.as_str() {
+        "proposal" => {
+            let id = input
+                .proposal_id
+                .ok_or_else(|| ApiError::BadRequest("a proposal vote needs its id".into()))?;
+            let (key, author, _, _, _) = db::proposal_owner(&state.db, id)
+                .await?
+                .ok_or(ApiError::NotFound)?;
+            if key != line.edit_key {
+                return Err(ApiError::BadRequest(
+                    "the proposal is for another line".into(),
+                ));
+            }
+            if author == me.id {
+                return Err(ApiError::BadRequest(
+                    "one does not agree with one's own proposal".into(),
+                ));
+            }
+            (Some(id), None, None)
+        }
+        "game" => {
+            if line.ru_game.is_none() {
+                return Err(ApiError::BadRequest(
+                    "the game shows no Russian for this line".into(),
+                ));
+            }
+            (None, None, None)
+        }
+        "sova" | "ai" => {
+            let text = if variant == "sova" {
+                &line.sova
+            } else {
+                &line.ai
+            };
+            if text.is_none() {
+                return Err(ApiError::BadRequest("this line has no such variant".into()));
+            }
+            (None, Some(&input.place), text.clone())
+        }
+        _ => {
             return Err(ApiError::BadRequest(
-                "the proposal is for another line".into(),
+                "variant: game, sova, ai or proposal".into(),
             ));
         }
-        if author == me.id {
-            return Err(ApiError::BadRequest(
-                "one does not agree with one's own proposal".into(),
-            ));
-        }
-    } else if line.ru_game.is_none() {
-        return Err(ApiError::BadRequest(
-            "the game shows no Russian for this line".into(),
-        ));
-    }
+    };
     db::set_agreement(
         &state.db,
-        &line.edit_key,
-        input.proposal_id,
+        &db::Vote {
+            key: &line.edit_key,
+            variant: &variant,
+            proposal,
+            place,
+            text: text.as_deref(),
+        },
         me.id,
         input.agree,
     )
@@ -550,4 +589,52 @@ pub async fn names(
 ) -> Result<Json<Vec<super::dto::NameRu>>, ApiError> {
     require_member(&state, &auth).await?;
     Ok(Json(db::names_ru(&state.db).await?))
+}
+
+/// Mark a story read by the caller ("I have read this scene"), or not. Members only.
+#[utoipa::path(
+    put,
+    path = "/translators/stories/{story_id}/read",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    params(("story_id" = String, Path, description = "The story id.")),
+    request_body = super::dto::ReadInput,
+    responses(
+        (status = 204, description = "Recorded."),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn set_read(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Path(story_id): Path<String>,
+    Json(input): Json<super::dto::ReadInput>,
+) -> Result<StatusCode, ApiError> {
+    let me = require_member(&state, &auth).await?;
+    db::set_read(&state.db, &story_id, me.id, input.read).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Every story's progress: lines that can be edited, approved, waiting for a
+/// decision, outdated. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/progress",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "One row per story with lines.", body = Vec<super::dto::StoryProgress>),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn progress(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+) -> Result<Json<Vec<super::dto::StoryProgress>>, ApiError> {
+    require_member(&state, &auth).await?;
+    Ok(Json(db::progress(&state.db).await?))
 }

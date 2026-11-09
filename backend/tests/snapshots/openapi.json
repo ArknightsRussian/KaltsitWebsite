@@ -12783,7 +12783,7 @@
         "tags": [
           "translators"
         ],
-        "summary": "Agree with a variant of the line's entry, or take it back. A null\nproposal is the game's Russian: \"keep as in the game\". Members only.",
+        "summary": "Agree with a variant of the line's entry, or take it back: the game's\nRussian (\"keep as in the game\"), a proposal (not one's own), or Sova's or\nthe AI's text at this place. Members only.",
         "operationId": "set_agreement",
         "requestBody": {
           "content": {
@@ -13416,6 +13416,44 @@
         ]
       }
     },
+    "/api/translators/progress": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Every story's progress: lines that can be edited, approved, waiting for a\ndecision, outdated. Members only.",
+        "operationId": "progress",
+        "responses": {
+          "200": {
+            "description": "One row per story with lines.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoryProgress"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/translators/proposals": {
       "post": {
         "tags": [
@@ -13660,6 +13698,55 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/stories/{story_id}/read": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Mark a story read by the caller (\"I have read this scene\"), or not. Members only.",
+        "operationId": "set_read",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "description": "The story id.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -17428,6 +17515,13 @@
                 ],
                 "format": "int64",
                 "description": "The proposal; null = the game's Russian (\"keep as in the game\")."
+              },
+              "variant": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "`game`, `sova`, `ai` or `proposal`; when left out, `proposal` with an id, else `game`."
               }
             }
           }
@@ -25413,6 +25507,7 @@
         "required": [
           "editKey",
           "gameAgreements",
+          "placeAgreements",
           "proposals",
           "comments"
         ],
@@ -25443,6 +25538,13 @@
               "$ref": "#/components/schemas/EditPerson"
             },
             "description": "Who keeps the game's Russian (\"agree\" with it)."
+          },
+          "placeAgreements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceAgreement"
+            },
+            "description": "Who agrees with Sova's or the AI's variant at a place."
           },
           "proposals": {
             "type": "array",
@@ -28748,6 +28850,30 @@
           }
         }
       },
+      "PlaceAgreement": {
+        "type": "object",
+        "description": "Who agrees with Sova's or the AI's variant at one place.",
+        "required": [
+          "variant",
+          "place",
+          "people"
+        ],
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditPerson"
+            }
+          },
+          "place": {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          "variant": {
+            "type": "string",
+            "description": "`sova` or `ai`."
+          }
+        }
+      },
       "PlaceType": {
         "type": "string",
         "enum": [
@@ -30197,6 +30323,18 @@
           "totalDamage": {
             "type": "number",
             "format": "double"
+          }
+        }
+      },
+      "ReadInput": {
+        "type": "object",
+        "description": "Mark a story read by the caller, or not.",
+        "required": [
+          "read"
+        ],
+        "properties": {
+          "read": {
+            "type": "boolean"
           }
         }
       },
@@ -34519,6 +34657,38 @@
           }
         }
       },
+      "StoryProgress": {
+        "type": "object",
+        "description": "A story's progress: its lines that can be edited, approved ones, ones\nwaiting for a decision (proposals, not approved) and outdated ones.",
+        "required": [
+          "storyId",
+          "total",
+          "approved",
+          "waiting",
+          "outdated"
+        ],
+        "properties": {
+          "approved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outdated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "storyId": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "StoryProgressDocument": {
         "type": "object",
         "description": "The reading-progress document, exactly as the browser holds it.\n\nOpaque on purpose: typing it here would put the format in two places and\nmake every reader-side field addition a backend migration. The TS type is\ndeclared inline so the generated binding still names the real shape."
@@ -34578,6 +34748,23 @@
             ],
             "format": "int64",
             "description": "Unix seconds of the last write, null alongside a null `progress`."
+          }
+        }
+      },
+      "StoryRead": {
+        "type": "object",
+        "description": "A member who has read a story, and when.",
+        "required": [
+          "by",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "$ref": "#/components/schemas/EditPerson"
           }
         }
       },
@@ -36974,7 +37161,8 @@
           "lines",
           "edits",
           "outdated",
-          "sovaNotes"
+          "sovaNotes",
+          "reads"
         ],
         "properties": {
           "edits": {
@@ -37008,6 +37196,13 @@
               "$ref": "#/components/schemas/OutdatedEdit"
             },
             "description": "Decisions left at this story's places for an English that has changed."
+          },
+          "reads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryRead"
+            },
+            "description": "Who has read the story (\"I have read this scene\"), first readers first."
           },
           "sovaNotes": {
             "type": "array",

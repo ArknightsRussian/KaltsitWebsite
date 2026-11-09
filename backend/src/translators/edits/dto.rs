@@ -120,6 +120,8 @@ pub struct KeyEdits {
     pub approval: Option<Approval>,
     /// Who keeps the game's Russian ("agree" with it).
     pub game_agreements: Vec<EditPerson>,
+    /// Who agrees with Sova's or the AI's variant at a place.
+    pub place_agreements: Vec<PlaceAgreement>,
     /// Most agreed first, then oldest first.
     pub proposals: Vec<Proposal>,
     /// Oldest first.
@@ -177,6 +179,9 @@ pub struct AgreementInput {
     pub place: EditPlace,
     /// The proposal; null = the game's Russian ("keep as in the game").
     pub proposal_id: Option<i64>,
+    /// `game`, `sova`, `ai` or `proposal`; when left out, `proposal` with an id, else `game`.
+    #[serde(default)]
+    pub variant: Option<String>,
     pub agree: bool,
 }
 
@@ -291,4 +296,45 @@ pub struct CharName {
 pub struct NameRu {
     pub en: String,
     pub ru: String,
+}
+
+/// Who agrees with Sova's or the AI's variant at one place.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlaceAgreement {
+    /// `sova` or `ai`.
+    pub variant: String,
+    pub place: EditPlace,
+    pub people: Vec<EditPerson>,
+}
+
+/// A member who has read a story, and when.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StoryRead {
+    pub by: EditPerson,
+    #[ts(type = "number")]
+    pub at: i64,
+}
+
+/// Mark a story read by the caller, or not.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadInput {
+    pub read: bool,
+}
+
+/// A story's progress: its lines that can be edited, approved ones, ones
+/// waiting for a decision (proposals, not approved) and outdated ones.
+#[derive(Debug, Clone, Serialize, TS, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StoryProgress {
+    pub story_id: String,
+    pub total: i32,
+    pub approved: i32,
+    pub waiting: i32,
+    pub outdated: i32,
 }

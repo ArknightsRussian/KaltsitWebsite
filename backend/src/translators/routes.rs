@@ -154,6 +154,7 @@ pub async fn story_lines(
     }
     let (edits, outdated) = edits::attach(&state.db, &story_id, &mut lines).await?;
     let sova_notes = edits::db::sova_notes(&state.db, &story_id).await?;
+    let reads = edits::db::story_reads(&state.db, &story_id).await?;
     // Every variant of every line against the line's glossary terms.
     let by_key: std::collections::HashMap<&str, &edits::dto::KeyEdits> =
         edits.iter().map(|e| (e.edit_key.as_str(), e)).collect();
@@ -213,6 +214,7 @@ pub async fn story_lines(
         edits,
         outdated,
         sova_notes,
+        reads,
     }))
 }
 
