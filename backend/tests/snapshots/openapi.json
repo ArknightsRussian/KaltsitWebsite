@@ -29236,6 +29236,7 @@
         "type": "object",
         "description": "One text a proposal has had.",
         "required": [
+          "id",
           "text",
           "source",
           "author",
@@ -29246,6 +29247,10 @@
             "$ref": "#/components/schemas/EditPerson"
           },
           "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
             "type": "integer",
             "format": "int64"
           },

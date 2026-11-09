@@ -16,7 +16,7 @@ export const messages = {
         description: "Page heading of the translators' section.",
     },
     "page.description": {
-        text: "Story text side by side: English, Russian as the game shows it now with the ArknightsRU pack, and the Chinese original. Read only.",
+        text: "Story text side by side: English, Russian as the game shows it now with the ArknightsRU pack, and the Chinese original. Members propose translations and comment on lines.",
         description: "Line under the heading of the translators' section.",
     },
     "tabs.label": {
@@ -298,6 +298,326 @@ export const messages = {
     "dev.failed": {
         text: "Couldn't sign in.",
         description: "Shown when the development sign-in request fails.",
+    },
+    "tabs.edits": {
+        text: "My edits",
+        description: "Tab of the translators' section: the member's own proposals (everyone's for the lead), with history.",
+    },
+    "status.unchecked": {
+        text: "Not checked",
+        description: "Status of a story line nobody has proposed or decided anything for.",
+    },
+    "status.proposed": {
+        text: "Has proposals",
+        description: "Status of a story line with at least one translator's proposal; shown as a dot by the line number.",
+    },
+    "status.approved": {
+        text: "Approved",
+        description: "Status of a story line whose translation the lead approved.",
+    },
+    "status.outdated": {
+        text: "Outdated",
+        description: "Status of a decision made for an English text the story no longer has at that place (it changed in an import).",
+    },
+    "approved.label": {
+        text: "Approved by {name}, {date}",
+        description: "Label over the approved translation of a line; name is the lead, date when.",
+    },
+    "approved.game": {
+        text: "Checked as in the game by {name}, {date}",
+        description: "Label over a line whose current game translation the lead checked and kept.",
+    },
+    "keep.by": {
+        text: "Keep as in the game: {names}",
+        description: "Under the game's Russian of a line: who voted to keep it; names is a comma-separated list, count their number.",
+    },
+    "proposal.mine": {
+        text: "My proposal",
+        description: "Author label of the viewer's own proposal for a line.",
+    },
+    "proposal.edited": {
+        text: "edited",
+        description: "Marks a proposal that was rewritten after it was first saved.",
+    },
+    "proposal.from.sova": {
+        text: "from Sova's",
+        description: "Marks a proposal that started from Sova's translation.",
+    },
+    "proposal.from.ai": {
+        text: "from the AI's",
+        description: "Marks a proposal that started from the AI's translation.",
+    },
+    "proposal.from.kit": {
+        text: "from the review kit",
+        description: "Marks a proposal that came from the review kit's reports (reserved).",
+    },
+    "proposal.from.own": {
+        text: "own text",
+        description: "Marks a proposal written by the translator.",
+    },
+    "proposal.agreed": {
+        text: "{count, plural, one {# agrees} other {# agree}}",
+        description: "How many translators agree with a proposal.",
+    },
+    "proposal.edit": {
+        text: "Edit",
+        description: "Button under the viewer's own proposal in the story table: opens it in the editor.",
+    },
+    "proposal.rewrite": {
+        text: "Rewrite",
+        description: "Button in My edits: opens the proposal's text for rewriting.",
+    },
+    "proposal.delete": {
+        text: "Delete",
+        description: "Button deleting the viewer's own proposal.",
+    },
+    "edit.failedSave": {
+        text: "Couldn't save the proposal.",
+        description: "Toast when saving a proposal fails.",
+    },
+    "edit.failedDelete": {
+        text: "Couldn't delete the proposal.",
+        description: "Toast when deleting a proposal fails.",
+    },
+    "edit.failedKeep": {
+        text: "Couldn't save your vote.",
+        description: "Toast when voting to keep the game's translation fails.",
+    },
+    "edit.notEditable": {
+        text: "Nothing to translate here.",
+        description: "Shown instead of the edit actions on a line of punctuation only.",
+    },
+    "outdated.proposal": {
+        text: "{name}'s proposal for the previous English",
+        description: "Label of a proposal left at a line whose English has since changed; name is its author.",
+    },
+    "outdated.approval": {
+        text: "Approved by {name} for the previous English",
+        description: "Label of an approval left at a line whose English has since changed.",
+    },
+    "outdated.was": {
+        text: "Was for: {en}",
+        description: "The old English text an outdated decision was made for.",
+    },
+    "comment.label": {
+        text: "Comment on this line",
+        description: "Label of the comment box in a story line.",
+    },
+    "comment.save": {
+        text: "Add comment",
+        description: "Button saving a new comment.",
+    },
+    "comment.failed": {
+        text: "Couldn't save the comment.",
+        description: "Toast when adding, resolving or deleting a comment fails.",
+    },
+    "comment.resolve": {
+        text: "Resolved",
+        description: "Button marking a comment as resolved (it then folds away).",
+    },
+    "comment.reopen": {
+        text: "Reopen",
+        description: "Button marking a resolved comment as open again.",
+    },
+    "comment.delete": {
+        text: "Delete",
+        description: "Button deleting the viewer's own comment.",
+    },
+    "comment.resolvedBy": {
+        text: "resolved by {name}",
+        description: "Marks a resolved comment; name is who resolved it.",
+    },
+    "comment.resolvedCount": {
+        text: "{count, plural, one {# resolved comment} other {# resolved comments}}",
+        description: "Button that unfolds the resolved comments of a line.",
+    },
+    "action.write": {
+        text: "Write my own",
+        description: "Action on a story line: opens the editor filled with the game's Russian.",
+    },
+    "action.editMine": {
+        text: "Edit my proposal",
+        description: "Action on a story line where the viewer already has a proposal: opens it in the editor.",
+    },
+    "action.takeSova": {
+        text: "Take Sova's",
+        description: "Action on a story line: opens the editor filled with Sova's translation.",
+    },
+    "action.takeAi": {
+        text: "Take the AI's",
+        description: "Action on a story line: opens the editor filled with the AI's translation.",
+    },
+    "action.keep": {
+        text: "Keep as in the game",
+        description: "Toggle on a story line: the viewer votes that the game's current Russian is good.",
+    },
+    "action.comment": {
+        text: "Comment",
+        description: "Action on a story line: opens the comment box.",
+    },
+    "editor.label": {
+        text: "My translation",
+        description: "Label of the editor of the viewer's own proposal.",
+    },
+    "editor.label.sova": {
+        text: "My translation, from Sova's",
+        description: "Label of the editor when it started from Sova's translation.",
+    },
+    "editor.label.ai": {
+        text: "My translation, from the AI's",
+        description: "Label of the editor when it started from the AI's translation.",
+    },
+    "editor.rewrite": {
+        text: "Rewrite my proposal",
+        description: "Label of the rewrite box in My edits.",
+    },
+    "editor.wholeEntry": {
+        text: "This is one dictionary entry: the edit saves all its lines together.",
+        description: "Under the editor of a multi-line story text.",
+    },
+    "editor.sameAsGame": {
+        text: "This is the game's text as it is. To keep it, use Keep as in the game.",
+        description: "Under the editor when the text equals the game's current Russian (saving is off).",
+    },
+    "editor.save": {
+        text: "Save",
+        description: "Button saving the proposal.",
+    },
+    "editor.cancel": {
+        text: "Cancel",
+        description: "Button closing the editor without saving.",
+    },
+    "editor.keys": {
+        text: "Ctrl+Enter saves, Esc cancels",
+        description: "Keyboard hint under the editor.",
+    },
+    "places.note": {
+        text: "This line also stands in {count, plural, one {# other place} other {# other places}}: the edit applies to all.",
+        description: "Warning under the editor when the same dictionary entry appears elsewhere in the story.",
+    },
+    "places.show": {
+        text: "Show places",
+        description: "Button unfolding the list of the places of a line.",
+    },
+    "places.load": {
+        text: "Couldn't load the places of this line.",
+        description: "Load failure of the list of places of a line.",
+    },
+    "places.item": {
+        text: "{group} › {story} · line {n}",
+        description: "One place of a line: chapter › story · line number in the story table.",
+    },
+    "places.itemBare": {
+        text: "{story} · line {n}",
+        description: "One place of a line whose chapter is unknown.",
+    },
+    "places.here": {
+        text: "this line",
+        description: "Marks the current line in the list of its places.",
+    },
+    "places.more": {
+        text: "and {count} more",
+        description: "Under a cut list of places.",
+    },
+    "confirm.title": {
+        text: "Save in all {count} places?",
+        description: "Heading of the confirmation before an edit of a line that stands in more than 20 places.",
+    },
+    "confirm.description": {
+        text: "The game uses one translation for this English text wherever it appears. Check the places before saving.",
+        description: "Text of the confirmation before a wide edit.",
+    },
+    "confirm.save": {
+        text: "Save in {count} places",
+        description: "Button confirming a wide edit.",
+    },
+    "where.item": {
+        text: "Story › {group} › {story} › line {n}",
+        description: "Where a proposal was made, in My edits.",
+    },
+    "where.places": {
+        text: "in {count} places",
+        description: "Under the place in My edits: how many story lines hold the same entry.",
+    },
+    "history.open": {
+        text: "History ({count})",
+        description: "Button unfolding the texts a proposal has had; count is how many.",
+    },
+    "history.label": {
+        text: "Texts of this proposal, newest first",
+        description: "Accessible name of a proposal's history list.",
+    },
+    "history.current": {
+        text: "current",
+        description: "Marks the current text in a proposal's history.",
+    },
+    "history.load": {
+        text: "Couldn't load the history.",
+        description: "Load failure of a proposal's history.",
+    },
+    "state.proposed": {
+        text: "Proposed",
+        description: "State of a proposal in My edits: waiting for the lead.",
+    },
+    "state.approved": {
+        text: "Approved",
+        description: "State of a proposal the lead approved.",
+    },
+    "state.otherApproved": {
+        text: "Another approved",
+        description: "State of a proposal when the lead approved another variant for the line.",
+    },
+    "state.outdated": {
+        text: "Outdated",
+        description: "State of a proposal whose English is gone from the story since an import.",
+    },
+    "edits.intro": {
+        text: "Your proposals: what the game shows now, what you propose and where.",
+        description: "Line at the top of the My edits tab.",
+    },
+    "edits.all": {
+        text: "Everyone's",
+        description: "Switch for the lead in My edits: show every translator's proposals.",
+    },
+    "edits.load": {
+        text: "Couldn't load the edits.",
+        description: "Load failure of My edits.",
+    },
+    "edits.empty": {
+        text: "No proposals yet",
+        description: "Heading of the empty My edits tab.",
+    },
+    "edits.emptyHint": {
+        text: "Open a story and use Write my own or Take Sova's on a line.",
+        description: "Hint under the empty My edits heading.",
+    },
+    "edits.count": {
+        text: "{count, plural, one {# proposal} other {# proposals}}",
+        description: "Above the My edits table.",
+    },
+    "edits.tableLabel": {
+        text: "Proposals",
+        description: "Accessible name of the My edits table.",
+    },
+    "edits.col.was": {
+        text: "Was (in the game)",
+        description: "My edits column: the game's Russian now and its English.",
+    },
+    "edits.col.now": {
+        text: "Now (proposed)",
+        description: "My edits column: the proposal's text.",
+    },
+    "edits.col.where": {
+        text: "Where",
+        description: "My edits column: the place of the proposal.",
+    },
+    "edits.col.state": {
+        text: "State",
+        description: "My edits column: proposed, approved, outdated.",
+    },
+    "edits.col.date": {
+        text: "Date",
+        description: "My edits column: when the proposal was last saved.",
     },
 } satisfies MessageMap;
 

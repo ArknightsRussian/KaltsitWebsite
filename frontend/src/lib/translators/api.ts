@@ -11,8 +11,13 @@ import { env } from "#/env";
 import { parseError } from "#/lib/api/_shared";
 import { optionalSiteToken } from "#/lib/api/_shared.server";
 import { backendFetch } from "#/lib/fetch";
+import type { EditCreated } from "#/types/generated/EditCreated";
+import type { EditPlace } from "#/types/generated/EditPlace";
+import type { EditRows } from "#/types/generated/EditRows";
 import type { Glossary } from "#/types/generated/Glossary";
+import type { KeyPlaces } from "#/types/generated/KeyPlaces";
 import type { LoginResponse } from "#/types/generated/LoginResponse";
+import type { ProposalVersion } from "#/types/generated/ProposalVersion";
 import type { TranslatorStoryLines } from "#/types/generated/TranslatorStoryLines";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
 
@@ -63,6 +68,110 @@ export const refreshGlossaryFn = createServerFn({ method: "POST" }).handler(asyn
     if (!res.ok) throw await parseError(res);
     return (await res.json()) as Glossary;
 });
+
+// ---- Line editing (translators/PLAN-edit.md). Every change refreshes the
+// story lines and My edits through `invalidateEdits`.
+
+/** The query keys an edit changes: every story's lines and My edits. */
+export const EDIT_QUERY_ROOTS = [
+    [...TRANSLATORS_QUERY_ROOT, "lines"],
+    [...TRANSLATORS_QUERY_ROOT, "edits"],
+] as const;
+
+async function send(path: string, method: string, body?: unknown): Promise<Response> {
+    const res = await backendFetch(path, { method, bearerToken: optionalSiteToken(), body: body === undefined ? undefined : JSON.stringify(body) });
+    if (!res.ok) throw await parseError(res);
+    return res;
+}
+
+export type ProposalSource = "own" | "sova" | "ai";
+
+/** Write my proposal for the line's entry, or rewrite the one I have. `confirmMany` after the list of more than 20 places was shown. */
+export const createProposalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { place: EditPlace; text: string; source: ProposalSource; confirmMany: boolean }) => d)
+    .handler(async ({ data }): Promise<EditCreated> => {
+        const res = await send("/translators/proposals", "POST", { ...data.place, text: data.text, source: data.source, confirmMany: data.confirmMany });
+        return (await res.json()) as EditCreated;
+    });
+
+export const rewriteProposalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number; text: string; confirmMany: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/proposals/${data.id}`, "PUT", { text: data.text, confirmMany: data.confirmMany });
+        return null;
+    });
+
+export const deleteProposalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/proposals/${data.id}`, "DELETE");
+        return null;
+    });
+
+export const getProposalVersionsFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { id: number }) => d)
+    .handler(async ({ data }): Promise<ProposalVersion[]> => {
+        const res = await send(`/translators/proposals/${data.id}/versions`, "GET");
+        return (await res.json()) as ProposalVersion[];
+    });
+
+export function proposalVersionsQueryOptions(id: number) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", "versions", id], queryFn: () => getProposalVersionsFn({ data: { id } }) });
+}
+
+/** Agree with a variant of the line's entry or take it back; `proposalId` null = keep as in the game. */
+export const setAgreementFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { place: EditPlace; proposalId: number | null; agree: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send("/translators/agreements", "PUT", { ...data.place, proposalId: data.proposalId, agree: data.agree });
+        return null;
+    });
+
+export const createCommentFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { place: EditPlace; text: string }) => d)
+    .handler(async ({ data }): Promise<EditCreated> => {
+        const res = await send("/translators/comments", "POST", { ...data.place, text: data.text });
+        return (await res.json()) as EditCreated;
+    });
+
+export const deleteCommentFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/comments/${data.id}`, "DELETE");
+        return null;
+    });
+
+export const resolveCommentFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number; resolved: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/comments/${data.id}/resolved`, "PUT", { resolved: data.resolved });
+        return null;
+    });
+
+export const getPlacesFn = createServerFn({ method: "GET" })
+    .inputValidator((d: EditPlace) => d)
+    .handler(async ({ data }): Promise<KeyPlaces> => {
+        const q = new URLSearchParams({ storyId: data.storyId, line: String(data.line), part: String(data.part) });
+        const res = await send(`/translators/places?${q}`, "GET");
+        return (await res.json()) as KeyPlaces;
+    });
+
+/** Every place of the entry at a place. */
+export function placesQueryOptions(place: EditPlace) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "places", place.storyId, place.line, place.part], queryFn: () => getPlacesFn({ data: place }), staleTime: 5 * 60_000 });
+}
+
+export const getEditsFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { all: boolean }) => d)
+    .handler(async ({ data }): Promise<EditRows> => {
+        const res = await send(`/translators/edits${data.all ? "?all=true" : ""}`, "GET");
+        return (await res.json()) as EditRows;
+    });
+
+/** My edits, or everyone's for the lead. */
+export function editsQueryOptions(all: boolean) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", all ? "all" : "mine"], queryFn: () => getEditsFn({ data: { all } }) });
+}
 
 // The same cookies the site's own sign-in sets (`lib/auth/server.ts`), so the
 // rest of the site sees the development translator as signed in.

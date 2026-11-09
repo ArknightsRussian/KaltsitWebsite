@@ -4,11 +4,13 @@
  * line's English with whether the Russian holds their form, then the
  * variants (Sova, the AI, the dictionary under a plugin override), each in
  * its own tone. With Service on, the script's line numbers and its stage
- * commands sit between the lines as gray rows.
+ * commands sit between the lines as gray rows. Editing (LineEdits.tsx): the
+ * approved variant above, the proposals and comments under the Russian, the
+ * row's actions and the in-row editor at the bottom of the cell.
  */
 import { Check, X } from "lucide-react";
 import type React from "react";
-import { Fragment } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { renderStoryNodes } from "#/components/story/reader/TextBox";
 import { Badge } from "#/components/ui/badge";
 import { InfoHint } from "#/components/ui/info-hint";
@@ -17,9 +19,13 @@ import { useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { renderLine } from "#/lib/story/text";
 import { cn } from "#/lib/utils";
+import type { KeyEdits } from "#/types/generated/KeyEdits";
 import type { LineTerm } from "#/types/generated/LineTerm";
+import type { OutdatedEdit } from "#/types/generated/OutdatedEdit";
 import type { StoryCommand } from "#/types/generated/StoryCommand";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
+import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
+import { ApprovedVariant, CommentEditor, Comments, type EditorState, GameKeepers, LineActions, OutdatedHere, ProposalEditor, Proposals, placeOf, StatusDot } from "./LineEdits";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
@@ -132,10 +138,26 @@ function Variant({ tone, label, text, nickname }: { tone: keyof typeof VARIANT_T
     );
 }
 
-function RuCell({ line, nickname, showVariants, t }: { line: TranslatorLine; nickname: string; showVariants: boolean; t: T }): React.ReactElement {
+interface IRuCellProps {
+    line: TranslatorLine;
+    storyId: string;
+    nickname: string;
+    showVariants: boolean;
+    edits: KeyEdits | undefined;
+    outdated: readonly OutdatedEdit[];
+    me: TranslatorsMe;
+    editor: EditorState | null;
+    onEditor: (state: EditorState | null) => void;
+    t: T;
+}
+
+function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, editor, onEditor, t }: IRuCellProps): React.ReactElement {
+    const place = placeOf(storyId, line);
     return (
         <div className="flex flex-col gap-1">
+            <ApprovedVariant edits={edits} t={t} />
             {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
+            <GameKeepers edits={edits} t={t} />
             {line.pluginRole === "story" ? (
                 <span className="flex items-center gap-1">
                     <Badge variant="warning" size="sm">
@@ -154,6 +176,7 @@ function RuCell({ line, nickname, showVariants, t }: { line: TranslatorLine; nic
             ) : null}
             {line.ruGameMatch === "lines" ? <span className="text-subtle-foreground text-xs">{t("ru.lineByLine")}</span> : null}
             <Terms terms={line.terms} t={t} />
+            <Proposals edits={edits} me={me} onEdit={(p) => onEditor({ kind: "proposal", text: p.text, source: p.source === "sova" || p.source === "ai" ? p.source : "own" })} t={t} />
             {showVariants ? (
                 <>
                     {line.sova ? <Variant tone="sova" label={t("hints.sova")} text={line.sova} nickname={nickname} /> : null}
@@ -161,6 +184,15 @@ function RuCell({ line, nickname, showVariants, t }: { line: TranslatorLine; nic
                     {line.ruDict ? <Variant tone="dict" label={t("hints.dict")} text={line.ruDict} nickname={nickname} /> : null}
                 </>
             ) : null}
+            <OutdatedHere items={outdated} t={t} />
+            <Comments edits={edits} me={me} t={t} />
+            {editor?.kind === "proposal" ? (
+                <ProposalEditor line={line} place={place} initial={editor.text} source={editor.source} onClose={() => onEditor(null)} t={t} />
+            ) : editor?.kind === "comment" ? (
+                <CommentEditor place={place} onClose={() => onEditor(null)} t={t} />
+            ) : (
+                <LineActions line={line} edits={edits} me={me} place={place} onOpen={onEditor} t={t} />
+            )}
         </div>
     );
 }
@@ -190,7 +222,13 @@ function ServiceRow({ commands, columns, t }: { commands: readonly StoryCommand[
 }
 
 export interface ILinesTableProps {
+    storyId: string;
     lines: readonly TranslatorLine[];
+    /** What was proposed, approved and said, by entry. */
+    edits: readonly KeyEdits[];
+    /** Decisions left at this story's changed places. */
+    outdated: readonly OutdatedEdit[];
+    me: TranslatorsMe;
     label: string;
     showCn: boolean;
     showVariants: boolean;
@@ -199,9 +237,20 @@ export interface ILinesTableProps {
     nickname: string;
 }
 
-export function LinesTable({ lines, label, showCn, showVariants, commands, nickname }: ILinesTableProps): React.ReactElement {
+export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn, showVariants, commands, nickname }: ILinesTableProps): React.ReactElement {
     const t: T = useT("translators");
     const columns = showCn ? 5 : 4;
+    const byKey = useMemo(() => new Map(edits.map((e) => [e.editKey, e])), [edits]);
+    const staleAt = useMemo(() => {
+        const out = new Map<string, OutdatedEdit[]>();
+        for (const o of outdated) {
+            const id = `${o.line}.${o.part}`;
+            out.set(id, [...(out.get(id) ?? []), o]);
+        }
+        return out;
+    }, [outdated]);
+    // One editor open at a time: the row's id and what it is open for.
+    const [editing, setEditing] = useState<{ id: string; state: EditorState } | null>(null);
     return (
         <Table aria-label={label}>
             <TableHeader>
@@ -220,16 +269,19 @@ export function LinesTable({ lines, label, showCn, showVariants, commands, nickn
                     return (
                         <Fragment key={id}>
                             {commands ? <ServiceRow commands={commandsBetween(commands, previous, line.line)} columns={columns} t={t} /> : null}
-                            <TableRow className={cn(line.kind === "option" && "bg-primary/5")} data-line={line.line} data-kind={line.kind}>
+                            <TableRow id={`n-${i + 1}`} className={cn("group/row scroll-mt-(--site-header-height) target:bg-primary/10", line.kind === "option" && "bg-primary/5")} data-line={line.line} data-kind={line.kind} data-status={line.status}>
                                 <TableCell className="py-1.5 align-top text-subtle-foreground text-xs tabular-nums leading-snug">
-                                    <span className="block">{i + 1}</span>
+                                    <span className="flex items-center gap-1.5">
+                                        {i + 1}
+                                        <StatusDot status={line.status} t={t} />
+                                    </span>
                                     {commands ? <span className="block font-mono">{t("table.scriptLine", { line: line.line })}</span> : null}
                                 </TableCell>
                                 <TableCell className={PROSE}>
                                     <Speaker line={line} t={t} />
                                 </TableCell>
                                 <TableCell className={PROSE}>
-                                    <RuCell line={line} nickname={nickname} showVariants={showVariants} t={t} />
+                                    <RuCell line={line} storyId={storyId} nickname={nickname} showVariants={showVariants} edits={byKey.get(line.editKey)} outdated={staleAt.get(id) ?? []} me={me} editor={editing?.id === id ? editing.state : null} onEditor={(state) => setEditing(state ? { id, state } : null)} t={t} />
                                 </TableCell>
                                 <TableCell className={PROSE}>
                                     <StoryText text={line.en} nickname={nickname} />

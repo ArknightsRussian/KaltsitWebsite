@@ -9,10 +9,10 @@
  * (`/api/translators`).
  */
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { BookOpen } from "lucide-react";
 import type React from "react";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { Button } from "#/components/ui/button";
 import { Combobox, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopup } from "#/components/ui/combobox";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "#/components/ui/empty";
@@ -29,14 +29,15 @@ import type { TypedT } from "#/lib/i18n/messages";
 import { storyLabel } from "#/lib/story/book/book";
 import { resolveNickname, useStorySettings } from "#/lib/story/settings";
 import { translatorLinesQueryOptions, translatorsMeQueryOptions } from "#/lib/translators/api";
-import type { StoryGroup } from "#/types/generated/StoryGroup";
 import { GlossaryTab } from "./GlossaryTab";
 import { LinesTable } from "./LinesTable";
+import { MyEditsTab } from "./MyEditsTab";
+import { groupLabel } from "./storyNames";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
 
-export type TranslatorsTab = "story" | "glossary";
+export type TranslatorsTab = "story" | "glossary" | "edits";
 
 export interface ITranslatorsSearch {
     tab?: TranslatorsTab;
@@ -55,11 +56,6 @@ interface IGroupItem {
     kind: string;
 }
 
-function groupLabel(g: StoryGroup): string {
-    const first = g.zone?.nameFirst;
-    return g.category === "main" && first ? `${first}: ${g.name}` : g.name;
-}
-
 interface ILinesProps {
     storyId: string;
     title: string;
@@ -69,15 +65,26 @@ interface ILinesProps {
     t: T;
 }
 
+/** After the lines load, bring the row named by the address's `#n-…` into view (a link from My edits or a place list). */
+function useScrollToRow(ready: boolean): void {
+    const hash = useRouterState({ select: (s) => s.location.hash });
+    useEffect(() => {
+        if (!ready || !hash.startsWith("n-")) return;
+        document.getElementById(hash)?.scrollIntoView({ block: "center" });
+    }, [ready, hash]);
+}
+
 function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesProps): React.ReactElement {
     const query = useQuery(translatorLinesQueryOptions(storyId));
+    const me = useQuery(translatorsMeQueryOptions());
+    useScrollToRow(Boolean(query.data && me.data));
     // The stage commands come from the site's own parse of the EN script.
     const script = useQuery({ ...storyQueryOptions(storyId, "en"), enabled: showService });
     const [settings] = useStorySettings();
     const nickname = resolveNickname(settings.nickname);
     if (query.isError) return <LoadFailed message={t("load.lines")} onRetry={() => query.refetch()} />;
-    if (!query.data) return <Skeleton className="h-96 w-full rounded-2xl" />;
-    const { lines, importedAt } = query.data;
+    if (!query.data || !me.data) return <Skeleton className="h-96 w-full rounded-2xl" />;
+    const { lines, importedAt, edits, outdated } = query.data;
     if (importedAt === null)
         return (
             <Empty>
@@ -98,7 +105,7 @@ function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesP
     return (
         <div className="flex flex-col gap-2">
             <p className="text-subtle-foreground text-xs">{t("table.summary", { count: lines.length, ru: withRu })}</p>
-            <LinesTable lines={lines} label={t("table.label", { story: title })} showCn={showCn} showVariants={showVariants} commands={showService ? (script.data?.commands ?? null) : null} nickname={nickname} />
+            <LinesTable storyId={storyId} lines={lines} edits={edits} outdated={outdated} me={me.data} label={t("table.label", { story: title })} showCn={showCn} showVariants={showVariants} commands={showService ? (script.data?.commands ?? null) : null} nickname={nickname} />
         </div>
     );
 }
@@ -245,12 +252,16 @@ export function TranslatorsPage({ search, onSearch }: ISearchProps): React.React
                     <TabsList aria-label={t("tabs.label")}>
                         <TabsTab value="story">{t("tabs.story")}</TabsTab>
                         <TabsTab value="glossary">{t("tabs.glossary")}</TabsTab>
+                        <TabsTab value="edits">{t("tabs.edits")}</TabsTab>
                     </TabsList>
                     <TabsPanel value="story" className="flex flex-col gap-6 pt-4">
                         <StoryTab search={search} onSearch={onSearch} />
                     </TabsPanel>
                     <TabsPanel value="glossary" className="flex flex-col gap-6 pt-4">
                         <GlossaryTab />
+                    </TabsPanel>
+                    <TabsPanel value="edits" className="flex flex-col gap-6 pt-4">
+                        <MyEditsTab />
                     </TabsPanel>
                 </Tabs>
             </MembersOnly>

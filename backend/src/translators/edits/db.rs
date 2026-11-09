@@ -453,8 +453,8 @@ pub async fn delete_proposal(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> 
 }
 
 pub async fn versions(pool: &PgPool, id: i64) -> Result<Vec<ProposalVersion>, sqlx::Error> {
-    let rows: Vec<(String, String, Uuid, String, DateTime<Utc>)> = sqlx::query_as(&format!(
-        "SELECT v.text, v.source, v.author_id, {NAME}, v.created_at
+    let rows: Vec<(i64, String, String, Uuid, String, DateTime<Utc>)> = sqlx::query_as(&format!(
+        "SELECT v.id, v.text, v.source, v.author_id, {NAME}, v.created_at
          FROM translators.proposal_versions v JOIN users u ON u.id = v.author_id
          WHERE v.proposal_id = $1 ORDER BY v.id DESC"
     ))
@@ -463,7 +463,8 @@ pub async fn versions(pool: &PgPool, id: i64) -> Result<Vec<ProposalVersion>, sq
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(text, source, id, name, at)| ProposalVersion {
+        .map(|(vid, text, source, id, name, at)| ProposalVersion {
+            id: vid,
             text,
             source,
             author: person(id, name),

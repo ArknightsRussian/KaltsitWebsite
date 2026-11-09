@@ -11,7 +11,7 @@ export const Route = createFileRoute("/translators")({
     validateSearch: (search: Record<string, unknown>): ITranslatorsSearch => {
         const out: ITranslatorsSearch = {};
         const on = (v: unknown) => v === true || v === 1 || v === "1" || v === "true";
-        if (search.tab === "glossary") out.tab = "glossary";
+        if (search.tab === "glossary" || search.tab === "edits") out.tab = search.tab;
         if (typeof search.group === "string" && search.group) out.group = search.group;
         if (typeof search.story === "string" && search.story) out.story = search.story;
         if (on(search.cn)) out.cn = true;

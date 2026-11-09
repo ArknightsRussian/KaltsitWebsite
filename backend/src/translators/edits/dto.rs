@@ -58,6 +58,8 @@ pub struct Proposal {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ProposalVersion {
+    #[ts(type = "number")]
+    pub id: i64,
     pub text: String,
     pub source: String,
     pub author: EditPerson,
