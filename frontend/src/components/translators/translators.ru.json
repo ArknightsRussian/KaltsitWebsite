@@ -296,5 +296,6 @@
     "export.after": "Грузятся после нашего (при одинаковом ключе побеждают они): {files}",
     "export.afterNone": "После нашего файла ничего не грузится: он побеждает.",
     "export.files": "Файлы",
-    "export.download": "Скачать"
+    "export.download": "Скачать",
+    "export.howTo": "Положите файл в BepInEx\\Translation\\ru\\Text и нажмите в игре Alt+R (или перезапустите игру)."
 }

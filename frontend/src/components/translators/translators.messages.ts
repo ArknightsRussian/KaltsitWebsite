@@ -1123,6 +1123,10 @@ export const messages = {
         text: "Download",
         description: "Link downloading one exported file.",
     },
+    "export.howTo": {
+        text: "Put the file in BepInEx\\Translation\\ru\\Text and press Alt+R in the game (or restart the game).",
+        description: "Hint in the export dialog: how to try an exported dictionary file in the game. Keep the folder path and the key as they are.",
+    },
 } satisfies MessageMap;
 
 export const { keys } = defineMessages({ namespace, messages });

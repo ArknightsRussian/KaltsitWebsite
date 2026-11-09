@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Download, FileOutput } from "lucide-react";
 import type React from "react";
 import { useId, useState } from "react";
+import { Alert, AlertDescription } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle, DialogTrigger } from "#/components/ui/dialog";
 import { LoadFailed } from "#/components/ui/load-failed";
@@ -102,6 +103,9 @@ export function ExportDialog({ lead, t }: { lead: boolean; t: T }): React.ReactE
                                 <li className={r.skipped.length > 0 ? "text-warning-foreground" : undefined}>{t("export.skipped", { count: r.skipped.length })}</li>
                                 <li className={r.overriddenBy.length > 0 ? "text-warning-foreground" : "text-muted-foreground"}>{r.loadedAfter.length > 0 ? t("export.after", { files: r.loadedAfter.map((x) => `${x} (${r.overriddenBy.find((o) => o.file === x)?.keys ?? 0})`).join(", ") }) : t("export.afterNone")}</li>
                             </ul>
+                            <Alert variant="info">
+                                <AlertDescription>{t("export.howTo")}</AlertDescription>
+                            </Alert>
                             <span className="font-medium">{t("export.files")}</span>
                             <ul className="flex flex-col gap-1">
                                 {run.data.files.map((file) => (

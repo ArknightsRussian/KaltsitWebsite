@@ -5,48 +5,44 @@ import type { ExportSkipped } from "./ExportSkipped";
 /**
  * What an export wrote and what to know before putting it in the game.
  */
-export type ExportReport = {
-    mode: string;
-    format: string;
-    /**
-     * Unix seconds.
-     */
-    at: number;
-    by: string;
-    /**
-     * Lines written to the dictionary file (or replaced and appended in the patch).
-     */
-    written: number;
-    /**
-     * Left out: keys XUnity cannot read back.
-     */
-    skipped: Array<ExportSkipped>;
-    /**
-     * Rows of `plugin.csv` (lines the RichTextFix plugin shows).
-     */
-    pluginRows: number;
-    /**
-     * Rows of `context.csv` (proposals for one place).
-     */
-    contextRows: number;
-    /**
-     * `file` format: the files the game loads after ours, which win on the same key.
-     */
-    loadedAfter: Array<string>;
-    /**
-     * Of those, the ones holding exported keys, and how many.
-     */
-    overriddenBy: Array<ExportFileKeys>;
-    /**
-     * `patch` format: values replaced in each copied file.
-     */
-    replaced: Array<ExportFileKeys>;
-    /**
-     * `patch` format: entries none of the files had, added at the end of the 12_story copy.
-     */
-    appended: number;
-    /**
-     * `review` mode: entries with more than one proposal (the most agreed is exported).
-     */
-    withAlternatives: number;
-};
+export type ExportReport = { mode: string, format: string, 
+/**
+ * Unix seconds.
+ */
+at: number, by: string, 
+/**
+ * Lines written to the dictionary file (or replaced and appended in the patch).
+ */
+written: number, 
+/**
+ * Left out: keys XUnity cannot read back.
+ */
+skipped: Array<ExportSkipped>, 
+/**
+ * Rows of `plugin.csv` (lines the RichTextFix plugin shows).
+ */
+pluginRows: number, 
+/**
+ * Rows of `context.csv` (proposals for one place).
+ */
+contextRows: number, 
+/**
+ * `file` format: the files the game loads after ours, which win on the same key.
+ */
+loadedAfter: Array<string>, 
+/**
+ * Of those, the ones holding exported keys, and how many.
+ */
+overriddenBy: Array<ExportFileKeys>, 
+/**
+ * `patch` format: values replaced in each copied file.
+ */
+replaced: Array<ExportFileKeys>, 
+/**
+ * `patch` format: entries none of the files had, added at the end of the 12_story copy.
+ */
+appended: number, 
+/**
+ * `review` mode: entries with more than one proposal (the most agreed is exported).
+ */
+withAlternatives: number, };

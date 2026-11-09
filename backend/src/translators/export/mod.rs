@@ -492,6 +492,9 @@ fn report_text(r: &ExportReport, ours: &str) -> String {
         out.push_str(&format!("  {} — {}\n", s.key, s.reason));
     }
     out.push_str(
+        "\nКак проверить в игре: положите файл в BepInEx\\Translation\\ru\\Text и нажмите в игре Alt+R (или перезапустите игру).\n",
+    );
+    out.push_str(
         "\nФайлы, которые игра грузит ПОСЛЕ нашего (при одинаковом ключе побеждают они):\n",
     );
     if r.loaded_after.is_empty() {
@@ -558,6 +561,13 @@ mod tests {
         // 00_arktr_story loads after 00_translators and holds "Hi"; 00_zz loads before.
         assert_eq!(out.report.loaded_after, vec!["00_arktr_story.txt"]);
         assert_eq!(out.report.overridden_by[0].keys, 1);
+        let report = &out
+            .files
+            .iter()
+            .find(|f| f.name == "report.txt")
+            .unwrap()
+            .content;
+        assert!(report.contains("BepInEx\\Translation\\ru\\Text") && report.contains("Alt+R"));
     }
 
     #[test]

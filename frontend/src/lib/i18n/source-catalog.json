@@ -7354,6 +7354,7 @@
     "translators.export.format": "Format",
     "translators.export.format.file": "One file 00_translators.txt",
     "translators.export.format.patch": "Patch: copies of 11_ui, 12_story, 13_names",
+    "translators.export.howTo": "Put the file in BepInEx\\Translation\\ru\\Text and press Alt+R in the game (or restart the game).",
     "translators.export.load": "Couldn't prepare the export.",
     "translators.export.mode": "What",
     "translators.export.mode.approved": "Approved — for the game",
