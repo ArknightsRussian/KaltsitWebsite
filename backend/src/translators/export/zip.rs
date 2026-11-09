@@ -15,7 +15,7 @@ pub fn zip(files: &[(String, Vec<u8>)], at: i64) -> std::io::Result<Vec<u8>> {
     for (name, data) in files {
         let mut crc = Crc::new();
         crc.update(data);
-        let mut enc = DeflateEncoder::new(Vec::new(), Compression::default());
+        let mut enc = DeflateEncoder::new(Vec::with_capacity(data.len() / 3), Compression::fast());
         enc.write_all(data)?;
         let packed = enc.finish()?;
         let offset = u32::try_from(out.len()).map_err(std::io::Error::other)?;

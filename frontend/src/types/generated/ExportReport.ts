@@ -59,4 +59,9 @@ export type ExportReport = {
      * The archive's name.
      */
     archive: string;
+    /**
+     * The list (`only` empty): the archive of exactly this export is being
+     * packed; download it with this token (for 30 minutes).
+     */
+    archiveToken: string | null;
 };

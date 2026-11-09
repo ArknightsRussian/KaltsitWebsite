@@ -13206,6 +13206,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "The archive: the one prepared with the report (`archiveToken`); left\nout, it is built anew.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -13273,6 +13282,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "The archive: the one prepared with the report (`archiveToken`); left\nout, it is built anew.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -13299,6 +13317,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -23857,6 +23878,13 @@
           "archive": {
             "type": "string",
             "description": "The archive's name."
+          },
+          "archiveToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The list (`only` empty): the archive of exactly this export is being\npacked; download it with this token (for 30 minutes)."
           },
           "at": {
             "type": "integer",

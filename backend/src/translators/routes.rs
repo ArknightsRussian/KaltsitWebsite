@@ -599,8 +599,21 @@ pub async fn export(
     let me = require_member(&state, &auth).await?;
     let mut result = run_export(&state, &me, &query).await?;
     match query.only.as_deref() {
-        // The list: names and sizes, no contents (a corrected 12_story is ~85 MB).
-        Some("") => result.files.iter_mut().for_each(|f| f.content.clear()),
+        // The list: names and sizes, no contents (a corrected 12_story is ~85 MB);
+        // the archive of exactly this export is packed meanwhile.
+        Some("") => {
+            let files: Vec<(String, Vec<u8>)> = result
+                .files
+                .iter_mut()
+                .map(|f| (f.name.clone(), std::mem::take(&mut f.content).into_bytes()))
+                .collect();
+            result.report.archive_token = Some(archives::prepare(
+                me.id,
+                result.report.archive.clone(),
+                result.report.at,
+                files,
+            ));
+        }
         Some(name) => result.files.retain(|f| f.name == name),
         None => {}
     }
@@ -683,6 +696,7 @@ async fn run_export(
     params(export::ExportQuery),
     responses(
         (status = 200, description = "The archive.", content_type = "application/zip", body = Vec<u8>),
+        (status = 404, response = crate::app::openapi::responses::NotFound),
         (status = 400, response = crate::app::openapi::responses::BadRequest),
         (status = 401, response = crate::app::openapi::responses::Unauthorized),
         (status = 403, response = crate::app::openapi::responses::Forbidden),
@@ -694,9 +708,13 @@ pub async fn export_archive(
     auth: MaybeAuthUser,
     Query(query): Query<export::ExportQuery>,
 ) -> Result<axum::response::Response, ApiError> {
-    use axum::http::header;
-    use axum::response::IntoResponse;
     let me = require_member(&state, &auth).await?;
+    if let Some(token) = query.token.as_deref() {
+        let (name, bytes) = archives::take(me.id, token)
+            .await
+            .ok_or(ApiError::NotFound)?;
+        return Ok(zip_response(&name, bytes));
+    }
     let result = run_export(&state, &me, &query).await?;
     let name = result.report.archive.clone();
     let at = result.report.at;
@@ -709,7 +727,13 @@ pub async fn export_archive(
         .await
         .map_err(|e| ApiError::Internal(e.into()))?
         .map_err(|e| ApiError::Internal(e.into()))?;
-    Ok((
+    Ok(zip_response(&name, bytes))
+}
+
+fn zip_response(name: &str, bytes: Vec<u8>) -> axum::response::Response {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+    (
         [
             (header::CONTENT_TYPE, "application/zip".to_owned()),
             (
@@ -719,7 +743,74 @@ pub async fn export_archive(
         ],
         bytes,
     )
-        .into_response())
+        .into_response()
+}
+
+/// Archives packed in the background for a prepared export, kept a while in
+/// memory (a few, 30 minutes): packing a corrected dictionary takes longer
+/// than the site's server waits on a silent request.
+mod archives {
+    use std::collections::HashMap;
+    use std::sync::{LazyLock, Mutex, PoisonError};
+    use std::time::{Duration, Instant};
+
+    use tokio::sync::watch;
+    use uuid::Uuid;
+
+    type Packed = Option<Result<Vec<u8>, String>>;
+
+    struct Entry {
+        user: Uuid,
+        name: String,
+        at: Instant,
+        rx: watch::Receiver<Packed>,
+    }
+
+    const KEEP: Duration = Duration::from_secs(30 * 60);
+    const MAX: usize = 4;
+    static ARCHIVES: LazyLock<Mutex<HashMap<String, Entry>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    /// Start packing; returns the token to download it with.
+    pub fn prepare(user: Uuid, name: String, at: i64, files: Vec<(String, Vec<u8>)>) -> String {
+        let token = Uuid::new_v4().simple().to_string();
+        let (tx, rx) = watch::channel(None);
+        tokio::task::spawn_blocking(move || {
+            let packed = super::export::zip::zip(&files, at).map_err(|e| e.to_string());
+            let _ = tx.send(Some(packed));
+        });
+        let mut map = ARCHIVES.lock().unwrap_or_else(PoisonError::into_inner);
+        map.retain(|_, e| e.at.elapsed() < KEEP);
+        while map.len() >= MAX {
+            let Some(oldest) = map.iter().min_by_key(|(_, e)| e.at).map(|(k, _)| k.clone()) else {
+                break;
+            };
+            map.remove(&oldest);
+        }
+        map.insert(
+            token.clone(),
+            Entry {
+                user,
+                name,
+                at: Instant::now(),
+                rx,
+            },
+        );
+        token
+    }
+
+    /// The archive of a token of this user, once packed.
+    pub async fn take(user: Uuid, token: &str) -> Option<(String, Vec<u8>)> {
+        let (name, mut rx) = {
+            let map = ARCHIVES.lock().unwrap_or_else(PoisonError::into_inner);
+            let e = map
+                .get(token)
+                .filter(|e| e.user == user && e.at.elapsed() < KEEP)?;
+            (e.name.clone(), e.rx.clone())
+        };
+        let packed = rx.wait_for(Option::is_some).await.ok()?.clone()?;
+        packed.ok().map(|b| (name, b))
+    }
 }
 
 /// Mark what went out in a pack version: every approved entry for the game

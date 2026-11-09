@@ -50,6 +50,10 @@ pub struct ExportQuery {
     /// Left out: everything.
     #[serde(default)]
     pub only: Option<String>,
+    /// The archive: the one prepared with the report (`archiveToken`); left
+    /// out, it is built anew.
+    #[serde(default)]
+    pub token: Option<String>,
 }
 
 /// One file of an export.
@@ -141,6 +145,9 @@ pub struct ExportReport {
     pub with_alternatives: i32,
     /// The archive's name.
     pub archive: String,
+    /// The list (`only` empty): the archive of exactly this export is being
+    /// packed; download it with this token (for 30 minutes).
+    pub archive_token: Option<String>,
 }
 
 /// The export's files and its report.

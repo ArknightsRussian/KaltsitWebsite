@@ -28,9 +28,10 @@ export const Route = createFileRoute("/translators_/export")({
                 const format = url.searchParams.get("format") === "patch" ? "patch" : "file";
                 const file = url.searchParams.get("file") ?? "";
                 const bearerToken = cookie(request, "site_token");
-                // No file named: the whole archive, as the backend builds it.
+                // No file named: the whole archive — the one packed for the prepared report (token).
                 if (file === "") {
-                    const res = await backendFetch(`/translators/export/archive?mode=${mode}&format=${format}`, { bearerToken });
+                    const token = (url.searchParams.get("token") ?? "").replace(/[^0-9a-f]/g, "");
+                    const res = await backendFetch(`/translators/export/archive?mode=${mode}&format=${format}${token ? `&token=${token}` : ""}`, { bearerToken });
                     if (!res.ok) return new Response(await res.text(), { status: res.status });
                     return new Response(await res.arrayBuffer(), {
                         headers: {

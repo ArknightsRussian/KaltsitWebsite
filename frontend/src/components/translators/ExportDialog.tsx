@@ -150,7 +150,7 @@ export function ExportDialog({ forGame, releases, t }: { forGame: boolean; relea
                                 <Button
                                     size="sm"
                                     render={
-                                        <a href={`/translators/export?mode=${mode}&format=${format}`} download={r.archive}>
+                                        <a href={`/translators/export?mode=${r.mode}&format=${r.format}&token=${r.archiveToken ?? ""}`} download={r.archive}>
                                             <Download aria-hidden="true" />
                                             {t("export.archive", { name: r.archive })}
                                         </a>
