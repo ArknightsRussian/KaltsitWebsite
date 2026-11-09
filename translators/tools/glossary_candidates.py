@@ -3,7 +3,9 @@
 Reads (only): the section's story lines and glossary (CSV exported from the
 database), EN gamedata (operators, NPCs, enemies, teams and nations, operator
 dossiers: race and place of birth, items), the ArknightsRU dictionaries.
-Writes one xlsx with the glossary's five sheets.
+Checks each against arknights.wiki.gg (MediaWiki API, about one request a
+second, cached next to the output in wiki-cache/). Writes one xlsx with a
+sheet per category of the glossary's keeper (SPEC §7).
 """
 
 import collections
@@ -418,22 +420,216 @@ for k, c in cands.items():
         src += f"; упоминается в сюжете: {len(idx)} строк"
     en = c["en"] + (f" ({c['meaning']})" if c["meaning"] else "")
     rows.append({
-        "sheet": c["sheet"], "en": en, "top": top,
+        "sheet": c["sheet"], "en": en, "raw": c["en"], "meaning": c["meaning"], "sources": list(c["sources"]), "top": top,
         "variants": ("⚠ разнобой: " if mixed else "") + "; ".join([f"{v} — {n}" for v, n in vs] + ([f"в словаре: {in_dict}"] if in_dict and in_dict not in dict(vs) else [])),
         "sova": "; ".join(f"{v} — {n}" for v, n in sova), "cn": (cn[0][0] if cn else gcn),
         "count": total, "ex_en": ex_en, "ex_ru": ex_ru, "src": src, "gl": gl, "cons": cons, "mixed": mixed,
     })
 
+# A word with meanings (Ursus: country, race) keeps only its meaning rows.
+with_meanings = {r["raw"] for r in rows if r["meaning"]}
+rows = [r for r in rows if r["meaning"] or r["raw"] not in with_meanings]
+
+# ---------- arknights.wiki.gg (SPEC §7) ----------
+import os
+import time
+import urllib.parse
+import urllib.request
+
+WIKI = "https://arknights.wiki.gg/api.php"
+UA = "KaltsitWebsite-translators/0.1 (glossary candidates; github.com/kreip/KaltsitWebsite)"
+CACHE_DIR = os.path.join(os.path.dirname(OUT), "wiki-cache")
+CACHE = os.path.join(CACHE_DIR, "pages.json")
+os.makedirs(CACHE_DIR, exist_ok=True)
+cache = json.load(open(CACHE, encoding="utf-8")) if os.path.exists(CACHE) else {}
+last_call = [0.0]
+
+
+def api(params):
+    # Not more than about one request a second.
+    wait = 1.05 - (time.time() - last_call[0])
+    if wait > 0:
+        time.sleep(wait)
+    url = WIKI + "?" + urllib.parse.urlencode({**params, "format": "json", "formatversion": "2"})
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                last_call[0] = time.time()
+                return json.load(r)
+        except Exception as e:  # noqa: BLE001
+            last_call[0] = time.time()
+            print(f"wiki retry {attempt}: {e}", file=sys.stderr)
+            time.sleep(5)
+    return {}
+
+
+def save_cache():
+    json.dump(cache, open(CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+
+
+BAD = re.compile(r"[#<>\[\]|{}_]")
+
+
+def fetch_pages(titles):
+    """Categories, final title and URL for each title (redirects followed), into the cache."""
+    todo = [t for t in dict.fromkeys(titles) if t not in cache and not BAD.search(t) and len(t) < 200]
+    print(f"wiki: {len(todo)} titles to look up ({len(titles) - len(todo)} cached or skipped)", file=sys.stderr)
+    for i in range(0, len(todo), 50):
+        batch = todo[i : i + 50]
+        params = {"action": "query", "titles": "|".join(batch), "redirects": "1", "prop": "categories|info", "inprop": "url", "cllimit": "max", "clshow": "!hidden"}
+        pages, maps = {}, {}
+        cont = {}
+        while True:
+            d = api({**params, **cont})
+            q = d.get("query", {})
+            for m in q.get("normalized", []) + q.get("redirects", []):
+                maps[m["from"]] = m["to"]
+            for pg in q.get("pages", []):
+                e = pages.setdefault(pg["title"], {"title": pg["title"], "missing": "missing" in pg or "invalid" in pg, "categories": [], "url": pg.get("fullurl", "")})
+                e["categories"] += [c["title"].removeprefix("Category:") for c in pg.get("categories", [])]
+            if "continue" not in d:
+                break
+            cont = d["continue"]
+        for t in batch:
+            final = t
+            for _ in range(3):
+                final = maps.get(final, final)
+            cache[t] = pages.get(final, {"title": final, "missing": True, "categories": [], "url": ""})
+        save_cache()
+
+
+def fetch_extracts(titles):
+    todo = [t for t in dict.fromkeys(titles) if "extract" not in cache.get(t, {}) and not cache.get(t, {}).get("missing", True)]
+    print(f"wiki: {len(todo)} extracts", file=sys.stderr)
+    for i in range(0, len(todo), 20):
+        batch = todo[i : i + 20]
+        finals = {cache[t]["title"]: t for t in batch}
+        d = api({"action": "query", "titles": "|".join(finals), "prop": "extracts", "exintro": "1", "explaintext": "1", "exsentences": "3", "exlimit": "20"})
+        got = {pg["title"]: pg.get("extract", "") for pg in d.get("query", {}).get("pages", [])}
+        for final, t in finals.items():
+            cache[t]["extract"] = got.get(final, "")
+        save_cache()
+
+
+def wiki_title(r):
+    return f"{r['raw']} (race)" if r["meaning"] == "раса" else r["raw"]
+
+
+fetch_pages([wiki_title(r) for r in rows] + [r["raw"] for r in rows if r["meaning"] == "раса"])
+fetch_extracts([wiki_title(r) for r in rows if set(cache.get(wiki_title(r), {}).get("categories", [])) & {"Locations", "Lore"}])
+
+# ---------- Romanov's categories (SPEC §7) ----------
+CATS = ["Основные термины", "Имена", "Расы", "Страны", "Города", "Локации", "Организации и образования", "Явления", "Животные"]
+CLASSES = {"Vanguard", "Guard", "Defender", "Sniper", "Caster", "Medic", "Supporter", "Specialist"}
+CITY = re.compile(r"\b(city|cities|town|village|metropolis|capital|settlement)\b", re.I)
+# In the defining phrase only ("X is a progressive, terminal disease"), not anywhere in the intro.
+PHENOMENON = re.compile(r"\b(?:is|are) (?:an? |the )?(?:\S+ ){0,5}?(?:disease|diseases|disaster|disasters|syndrome|phenomenon|phenomena|calamity|calamities|catastrophe|catastrophes|storm|storms|plague|eclipse)\b", re.I)
+CREATURE = re.compile(r"\b(?:is|are) (?:an? |the )?(?:\S+ ){0,5}?(?:creature|creatures|animal|animals|beast|beasts|species)\b", re.I)
+
+
+def defining(extract):
+    """The article's first real sentence, without the "This article is about…" note and punctuation."""
+    text = "\n".join(l for l in extract.split("\n") if l and not l.startswith("This article is about"))
+    return re.sub(r"[\"“”,;()]", " ", text)[:400].replace("  ", " ")
+
+
+ANIMAL = {"Infected Creature", "Animals", "Fauna", "Beasts"}
+
+
+def guess(r):
+    """Our category and name type from the sources, before the wiki."""
+    src = " ".join(r["sources"])
+    if r["meaning"] == "раса":
+        return "Расы", ""
+    if r["meaning"] == "страна":
+        return "Страны", ""
+    if "Оператор" in src:
+        return "Имена", "оператор"
+    if "NPC" in src:
+        return "Имена", "NPC"
+    if "Враг" in src:
+        return "Имена", "враг"
+    if "Говорящий" in src:
+        return "Имена", "говорящий"
+    if "Раса" in src or "Тип врага" in src:
+        return "Расы", ""
+    if "Страна" in src:
+        return "Страны", ""
+    if "Организация" in src:
+        return "Организации и образования", ""
+    if "Место рождения" in src:
+        return "Города", ""
+    last = r["raw"].split()[-1]
+    if last in ("City", "Town", "Village"):
+        return "Города", ""
+    if r["sheet"] == "Страны, города и локации":
+        return "Локации", ""
+    if r["sheet"] == "Организации":
+        return "Организации и образования", ""
+    return "Основные термины", ""
+
+
+def by_wiki(page, ours):
+    cats = set(page["categories"])
+    ext = page.get("extract", "")
+    if cats & ANIMAL:
+        return "Животные", "враг" if any("enemies" in c for c in cats) else ""
+    if any(c.endswith("enemies") for c in cats):
+        return "Имена", "враг"
+    if cats & CLASSES or any(c.endswith("-star") for c in cats):
+        return "Имена", "оператор"
+    if "NPCs" in cats or "Characters" in cats:
+        return "Имена", "NPC"
+    if "Races" in cats:
+        return "Расы", ""
+    if "Nation-states" in cats:
+        return "Страны", ""
+    if cats & {"Major factions", "Enemy factions", "Organizations", "Factions"}:
+        return "Организации и образования", ""
+    if "Locations" in cats:
+        return ("Города" if CITY.search(ext) else "Локации"), ""
+    if "Lore" in cats:
+        d = defining(ext)
+        if CREATURE.search(d) or page["title"].endswith("beast"):
+            return "Животные", ""
+        return ("Явления" if PHENOMENON.search(d) else "Основные термины"), ""
+    return None
+
+
+CN_IN_EXTRACT = re.compile(r"Chinese:\s*([^;,)\s]+)")
+for r in rows:
+    ours, typ = guess(r)
+    page = cache.get(wiki_title(r), {"missing": True, "categories": []})
+    if page.get("missing") and r["meaning"] == "раса":
+        page = cache.get(r["raw"], page)
+    found = not page.get("missing", True)
+    picked = by_wiki(page, ours) if found else None
+    if picked:
+        r["cat"], r["type"] = picked[0], picked[1] or typ
+    else:
+        r["cat"], r["type"] = ours, typ
+    if r["cat"] != "Имена":
+        r["type"] = ""
+    r["guessed"] = picked is None
+    r["wiki_cats"] = ", ".join(page.get("categories", [])) if found else "не найдено"
+    r["wiki_title"] = page.get("title", "") if found else ""
+    r["wiki_url"] = page.get("url", "") if found else ""
+    if not r["cn"] and found:
+        m = CN_IN_EXTRACT.search(page.get("extract", ""))
+        if m:
+            r["cn"] = m.group(1)
+
 # ---------- workbook ----------
-HEAD = ["EN", "Как сейчас в игре (самый частый)", "Все варианты в игре (вариант — число)", "Сова", "CN", "Сколько раз", "Пример EN", "Пример RU", "Откуда", "Уже в глоссарии?", "Согласованность с глоссарием", "Как называть", "Комментарий"]
-WIDTH = [28, 26, 44, 30, 12, 10, 60, 60, 44, 30, 18, 24, 30]
+HEAD = ["EN", "Категория", "Тип (для имён)", "Как сейчас в игре (самый частый)", "Все варианты в игре (вариант — число)", "Сова", "CN", "Сколько раз", "Пример EN", "Пример RU", "Откуда", "Категория на вики", "Как на вики", "Ссылка", "Уже в глоссарии?", "Согласованность с глоссарием", "Как называть", "Комментарий"]
+WIDTH = [28, 22, 12, 26, 44, 30, 12, 10, 60, 60, 44, 30, 24, 40, 30, 18, 24, 30]
 MIXED_FILL = PatternFill("solid", fgColor="FFF2CC")
 EMPTY_FILL = PatternFill("solid", fgColor="E2EFDA")
 wb = Workbook()
 wb.remove(wb.active)
 summary = {}
-for sheet in SHEETS:
-    ws = wb.create_sheet(sheet)
+for cat in CATS:
+    ws = wb.create_sheet(cat)
     ws.append(HEAD)
     for i, w in enumerate(WIDTH, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
@@ -441,24 +637,28 @@ for sheet in SHEETS:
         cell.font = Font(bold=True)
         cell.alignment = Alignment(wrap_text=True, vertical="top")
     ws.freeze_panes = "B2"
-    rs = sorted((r for r in rows if r["sheet"] == sheet), key=lambda r: (-r["count"], r["en"]))
+    rs = sorted((r for r in rows if r["cat"] == cat), key=lambda r: (-r["count"], r["en"]))
     for r in rs:
-        ws.append([r["en"], r["top"], r["variants"], r["sova"], r["cn"], r["count"], r["ex_en"], r["ex_ru"], r["src"], r["gl"], r["cons"], "", ""])
+        catcell = r["cat"] + (" (предположительно)" if r["guessed"] else "")
+        ws.append([r["en"], catcell, r["type"], r["top"], r["variants"], r["sova"], r["cn"], r["count"], r["ex_en"], r["ex_ru"], r["src"], r["wiki_cats"], r["wiki_title"], r["wiki_url"], r["gl"], r["cons"], "", ""])
         row = ws.max_row
-        for col in range(1, 14):
+        for col in range(1, len(HEAD) + 1):
             ws.cell(row, col).alignment = Alignment(wrap_text=True, vertical="top")
+        if r["wiki_url"]:
+            ws.cell(row, 14).hyperlink = r["wiki_url"]
+            ws.cell(row, 14).font = Font(color="0563C1", underline="single")
         if r["mixed"]:
-            for col in range(1, 12):
-                ws.cell(row, col).fill = MIXED_FILL
-        ws.cell(row, 12).fill = EMPTY_FILL
-        ws.cell(row, 13).fill = EMPTY_FILL
-    ws.auto_filter.ref = f"A1:M{max(ws.max_row, 1)}"
-    summary[sheet] = (len(rs), sum(r["mixed"] for r in rs))
+            for col in range(1, 17):
+                if col != 14:
+                    ws.cell(row, col).fill = MIXED_FILL
+        ws.cell(row, 17).fill = EMPTY_FILL
+        ws.cell(row, 18).fill = EMPTY_FILL
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEAD))}{max(ws.max_row, 1)}"
+    summary[cat] = {"rows": len(rs), "mixed": sum(r["mixed"] for r in rs), "on_wiki": sum(not r["guessed"] for r in rs)}
 wb.save(OUT)
 
 top_mixed = sorted((r for r in rows if r["mixed"]), key=lambda r: -r["count"])[:10]
-print(json.dumps({"sheets": summary, "total": len(rows), "mixed": sum(r["mixed"] for r in rows),
-                  "top_mixed": [(r["en"], r["count"], r["variants"]) for r in top_mixed],
-                  "rhodes": [(r["en"], r["sheet"], r["count"], r["top"], r["gl"]) for r in rows if r["en"].startswith("Rhodes Island")],
-                  "ursus": [(r["en"], r["sheet"], r["count"], r["top"], r["variants"], r["ex_en"]) for r in rows if r["en"].startswith("Ursus")]},
+print(json.dumps({"cats": summary, "total": len(rows), "mixed": sum(r["mixed"] for r in rows), "on_wiki": sum(not r["guessed"] for r in rows),
+                  "top_mixed": [(r["en"], r["cat"], r["count"], r["variants"]) for r in top_mixed],
+                  "check": [(r["en"], r["cat"], r["type"], r["wiki_title"], r["wiki_cats"]) for r in rows if r["raw"] in ("Rhodes Island", "Ursus", "Chernobog", "Lungmen", "Oripathy", "Catastrophe", "Originium", "Originium Slug", "Amiya", "Wei Yenwu", "Infected")]},
                  ensure_ascii=False, indent=1))
