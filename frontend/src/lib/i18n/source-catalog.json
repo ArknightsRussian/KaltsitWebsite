@@ -7295,7 +7295,7 @@
     "translators.checks.addressHint": "The speaker's neighbouring lines in this scene say “{form}”.",
     "translators.checks.glossaryHint": "The glossary's form is missing: {terms}",
     "translators.checks.longer": "+{share}",
-    "translators.checks.longerHint": "Noticeably longer than the game's Russian (more than 30% and more than 15 characters): it may not fit the dialogue box.",
+    "translators.checks.longerHint": "Noticeably longer than the game's Russian (more than 15% and more than 15 characters): it may not fit the dialogue box.",
     "translators.checks.newlines": "line breaks {ru} / {en}",
     "translators.checks.newlinesHint": "Line breaks: {ru} here, {en} in the English.",
     "translators.checks.placeholdersHint": "A substitution ({0}, the nickname) is missing or extra compared with the English.",

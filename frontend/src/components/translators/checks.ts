@@ -8,8 +8,8 @@
 import type { MissingTerm } from "#/types/generated/MissingTerm";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 
-/** "Noticeably longer than in the game": both more than this share longer… */
-export const LONGER_SHARE = 0.3;
+/** "Noticeably longer than in the game" (SPEC §3): both more than this share longer… */
+export const LONGER_SHARE = 0.15;
 /** …and more than this many characters longer (short lines are left alone). */
 export const LONGER_CHARS = 15;
 /** Lines of the same speaker looked at on each side for "ты / вы". */

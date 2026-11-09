@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-09T15:18:24.011Z",
+    "generatedAt": "2026-11-09T15:39:15.375Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -54282,7 +54282,7 @@
         {
             "key": "translators.checks.longerHint",
             "namespace": "translators",
-            "source_text": "Noticeably longer than the game's Russian (more than 30% and more than 15 characters): it may not fit the dialogue box.",
+            "source_text": "Noticeably longer than the game's Russian (more than 15% and more than 15 characters): it may not fit the dialogue box.",
             "description": "Tooltip of the length mark.",
             "placeholders": []
         },

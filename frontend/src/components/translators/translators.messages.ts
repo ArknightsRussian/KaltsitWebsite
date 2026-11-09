@@ -900,7 +900,7 @@ export const messages = {
         description: "Short mark: the variant is noticeably longer than the game's Russian; share is how much longer (a percentage).",
     },
     "checks.longerHint": {
-        text: "Noticeably longer than the game's Russian (more than 30% and more than 15 characters): it may not fit the dialogue box.",
+        text: "Noticeably longer than the game's Russian (more than 15% and more than 15 characters): it may not fit the dialogue box.",
         description: "Tooltip of the length mark.",
     },
     "checks.address": {
