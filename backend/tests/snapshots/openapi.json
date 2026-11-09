@@ -13422,7 +13422,7 @@
           "translators"
         ],
         "summary": "Every story's progress: lines that can be edited, approved, waiting for a\ndecision, outdated. Members only.",
-        "operationId": "progress",
+        "operationId": "story_progress",
         "responses": {
           "200": {
             "description": "One row per story with lines.",
@@ -13716,7 +13716,7 @@
           "translators"
         ],
         "summary": "Mark a story read by the caller (\"I have read this scene\"), or not. Members only.",
-        "operationId": "set_read",
+        "operationId": "set_story_read",
         "parameters": [
           {
             "name": "story_id",

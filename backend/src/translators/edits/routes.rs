@@ -606,7 +606,7 @@ pub async fn names(
         (status = 500, response = crate::app::openapi::responses::InternalError)
     )
 )]
-pub async fn set_read(
+pub async fn set_story_read(
     State(state): State<AppState>,
     auth: MaybeAuthUser,
     Path(story_id): Path<String>,
@@ -631,7 +631,7 @@ pub async fn set_read(
         (status = 500, response = crate::app::openapi::responses::InternalError)
     )
 )]
-pub async fn progress(
+pub async fn story_progress(
     State(state): State<AppState>,
     auth: MaybeAuthUser,
 ) -> Result<Json<Vec<super::dto::StoryProgress>>, ApiError> {

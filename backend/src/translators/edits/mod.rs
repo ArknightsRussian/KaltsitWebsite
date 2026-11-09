@@ -31,8 +31,8 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::edits))
         .routes(routes!(routes::characters))
         .routes(routes!(routes::names))
-        .routes(routes!(routes::set_read))
-        .routes(routes!(routes::progress))
+        .routes(routes!(routes::set_story_read))
+        .routes(routes!(routes::story_progress))
 }
 
 /// Fill each line's places and status, and return the edits for the
