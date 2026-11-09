@@ -190,7 +190,21 @@ function RuCell({ line, analysis, storyId, nickname, showVariants, edits, outdat
     );
     return (
         <div className="group/cell relative flex flex-col gap-1">
-            {editor === null ? <CellActions line={line} onOpen={onEditor} t={t} /> : null}
+            {editor === null ? (
+                <CellActions
+                    line={line}
+                    onOpen={onEditor}
+                    game={
+                        line.ruGame && line.editable ? (
+                            <>
+                                <AgreeButton place={place} variant="game" people={edits?.gameAgreements ?? []} me={me} t={t} />
+                                {approved !== "game" ? <ApproveButton place={place} variant="game" me={me} approved={false} t={t} /> : null}
+                            </>
+                        ) : null
+                    }
+                    t={t}
+                />
+            ) : null}
             <ApprovedVariant edits={edits} place={place} me={me} nickname={nickname} marks={marks("approved")} t={t} />
             {/* biome-ignore lint/a11y/noStaticElementInteractions: a shortcut; the Propose button is the accessible way */}
             <div
@@ -202,8 +216,7 @@ function RuCell({ line, analysis, storyId, nickname, showVariants, edits, outdat
             >
                 {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} quotes={quotes} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
                 {marks("game", true)}
-                {line.ruGame && line.editable ? <AgreeButton place={place} variant="game" people={edits?.gameAgreements ?? []} me={me} t={t} /> : null}
-                {line.ruGame && line.editable && approved !== "game" ? <ApproveButton place={place} variant="game" me={me} approved={false} t={t} /> : null}
+                {line.ruGame && line.editable && (edits?.gameAgreements.length ?? 0) > 0 ? <AgreeButton place={place} variant="game" people={edits?.gameAgreements ?? []} me={me} t={t} /> : null}
             </div>
             <VariantNotes {...notes} variant="game" />
             {line.pluginRole === "story" ? (

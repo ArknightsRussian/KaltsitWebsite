@@ -450,10 +450,12 @@ function selectedIn(within: Element | null): string | null {
 
 /**
  * The Russian cell's actions, at its top right on hover or keyboard focus
- * (always on a touch screen): propose, remark, note. A remark or note quotes
+ * (always on a touch screen): agree with and (the lead) approve the game's
+ * text, propose, remark, note. The game's text's buttons live here, not at
+ * the end of the text, which the panel would cover on a long line. A remark or note quotes
  * the text selected in the row (read before the click can clear it).
  */
-export function CellActions({ line, onOpen, t }: { line: TranslatorLine; onOpen: (state: EditorState) => void; t: T }): React.ReactElement {
+export function CellActions({ line, onOpen, game, t }: { line: TranslatorLine; onOpen: (state: EditorState) => void; game?: React.ReactNode; t: T }): React.ReactElement {
     const comment = (kind: "remark" | "note", from: HTMLElement) => onOpen({ kind, quote: selectedIn(from.closest("tr")) });
     const keys = (kind: "remark" | "note") => (e: React.KeyboardEvent<HTMLButtonElement>) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -462,7 +464,8 @@ export function CellActions({ line, onOpen, t }: { line: TranslatorLine; onOpen:
         }
     };
     return (
-        <div className="absolute end-0 top-0 z-10 flex gap-0.5 rounded-lg border bg-popover p-0.5 opacity-0 pointer-coarse:opacity-100 shadow-xs transition-opacity focus-within:opacity-100 group-hover/cell:opacity-100">
+        <div className="absolute end-0 top-0 z-10 flex items-center gap-0.5 rounded-lg border bg-popover p-0.5 opacity-0 pointer-coarse:opacity-100 shadow-xs transition-opacity focus-within:opacity-100 group-hover/cell:opacity-100">
+            {game}
             {line.editable ? (
                 <Button variant="ghost" size="xs" onClick={() => onOpen({ kind: "proposal", text: line.ruGame ?? "", source: "own", context: false })}>
                     <PenLine aria-hidden="true" />
