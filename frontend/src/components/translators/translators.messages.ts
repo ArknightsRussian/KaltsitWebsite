@@ -83,7 +83,7 @@ export const messages = {
         description: "Switch that shows script line numbers and the script's stage commands (scene, background, pause…) between the lines.",
     },
     "toggle.serviceHint": {
-        text: "Script lines and stage commands.",
+        text: "Stage commands in words between the lines.",
         description: "Second line under the Service switch.",
     },
     "toggle.variants": {
@@ -327,10 +327,6 @@ export const messages = {
         text: "Checked as in the game by {name}, {date}",
         description: "Label over a line whose current game translation the lead checked and kept.",
     },
-    "keep.by": {
-        text: "Keep as in the game: {names}",
-        description: "Under the game's Russian of a line: who voted to keep it; names is a comma-separated list, count their number.",
-    },
     "proposal.mine": {
         text: "My proposal",
         description: "Author label of the viewer's own proposal for a line.",
@@ -379,14 +375,6 @@ export const messages = {
         text: "Couldn't delete the proposal.",
         description: "Toast when deleting a proposal fails.",
     },
-    "edit.failedKeep": {
-        text: "Couldn't save your vote.",
-        description: "Toast when voting to keep the game's translation fails.",
-    },
-    "edit.notEditable": {
-        text: "Nothing to translate here.",
-        description: "Shown instead of the edit actions on a line of punctuation only.",
-    },
     "outdated.proposal": {
         text: "{name}'s proposal for the previous English",
         description: "Label of a proposal left at a line whose English has since changed; name is its author.",
@@ -398,14 +386,6 @@ export const messages = {
     "outdated.was": {
         text: "Was for: {en}",
         description: "The old English text an outdated decision was made for.",
-    },
-    "comment.label": {
-        text: "Comment on this line",
-        description: "Label of the comment box in a story line.",
-    },
-    "comment.save": {
-        text: "Add comment",
-        description: "Button saving a new comment.",
     },
     "comment.failed": {
         text: "Couldn't save the comment.",
@@ -431,38 +411,6 @@ export const messages = {
         text: "{count, plural, one {# resolved comment} other {# resolved comments}}",
         description: "Button that unfolds the resolved comments of a line.",
     },
-    "action.menu": {
-        text: "Edit line {n}",
-        description: "Accessible name of the edit menu button of a story line; n is the line's number in the table.",
-    },
-    "action.menuTitle": {
-        text: "Propose, keep as in the game, comment",
-        description: "Tooltip of the edit menu button by a story line's number.",
-    },
-    "action.write": {
-        text: "Write my own",
-        description: "Action on a story line: opens the editor filled with the game's Russian.",
-    },
-    "action.editMine": {
-        text: "Edit my proposal",
-        description: "Action on a story line where the viewer already has a proposal: opens it in the editor.",
-    },
-    "action.takeSova": {
-        text: "Take Sova's",
-        description: "Action on a story line: opens the editor filled with Sova's translation.",
-    },
-    "action.takeAi": {
-        text: "Take the AI's",
-        description: "Action on a story line: opens the editor filled with the AI's translation.",
-    },
-    "action.keep": {
-        text: "Keep as in the game",
-        description: "Toggle on a story line: the viewer votes that the game's current Russian is good.",
-    },
-    "action.comment": {
-        text: "Comment",
-        description: "Action on a story line: opens the comment box.",
-    },
     "editor.label": {
         text: "My translation",
         description: "Label of the editor of the viewer's own proposal.",
@@ -484,7 +432,7 @@ export const messages = {
         description: "Under the editor of a multi-line story text.",
     },
     "editor.sameAsGame": {
-        text: "This is the game's text as it is. To keep it, use Keep as in the game.",
+        text: "This is the game's text as it is: there is nothing to propose.",
         description: "Under the editor when the text equals the game's current Russian (saving is off).",
     },
     "editor.save": {
@@ -526,18 +474,6 @@ export const messages = {
     "places.more": {
         text: "and {count} more",
         description: "Under a cut list of places.",
-    },
-    "confirm.title": {
-        text: "Save in all {count} places?",
-        description: "Heading of the confirmation before an edit of a line that stands in more than 20 places.",
-    },
-    "confirm.description": {
-        text: "The game uses one translation for this English text wherever it appears. Check the places before saving.",
-        description: "Text of the confirmation before a wide edit.",
-    },
-    "confirm.save": {
-        text: "Save in {count} places",
-        description: "Button confirming a wide edit.",
     },
     "where.item": {
         text: "Story › {group} › {story} › line {n}",
@@ -596,7 +532,7 @@ export const messages = {
         description: "Heading of the empty My edits tab.",
     },
     "edits.emptyHint": {
-        text: "Open a story and use Write my own or Take Sova's on a line.",
+        text: "Open a story and use Propose on a line, or Propose this under Sova's or the AI's variant.",
         description: "Hint under the empty My edits heading.",
     },
     "edits.count": {
@@ -626,6 +562,306 @@ export const messages = {
     "edits.col.date": {
         text: "Date",
         description: "My edits column: when the proposal was last saved.",
+    },
+    "nickname.fallback": {
+        text: "Doctor",
+        description: "Shown for {@nickname} in story text when the signed-in member has no game nickname.",
+    },
+    "lang.label": {
+        text: "Section language",
+        description: "Accessible name of the RU | EN switch of the translators' section.",
+    },
+    "glossary.sovaSheet": {
+        text: "Sova's glossary (not approved)",
+        description: "Name shown for the glossary sheet copied from Sova's glossary; its terms are variants, not approved.",
+    },
+    "action.propose": {
+        text: "Propose",
+        description: "Button at the top right of a line's Russian (on hover): opens the editor for a proposed translation.",
+    },
+    "action.proposeThis": {
+        text: "Propose this",
+        description: "Small button under Sova's or the AI's variant: opens the editor filled with that variant.",
+    },
+    "action.remark": {
+        text: "Remark",
+        description: "Button on a line: a remark (a question or a problem) that can later be marked resolved.",
+    },
+    "action.note": {
+        text: "Note",
+        description: "Button on a line: a translator's note (why it is translated so, a reference, a fact); never resolved.",
+    },
+    "proposal.by": {
+        text: "{name}",
+        description: "Author label over another translator's proposal; name is the author.",
+    },
+    "proposal.contextBadge": {
+        text: "This place only",
+        description: "Badge on a proposal made for one place of the line only (not for every place of the same English).",
+    },
+    "remark.label": {
+        text: "Remark",
+        description: "Label of a remark under a line.",
+    },
+    "remark.editorLabel": {
+        text: "Remark on this line",
+        description: "Label of the remark box.",
+    },
+    "remark.save": {
+        text: "Add remark",
+        description: "Button saving a remark.",
+    },
+    "note.label": {
+        text: "Translator's note",
+        description: "Label of a translator's note under a line or a variant.",
+    },
+    "note.editorLabel": {
+        text: "Translator's note",
+        description: "Label of the note box.",
+    },
+    "note.save": {
+        text: "Add note",
+        description: "Button saving a translator's note.",
+    },
+    "note.about": {
+        text: "About",
+        description: "Label of the select choosing what a note is about: the line or one variant.",
+    },
+    "note.aboutLine": {
+        text: "The whole line",
+        description: "Option: the note is about the line.",
+    },
+    "note.aboutGame": {
+        text: "The Russian as in the game",
+        description: "Option: the note is about the game's current translation.",
+    },
+    "note.aboutProposal": {
+        text: "{name}'s proposal",
+        description: "Option: the note is about a translator's proposal; name is its author.",
+    },
+    "note.aboutSova": {
+        text: "Sova's variant",
+        description: "Option: the note is about Sova's translation.",
+    },
+    "note.aboutAi": {
+        text: "The AI's variant",
+        description: "Option: the note is about the AI's translation.",
+    },
+    "note.forGone": {
+        text: "About a variant that is no longer here: {text}",
+        description: "Above a note whose variant was deleted or replaced; text is the variant as it was.",
+    },
+    "comment.quote": {
+        text: "On: “{quote}”",
+        description: "The fragment of the line a remark or note is about.",
+    },
+    "comment.quoteHint": {
+        text: "To comment on a fragment, select it in the line before clicking.",
+        description: "Hint in the remark or note box when no fragment is selected.",
+    },
+    "comment.dropQuote": {
+        text: "Whole line",
+        description: "Button removing the selected fragment from a new remark or note.",
+    },
+    "places.before": {
+        text: "Before:",
+        description: "Label of the line before, in the list of the places of a line.",
+    },
+    "places.after": {
+        text: "After:",
+        description: "Label of the line after, in the list of the places of a line.",
+    },
+    "save.title": {
+        text: "This line stands in {count} places",
+        description: "Heading of the dialog when saving a proposal for a line whose English appears in several places.",
+    },
+    "save.proposalOnly": {
+        text: "This is a proposal. It reaches the game only after the lead approves it.",
+        description: "Shown under the editor and in the save dialog.",
+    },
+    "save.scope": {
+        text: "Where the proposal applies",
+        description: "Accessible name of the choice between all places and this place only.",
+    },
+    "save.all": {
+        text: "For all {count} places",
+        description: "Option of the save dialog: one translation of this English everywhere.",
+    },
+    "save.allHint": {
+        text: "The game uses one translation for this English text: it goes to the dictionary export.",
+        description: "Hint under the all-places option.",
+    },
+    "save.here": {
+        text: "Only for this place",
+        description: "Option of the save dialog: a translation tied to this place.",
+    },
+    "save.hereHint": {
+        text: "Kept apart with this story and line; not in the dictionary export. Listed for a context translation through the plugin.",
+        description: "Hint under the this-place-only option.",
+    },
+    "save.understand": {
+        text: "I understand that I change the translation in all {count} places",
+        description: "Checkbox the member must tick before saving for all places.",
+    },
+    "save.saveAll": {
+        text: "Save for {count} places",
+        description: "Button saving a proposal for all places.",
+    },
+    "save.saveHere": {
+        text: "Save for this place",
+        description: "Button saving a proposal for this place only.",
+    },
+    "editor.insertNickname": {
+        text: "Insert the nickname",
+        description: "Button under the editor: inserts the {@nickname} chip at the cursor.",
+    },
+    "editor.contextOnly": {
+        text: "This proposal is for this place only.",
+        description: "Under the editor of a one-place proposal.",
+    },
+    "sovaNotes.title": {
+        text: "Sova's notes to the chapter ({count})",
+        description: "Button unfolding Sova's footnotes to the chapter, above the story table.",
+    },
+    "sovaNotes.author": {
+        text: "Sova",
+        description: "Author label of one of Sova's notes.",
+    },
+    "service.music": {
+        text: "Music: {name}",
+        description: "Stage command in words: music starts; name is the track key.",
+    },
+    "service.musicStop": {
+        text: "Music stops",
+        description: "Stage command in words.",
+    },
+    "service.sound": {
+        text: "Sound: {name}",
+        description: "Stage command in words: a sound plays; name is its key.",
+    },
+    "service.soundStop": {
+        text: "Sound stops",
+        description: "Stage command in words.",
+    },
+    "service.background": {
+        text: "Background: {name}",
+        description: "Stage command in words: the background changes; name is the image key.",
+    },
+    "service.backgroundClear": {
+        text: "Background removed",
+        description: "Stage command in words.",
+    },
+    "service.image": {
+        text: "Picture: {name}",
+        description: "Stage command in words: a full-screen picture shows.",
+    },
+    "service.imageClear": {
+        text: "Picture removed",
+        description: "Stage command in words.",
+    },
+    "service.onStage": {
+        text: "On stage: {names}",
+        description: "Stage command in words: who is shown; names are the characters.",
+    },
+    "service.stageClear": {
+        text: "Stage empty",
+        description: "Stage command in words: the characters leave.",
+    },
+    "service.fadeOut": {
+        text: "Fade out",
+        description: "Stage command in words: the screen darkens.",
+    },
+    "service.fadeIn": {
+        text: "Fade in",
+        description: "Stage command in words: the screen appears again.",
+    },
+    "service.shake": {
+        text: "Camera shake",
+        description: "Stage command in words.",
+    },
+    "service.cameraEffect": {
+        text: "Camera effect",
+        description: "Stage command in words.",
+    },
+    "service.pause": {
+        text: "Pause",
+        description: "Stage command in words.",
+    },
+    "service.branch": {
+        text: "Branch: choice {options}",
+        description: "Stage command in words: the following lines are shown after the given choice.",
+    },
+    "service.video": {
+        text: "Video",
+        description: "Stage command in words.",
+    },
+    "service.volume": {
+        text: "Volume",
+        description: "Stage command in words.",
+    },
+    "service.other": {
+        text: "{name}",
+        description: "Stage command the section does not describe: its name only.",
+    },
+    "glossary.col.game": {
+        text: "As in the game",
+        description: "Glossary column: the Russian words the game uses for the term, with the number of lines.",
+    },
+    "glossary.col.consistency": {
+        text: "Consistency",
+        description: "Glossary column: the share of the term's lines whose Russian holds the glossary's form.",
+    },
+    "glossary.col.cn": {
+        text: "CN",
+        description: "Glossary column: the term's Chinese.",
+    },
+    "glossary.consistencyHint": {
+        text: "{found} of {checked} lines hold the glossary's form",
+        description: "Tooltip of the consistency value.",
+    },
+    "glossary.cnFromGame": {
+        text: "From the game's speaker names",
+        description: "Tooltip of a Chinese name taken from the story's speakers.",
+    },
+    "glossary.variantGlossary": {
+        text: "The glossary's form",
+        description: "Marks the game's word that is the glossary's form.",
+    },
+    "glossary.sharedHint": {
+        text: "Same English as “{key}”: the story cannot tell them apart, so the lines are counted there.",
+        description: "Tooltip of the dash for a glossary entry spelled like another.",
+    },
+    "glossary.showLines": {
+        text: "Show lines",
+        description: "Button opening the story lines of a glossary term.",
+    },
+    "glossary.sort.consistency": {
+        text: "Least consistent first",
+        description: "Glossary sort option.",
+    },
+    "glossary.lines.title": {
+        text: "Lines with “{term}”",
+        description: "Heading of the dialog listing a term's story lines.",
+    },
+    "glossary.lines.description": {
+        text: "Glossary: {ru}",
+        description: "Line under the heading: the glossary's translation.",
+    },
+    "glossary.lines.missing": {
+        text: "Only lines without the glossary's form",
+        description: "Switch in the term lines dialog.",
+    },
+    "glossary.lines.count": {
+        text: "{shown} of {total}",
+        description: "How many lines are listed out of all.",
+    },
+    "glossary.lines.load": {
+        text: "Couldn't load the lines.",
+        description: "Load failure of a term's lines.",
+    },
+    "glossary.lines.empty": {
+        text: "No lines.",
+        description: "Shown when a term has no lines (or none without the form).",
     },
 } satisfies MessageMap;
 

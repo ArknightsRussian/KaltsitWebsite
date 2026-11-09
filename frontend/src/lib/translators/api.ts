@@ -11,10 +11,12 @@ import { env } from "#/env";
 import { parseError } from "#/lib/api/_shared";
 import { optionalSiteToken } from "#/lib/api/_shared.server";
 import { backendFetch } from "#/lib/fetch";
+import type { CharName } from "#/types/generated/CharName";
 import type { EditCreated } from "#/types/generated/EditCreated";
 import type { EditPlace } from "#/types/generated/EditPlace";
 import type { EditRows } from "#/types/generated/EditRows";
 import type { Glossary } from "#/types/generated/Glossary";
+import type { GlossaryLines } from "#/types/generated/GlossaryLines";
 import type { KeyPlaces } from "#/types/generated/KeyPlaces";
 import type { LoginResponse } from "#/types/generated/LoginResponse";
 import type { ProposalVersion } from "#/types/generated/ProposalVersion";
@@ -86,11 +88,11 @@ async function send(path: string, method: string, body?: unknown): Promise<Respo
 
 export type ProposalSource = "own" | "sova" | "ai";
 
-/** Write my proposal for the line's entry, or rewrite the one I have. `confirmMany` after the list of more than 20 places was shown. */
+/** Write my proposal for the line's entry (for every place, or for this place only with `context`), or rewrite the one I have; `confirmMany` once the list of places was confirmed. */
 export const createProposalFn = createServerFn({ method: "POST" })
-    .inputValidator((d: { place: EditPlace; text: string; source: ProposalSource; confirmMany: boolean }) => d)
+    .inputValidator((d: { place: EditPlace; text: string; source: ProposalSource; context: boolean; confirmMany: boolean }) => d)
     .handler(async ({ data }): Promise<EditCreated> => {
-        const res = await send("/translators/proposals", "POST", { ...data.place, text: data.text, source: data.source, confirmMany: data.confirmMany });
+        const res = await send("/translators/proposals", "POST", { ...data.place, text: data.text, source: data.source, context: data.context, confirmMany: data.confirmMany });
         return (await res.json()) as EditCreated;
     });
 
@@ -127,10 +129,11 @@ export const setAgreementFn = createServerFn({ method: "POST" })
         return null;
     });
 
+/** A remark (`kind: "remark"`) or a translator's note (`"note"`, maybe about one variant), quoting a fragment of the line. */
 export const createCommentFn = createServerFn({ method: "POST" })
-    .inputValidator((d: { place: EditPlace; text: string }) => d)
+    .inputValidator((d: { place: EditPlace; text: string; quote: string | null; kind: "remark" | "note"; variant: string | null; proposalId: number | null }) => d)
     .handler(async ({ data }): Promise<EditCreated> => {
-        const res = await send("/translators/comments", "POST", { ...data.place, text: data.text });
+        const res = await send("/translators/comments", "POST", { ...data.place, text: data.text, quote: data.quote, kind: data.kind, variant: data.variant, proposalId: data.proposalId });
         return (await res.json()) as EditCreated;
     });
 
@@ -171,6 +174,28 @@ export const getEditsFn = createServerFn({ method: "GET" })
 /** My edits, or everyone's for the lead. */
 export function editsQueryOptions(all: boolean) {
     return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", all ? "all" : "mine"], queryFn: () => getEditsFn({ data: { all } }) });
+}
+
+export const getCharactersFn = createServerFn({ method: "GET" }).handler(async (): Promise<CharName[]> => {
+    const res = await send("/translators/characters", "GET");
+    return (await res.json()) as CharName[];
+});
+
+/** Who each story sprite is, for the Service rows. */
+export function charactersQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "characters"], queryFn: () => getCharactersFn(), staleTime: 60 * 60_000 });
+}
+
+export const getGlossaryLinesFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { id: number; missing: boolean }) => d)
+    .handler(async ({ data }): Promise<GlossaryLines> => {
+        const res = await send(`/translators/glossary/${data.id}/lines${data.missing ? "?missing=true" : ""}`, "GET");
+        return (await res.json()) as GlossaryLines;
+    });
+
+/** A glossary term's story lines (only those lacking its form with `missing`). */
+export function glossaryLinesQueryOptions(id: number, missing: boolean) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "glossary", "lines", id, missing], queryFn: () => getGlossaryLinesFn({ data: { id, missing } }), staleTime: 5 * 60_000 });
 }
 
 // The same cookies the site's own sign-in sets (`lib/auth/server.ts`), so the

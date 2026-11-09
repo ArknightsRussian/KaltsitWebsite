@@ -1,29 +1,31 @@
 /**
  * Editing one story line (translators/PLAN-edit.md): the approved variant,
- * the translators' proposals and comments under the Russian, the row's
- * actions (write my own, take Sova's or the AI's, keep as in the game,
- * comment) and the in-row editor. Every decision is for the line's
- * dictionary entry (`editKey`), so it holds in all the entry's places: more
- * than 20 places ask for a confirmation with the list first.
+ * the translators' proposals, remarks and translator's notes under the
+ * Russian, the cell's actions on hover (propose, remark, note; a double click
+ * on the Russian also proposes), the in-row editor and the save dialog: an
+ * entry in more than one place is saved for all its places (with the list and
+ * a confirmation) or for this place only (a context translation).
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, MessageSquare, PenLine, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { Check, MessageSquare, NotebookPen, PenLine, Trash2, Undo2 } from "lucide-react";
 import type React from "react";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "#/components/ui/alert-dialog";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
+import { Checkbox } from "#/components/ui/checkbox";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { LoadFailed } from "#/components/ui/load-failed";
-import { Menu, MenuCheckboxItem, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "#/components/ui/menu";
+import { Radio, RadioGroup } from "#/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
 import { Textarea } from "#/components/ui/textarea";
 import { toastManager } from "#/components/ui/toast";
 import { useFormatters } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
-import { createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn, setAgreementFn } from "#/lib/translators/api";
+import { createCommentFn, createProposalFn, deleteCommentFn, deleteProposalFn, EDIT_QUERY_ROOTS, type ProposalSource, placesQueryOptions, resolveCommentFn } from "#/lib/translators/api";
 import type { EditComment } from "#/types/generated/EditComment";
 import type { EditPerson } from "#/types/generated/EditPerson";
 import type { EditPlace } from "#/types/generated/EditPlace";
@@ -32,20 +34,32 @@ import type { OutdatedEdit } from "#/types/generated/OutdatedEdit";
 import type { Proposal } from "#/types/generated/Proposal";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
+import { StoryText } from "./StoryText";
 import { useStoryNames } from "./storyNames";
+import { TokenEditor } from "./TokenEditor";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
 
-/** More places than this: the edit is confirmed with the list (the backend asks the same). */
-export const CONFIRM_PLACES = 20;
+/** More places than this: a proposal for all of them is confirmed with the list (the backend asks the same). */
+export const CONFIRM_PLACES = 1;
 
-/** The tones of the edit variants, from the project's tokens (see LinesTable's VARIANT_TONE). */
-export const EDIT_TONE = {
+/**
+ * The tones of the variants and comments, from the project's tokens: the
+ * proposals in the info blue (agreed), Sova in the physical-damage tan, the AI
+ * in the arts violet, the dictionary under a plugin and outdated decisions in
+ * the warning amber, approved in success green, remarks muted, translator's
+ * notes in the healing mint with their own icon.
+ */
+export const TONE = {
     approved: "var(--success)",
-    proposal: "var(--primary)",
+    proposal: "var(--info)",
+    sova: "var(--dmg-physic)",
+    ai: "var(--dmg-magic)",
+    dict: "var(--warning)",
     outdated: "var(--warning)",
-    comment: "var(--muted-foreground)",
+    remark: "var(--muted-foreground)",
+    note: "var(--dmg-heal)",
 } as const;
 
 /** The status dot's tone; `unchecked` shows none. */
@@ -57,6 +71,10 @@ const STATUS_TONE: Record<string, string | undefined> = {
 
 export function placeOf(storyId: string, line: TranslatorLine): EditPlace {
     return { storyId, line: line.line, part: line.part };
+}
+
+function samePlace(a: EditPlace, b: EditPlace): boolean {
+    return a.storyId === b.storyId && a.line === b.line && a.part === b.part;
 }
 
 /** Line breaks as LF, trimmed: the way the backend stores a text. */
@@ -78,6 +96,25 @@ export function useEditMutation<V>(fn: (v: V) => Promise<unknown>, failed: strin
     });
 }
 
+/** The proposals that show at a place: those for every place, and those for this place only. */
+export function proposalsAt(edits: KeyEdits | undefined, place: EditPlace): Proposal[] {
+    return (edits?.proposals ?? []).filter((p) => !p.context || samePlace(p.place, place));
+}
+
+/** The comments that show at a place: remarks and notes on the entry (a note on a one-place proposal goes with it). */
+function commentsAt(edits: KeyEdits | undefined, place: EditPlace): EditComment[] {
+    const shown = new Set(proposalsAt(edits, place).map((p) => p.id));
+    const all = new Set((edits?.proposals ?? []).map((p) => p.id));
+    return (edits?.comments ?? []).filter((c) => c.variant !== "proposal" || c.proposalId === null || !all.has(c.proposalId) || shown.has(c.proposalId));
+}
+
+/** The quoted fragments of the comments at a place, to highlight. */
+export function quotesAt(edits: KeyEdits | undefined, place: EditPlace): string[] {
+    return commentsAt(edits, place)
+        .map((c) => c.quote)
+        .filter((q): q is string => Boolean(q));
+}
+
 export function StatusDot({ status, t }: { status: string; t: T }): React.ReactElement | null {
     const tone = STATUS_TONE[status];
     if (!tone) return null;
@@ -93,128 +130,38 @@ function names(people: readonly EditPerson[]): string {
     return people.map((p) => p.name).join(", ");
 }
 
-function Toned({ tone, label, children, actions }: { tone: string; label: React.ReactNode; children: React.ReactNode; actions?: React.ReactNode }): React.ReactElement {
+export function Toned({ tone, label, children, actions }: { tone: string; label: React.ReactNode; children?: React.ReactNode; actions?: React.ReactNode }): React.ReactElement {
     return (
         <div className="flex flex-col gap-0.5 border-(--tone) border-s-2 ps-2" style={{ "--tone": tone } as React.CSSProperties}>
             <span className="flex flex-wrap items-center gap-x-1.5 text-subtle-foreground text-xs">{label}</span>
-            <div className="whitespace-pre-line">{children}</div>
+            {children ? <div className="whitespace-pre-line">{children}</div> : null}
             {actions ? <div className="flex flex-wrap gap-1">{actions}</div> : null}
         </div>
     );
 }
 
-/** The approved variant: above everything else in the cell. */
-export function ApprovedVariant({ edits, t }: { edits: KeyEdits | undefined; t: T }): React.ReactElement | null {
-    const f = useFormatters();
-    const a = edits?.approval;
-    if (!a) return null;
-    const when = f.date(a.at * 1000, { dateStyle: "medium" });
-    return (
-        <Toned tone={EDIT_TONE.approved} label={a.proposalId === null ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}>
-            {a.text}
-        </Toned>
-    );
-}
-
-/** Who keeps the game's Russian, under it. */
-export function GameKeepers({ edits, t }: { edits: KeyEdits | undefined; t: T }): React.ReactElement | null {
-    const people = edits?.gameAgreements ?? [];
-    if (people.length === 0) return null;
-    return <span className="text-subtle-foreground text-xs">{t("keep.by", { count: people.length, names: names(people) })}</span>;
-}
-
-interface IProposalsProps {
+interface ICommentsProps {
     edits: KeyEdits | undefined;
+    place: EditPlace;
     me: TranslatorsMe;
-    onEdit: (p: Proposal) => void;
     t: T;
-}
-
-export function Proposals({ edits, me, onEdit, t }: IProposalsProps): React.ReactElement | null {
-    const f = useFormatters();
-    const remove = useEditMutation((id: number) => deleteProposalFn({ data: { id } }), t("edit.failedDelete"));
-    const list = edits?.proposals ?? [];
-    if (list.length === 0) return null;
-    return (
-        <>
-            {list.map((p) => {
-                const mine = p.author.id === me.userId;
-                const label = (
-                    <>
-                        <span>{mine ? t("proposal.mine") : p.author.name}</span>
-                        <span>· {f.date((p.editedAt ?? p.createdAt) * 1000, { dateStyle: "medium" })}</span>
-                        {p.editedAt !== null ? <span>· {t("proposal.edited")}</span> : null}
-                        {p.source !== "own" ? <span>· {t(`proposal.from.${p.source}` as "proposal.from.sova")}</span> : null}
-                        {p.agreements.length > 0 ? <span title={names(p.agreements)}>· {t("proposal.agreed", { count: p.agreements.length })}</span> : null}
-                    </>
-                );
-                return (
-                    <Toned
-                        key={p.id}
-                        tone={EDIT_TONE.proposal}
-                        label={label}
-                        actions={
-                            mine ? (
-                                <>
-                                    <Button variant="ghost" size="sm" onClick={() => onEdit(p)}>
-                                        <PenLine aria-hidden="true" />
-                                        {t("proposal.edit")}
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => remove.mutate(p.id)} disabled={remove.isPending}>
-                                        <Trash2 aria-hidden="true" />
-                                        {t("proposal.delete")}
-                                    </Button>
-                                </>
-                            ) : undefined
-                        }
-                    >
-                        {p.text}
-                    </Toned>
-                );
-            })}
-        </>
-    );
-}
-
-/** Decisions left at this place for an English that has changed since. */
-export function OutdatedHere({ items, t }: { items: readonly OutdatedEdit[]; t: T }): React.ReactElement | null {
-    if (items.length === 0) return null;
-    return (
-        <>
-            {items.map((o) => (
-                <Toned
-                    key={`${o.kind}-${o.editKey}-${o.author.id}`}
-                    tone={EDIT_TONE.outdated}
-                    label={
-                        <>
-                            <Badge variant="warning" size="sm">
-                                {t("status.outdated")}
-                            </Badge>
-                            <span>{t(o.kind === "approval" ? "outdated.approval" : "outdated.proposal", { name: o.author.name })}</span>
-                        </>
-                    }
-                >
-                    <span>{o.text}</span>
-                    <span className="block text-subtle-foreground text-xs">{t("outdated.was", { en: o.editKey })}</span>
-                </Toned>
-            ))}
-        </>
-    );
 }
 
 function CommentItem({ c, me, t }: { c: EditComment; me: TranslatorsMe; t: T }): React.ReactElement {
     const f = useFormatters();
     const mine = c.author.id === me.userId;
+    const note = c.kind === "note";
     const resolve = useEditMutation((resolved: boolean) => resolveCommentFn({ data: { id: c.id, resolved } }), t("comment.failed"));
     const remove = useEditMutation(() => deleteCommentFn({ data: { id: c.id } }), t("comment.failed"));
-    const canResolve = mine || isLead(me);
+    const canResolve = !note && (mine || isLead(me));
     return (
         <Toned
-            tone={EDIT_TONE.comment}
+            tone={note ? TONE.note : TONE.remark}
             label={
                 <>
-                    <MessageSquare className="size-3" aria-hidden="true" />
-                    <span>{c.author.name}</span>
+                    {note ? <NotebookPen className="size-3" aria-hidden="true" /> : <MessageSquare className="size-3" aria-hidden="true" />}
+                    <span>{note ? t("note.label") : t("remark.label")}</span>
+                    <span>· {c.author.name}</span>
                     <span>· {f.date(c.createdAt * 1000, { dateStyle: "medium" })}</span>
                     {c.resolvedBy ? <span>· {t("comment.resolvedBy", { name: c.resolvedBy.name })}</span> : null}
                 </>
@@ -223,13 +170,13 @@ function CommentItem({ c, me, t }: { c: EditComment; me: TranslatorsMe; t: T }):
                 canResolve || mine ? (
                     <>
                         {canResolve ? (
-                            <Button variant="ghost" size="sm" onClick={() => resolve.mutate(!c.resolvedBy)} disabled={resolve.isPending}>
+                            <Button variant="ghost" size="xs" onClick={() => resolve.mutate(!c.resolvedBy)} disabled={resolve.isPending}>
                                 {c.resolvedBy ? <Undo2 aria-hidden="true" /> : <Check aria-hidden="true" />}
                                 {c.resolvedBy ? t("comment.reopen") : t("comment.resolve")}
                             </Button>
                         ) : null}
                         {mine ? (
-                            <Button variant="ghost" size="sm" onClick={() => remove.mutate(undefined)} disabled={remove.isPending}>
+                            <Button variant="ghost" size="xs" onClick={() => remove.mutate(undefined)} disabled={remove.isPending}>
                                 <Trash2 aria-hidden="true" />
                                 {t("comment.delete")}
                             </Button>
@@ -238,25 +185,53 @@ function CommentItem({ c, me, t }: { c: EditComment; me: TranslatorsMe; t: T }):
                 ) : undefined
             }
         >
-            <span className="text-muted-foreground">{c.text}</span>
+            {c.quote ? <span className="block text-subtle-foreground text-xs">{t("comment.quote", { quote: c.quote })}</span> : null}
+            <span className={note ? undefined : "text-muted-foreground"}>{c.text}</span>
         </Toned>
     );
 }
 
-/** Open comments, then the resolved ones folded under one line. */
-export function Comments({ edits, me, t }: { edits: KeyEdits | undefined; me: TranslatorsMe; t: T }): React.ReactElement | null {
-    const list = edits?.comments ?? [];
+/** The translator's notes about one variant, under it. */
+export function VariantNotes({ edits, place, me, variant, proposalId, t }: ICommentsProps & { variant: "game" | "sova" | "ai" | "proposal"; proposalId?: number }): React.ReactElement | null {
+    const list = commentsAt(edits, place).filter((c) => c.kind === "note" && c.variant === variant && (variant !== "proposal" || c.proposalId === proposalId));
     if (list.length === 0) return null;
-    const open = list.filter((c) => !c.resolvedBy);
-    const resolved = list.filter((c) => c.resolvedBy);
+    return (
+        <div className="ms-3 flex flex-col gap-1">
+            {list.map((c) => (
+                <CommentItem key={c.id} c={c} me={me} t={t} />
+            ))}
+        </div>
+    );
+}
+
+/**
+ * The line's notes (on the line, or on a variant that is gone: shown with
+ * its text as it was) and remarks, the resolved ones folded under one line.
+ * Nothing here is ever removed by an approval, a new variant or outdating.
+ */
+export function LineComments({ edits, place, me, t }: ICommentsProps): React.ReactElement | null {
+    const proposals = new Set(proposalsAt(edits, place).map((p) => p.id));
+    const all = commentsAt(edits, place);
+    const orphan = (c: EditComment) => c.variant === "proposal" && (c.proposalId === null || !proposals.has(c.proposalId));
+    const notes = all.filter((c) => c.kind === "note" && (c.variant === null || orphan(c)));
+    const remarks = all.filter((c) => c.kind !== "note");
+    const open = remarks.filter((c) => !c.resolvedBy);
+    const resolved = remarks.filter((c) => c.resolvedBy);
+    if (notes.length + remarks.length === 0) return null;
     return (
         <>
+            {notes.map((c) => (
+                <div key={c.id} className="flex flex-col gap-0.5">
+                    {orphan(c) && c.variantText ? <span className="text-subtle-foreground text-xs">{t("note.forGone", { text: c.variantText })}</span> : null}
+                    <CommentItem c={c} me={me} t={t} />
+                </div>
+            ))}
             {open.map((c) => (
                 <CommentItem key={c.id} c={c} me={me} t={t} />
             ))}
             {resolved.length > 0 ? (
                 <Collapsible>
-                    <CollapsibleTrigger render={<Button variant="ghost" size="sm" className="text-muted-foreground" />}>{t("comment.resolvedCount", { count: resolved.length })}</CollapsibleTrigger>
+                    <CollapsibleTrigger render={<Button variant="ghost" size="xs" className="text-muted-foreground" />}>{t("comment.resolvedCount", { count: resolved.length })}</CollapsibleTrigger>
                     <CollapsiblePanel className="flex flex-col gap-1 pt-1">
                         {resolved.map((c) => (
                             <CommentItem key={c.id} c={c} me={me} t={t} />
@@ -268,87 +243,164 @@ export function Comments({ edits, me, t }: { edits: KeyEdits | undefined; me: Tr
     );
 }
 
-/** What the in-row editor is open for. */
-export type EditorState = { kind: "proposal"; text: string; source: ProposalSource } | { kind: "comment" };
-
-interface IActionsProps {
-    line: TranslatorLine;
-    /** The line's № in the table. */
-    n: number;
-    edits: KeyEdits | undefined;
-    me: TranslatorsMe;
-    place: EditPlace;
-    onOpen: (state: EditorState) => void;
-    t: T;
-}
-
-/**
- * The row's actions in one small menu by the line number (write my own,
- * take Sova's / the AI's, keep as in the game, comment): a bar of buttons
- * under every line made the dense table twice as tall.
- */
-export function LineActions({ line, n, edits, me, place, onOpen, t }: IActionsProps): React.ReactElement {
-    const mineProposal = edits?.proposals.find((p) => p.author.id === me.userId);
-    const keeping = Boolean(edits?.gameAgreements.some((p) => p.id === me.userId));
-    const keep = useEditMutation((agree: boolean) => setAgreementFn({ data: { place, proposalId: null, agree } }), t("edit.failedKeep"));
-    // An item that opens the editor keeps the focus there instead of returning it to the menu button.
-    const toEditor = useRef(false);
-    const open = (state: EditorState) => {
-        toEditor.current = true;
-        onOpen(state);
-    };
+/** The approved variant: above everything else in the cell. */
+export function ApprovedVariant({ edits, nickname, t }: { edits: KeyEdits | undefined; nickname: string; t: T }): React.ReactElement | null {
+    const f = useFormatters();
+    const a = edits?.approval;
+    if (!a) return null;
+    const when = f.date(a.at * 1000, { dateStyle: "medium" });
     return (
-        <Menu>
-            <MenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label={t("action.menu", { n })} title={t("action.menuTitle")} />}>
-                <PenLine aria-hidden="true" />
-            </MenuTrigger>
-            <MenuPopup
-                align="start"
-                finalFocus={() => {
-                    const keepFocus = !toEditor.current;
-                    toEditor.current = false;
-                    return keepFocus;
-                }}
-            >
-                {line.editable ? (
-                    <>
-                        <MenuItem onClick={() => open({ kind: "proposal", text: mineProposal?.text ?? line.ruGame ?? "", source: (mineProposal?.source as ProposalSource | undefined) ?? "own" })}>
-                            <PenLine aria-hidden="true" />
-                            {mineProposal ? t("action.editMine") : t("action.write")}
-                        </MenuItem>
-                        {line.sova ? (
-                            <MenuItem onClick={() => open({ kind: "proposal", text: line.sova ?? "", source: "sova" })}>
-                                <Sparkles aria-hidden="true" />
-                                {t("action.takeSova")}
-                            </MenuItem>
-                        ) : null}
-                        {line.ai ? (
-                            <MenuItem onClick={() => open({ kind: "proposal", text: line.ai ?? "", source: "ai" })}>
-                                <Sparkles aria-hidden="true" />
-                                {t("action.takeAi")}
-                            </MenuItem>
-                        ) : null}
-                        {line.ruGame ? (
-                            <MenuCheckboxItem closeOnClick checked={keeping} onCheckedChange={(checked: boolean) => keep.mutate(checked)} disabled={keep.isPending}>
-                                {t("action.keep")}
-                            </MenuCheckboxItem>
-                        ) : null}
-                    </>
-                ) : (
-                    <MenuItem disabled>{t("edit.notEditable")}</MenuItem>
-                )}
-                <MenuSeparator />
-                <MenuItem onClick={() => open({ kind: "comment" })}>
-                    <MessageSquare aria-hidden="true" />
-                    {t("action.comment")}
-                </MenuItem>
-            </MenuPopup>
-        </Menu>
+        <Toned tone={TONE.approved} label={a.proposalId === null ? t("approved.game", { name: a.by.name, date: when }) : t("approved.label", { name: a.by.name, date: when })}>
+            <StoryText text={a.text} nickname={nickname} />
+        </Toned>
     );
 }
 
-/** Every place of the entry, as links to the lines. */
-export function PlacesList({ place, t }: { place: EditPlace; t: T }): React.ReactElement {
+interface IProposalsProps extends ICommentsProps {
+    nickname: string;
+    onEdit: (p: Proposal) => void;
+}
+
+export function Proposals({ edits, place, me, nickname, onEdit, t }: IProposalsProps): React.ReactElement | null {
+    const f = useFormatters();
+    const remove = useEditMutation((id: number) => deleteProposalFn({ data: { id } }), t("edit.failedDelete"));
+    const list = proposalsAt(edits, place);
+    if (list.length === 0) return null;
+    return (
+        <>
+            {list.map((p) => {
+                const mine = p.author.id === me.userId;
+                return (
+                    <div key={p.id} className="flex flex-col gap-1">
+                        <Toned
+                            tone={TONE.proposal}
+                            label={
+                                <>
+                                    <span>{mine ? t("proposal.mine") : t("proposal.by", { name: p.author.name })}</span>
+                                    <span>· {f.date((p.editedAt ?? p.createdAt) * 1000, { dateStyle: "medium" })}</span>
+                                    {p.editedAt !== null ? <span>· {t("proposal.edited")}</span> : null}
+                                    {p.source !== "own" ? <span>· {t(`proposal.from.${p.source}` as "proposal.from.sova")}</span> : null}
+                                    {p.context ? (
+                                        <Badge variant="info" size="sm">
+                                            {t("proposal.contextBadge")}
+                                        </Badge>
+                                    ) : null}
+                                    {p.agreements.length > 0 ? <span title={names(p.agreements)}>· {t("proposal.agreed", { count: p.agreements.length })}</span> : null}
+                                </>
+                            }
+                            actions={
+                                mine ? (
+                                    <>
+                                        <Button variant="ghost" size="xs" onClick={() => onEdit(p)}>
+                                            <PenLine aria-hidden="true" />
+                                            {t("proposal.edit")}
+                                        </Button>
+                                        <Button variant="ghost" size="xs" onClick={() => remove.mutate(p.id)} disabled={remove.isPending}>
+                                            <Trash2 aria-hidden="true" />
+                                            {t("proposal.delete")}
+                                        </Button>
+                                    </>
+                                ) : undefined
+                            }
+                        >
+                            <StoryText text={p.text} nickname={nickname} />
+                        </Toned>
+                        <VariantNotes edits={edits} place={place} me={me} variant="proposal" proposalId={p.id} t={t} />
+                    </div>
+                );
+            })}
+        </>
+    );
+}
+
+/** Decisions left at this place for an English that has changed since. Shown always, never removed. */
+export function OutdatedHere({ items, nickname, t }: { items: readonly OutdatedEdit[]; nickname: string; t: T }): React.ReactElement | null {
+    if (items.length === 0) return null;
+    return (
+        <>
+            {items.map((o) => (
+                <Toned
+                    key={`${o.kind}-${o.editKey}-${o.author.id}`}
+                    tone={TONE.outdated}
+                    label={
+                        <>
+                            <Badge variant="warning" size="sm">
+                                {t("status.outdated")}
+                            </Badge>
+                            <span>{t(o.kind === "approval" ? "outdated.approval" : "outdated.proposal", { name: o.author.name })}</span>
+                        </>
+                    }
+                >
+                    <StoryText text={o.text} nickname={nickname} />
+                    <span className="block text-subtle-foreground text-xs">{t("outdated.was", { en: o.editKey })}</span>
+                </Toned>
+            ))}
+        </>
+    );
+}
+
+/** What the in-row editor is open for. */
+export type EditorState = { kind: "proposal"; text: string; source: ProposalSource; context: boolean } | { kind: "remark" | "note"; quote: string | null };
+
+/** The text selected inside `within`, if any: a comment quotes it. */
+function selectedIn(within: Element | null): string | null {
+    const sel = typeof window === "undefined" ? null : window.getSelection();
+    if (!sel || sel.isCollapsed || !within || !sel.anchorNode || !within.contains(sel.anchorNode)) return null;
+    const text = sel.toString().trim();
+    return text ? text : null;
+}
+
+/**
+ * The Russian cell's actions, at its top right on hover or keyboard focus
+ * (always on a touch screen): propose, remark, note. A remark or note quotes
+ * the text selected in the row (read before the click can clear it).
+ */
+export function CellActions({ line, onOpen, t }: { line: TranslatorLine; onOpen: (state: EditorState) => void; t: T }): React.ReactElement {
+    const comment = (kind: "remark" | "note", from: HTMLElement) => onOpen({ kind, quote: selectedIn(from.closest("tr")) });
+    const keys = (kind: "remark" | "note") => (e: React.KeyboardEvent<HTMLButtonElement>) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            comment(kind, e.currentTarget);
+        }
+    };
+    return (
+        <div className="absolute end-0 top-0 z-10 flex gap-0.5 rounded-lg border bg-popover p-0.5 opacity-0 pointer-coarse:opacity-100 shadow-xs transition-opacity focus-within:opacity-100 group-hover/cell:opacity-100">
+            {line.editable ? (
+                <Button variant="ghost" size="xs" onClick={() => onOpen({ kind: "proposal", text: line.ruGame ?? "", source: "own", context: false })}>
+                    <PenLine aria-hidden="true" />
+                    {t("action.propose")}
+                </Button>
+            ) : null}
+            <Button
+                variant="ghost"
+                size="xs"
+                onPointerDown={(e) => {
+                    e.preventDefault();
+                    comment("remark", e.currentTarget);
+                }}
+                onKeyDown={keys("remark")}
+            >
+                <MessageSquare aria-hidden="true" />
+                {t("action.remark")}
+            </Button>
+            <Button
+                variant="ghost"
+                size="xs"
+                onPointerDown={(e) => {
+                    e.preventDefault();
+                    comment("note", e.currentTarget);
+                }}
+                onKeyDown={keys("note")}
+            >
+                <NotebookPen aria-hidden="true" />
+                {t("action.note")}
+            </Button>
+        </div>
+    );
+}
+
+/** Every place of the entry, with the lines before and after, as links. */
+export function PlacesList({ place, nickname, t }: { place: EditPlace; nickname: string; t: T }): React.ReactElement {
     const query = useQuery(placesQueryOptions(place));
     const nameOf = useStoryNames();
     if (query.isError) return <LoadFailed layout="inline" message={t("places.load")} onRetry={() => query.refetch()} />;
@@ -356,20 +408,32 @@ export function PlacesList({ place, t }: { place: EditPlace; t: T }): React.Reac
     const { places, total } = query.data;
     return (
         <div className="flex flex-col gap-1">
-            <ul className="flex max-h-60 flex-col gap-0.5 overflow-y-auto text-xs">
+            <ul className="flex max-h-72 flex-col gap-2 overflow-y-auto text-xs">
                 {places.map((p) => {
                     const n = nameOf(p.storyId);
-                    const here = p.storyId === place.storyId && p.line === place.line && p.part === place.part;
+                    const here = samePlace(p, place);
                     return (
-                        <li key={`${p.storyId}-${p.line}-${p.part}`}>
-                            {n ? (
-                                <Link to="/translators" search={{ group: n.groupId, story: p.storyId }} hash={`n-${p.ord + 1}`} className="underline-offset-4 hover:underline">
-                                    {t("places.item", { group: n.group, story: n.story, n: p.ord + 1 })}
-                                </Link>
-                            ) : (
-                                <span>{t("places.itemBare", { story: p.storyId, n: p.ord + 1 })}</span>
-                            )}
-                            {here ? <span className="text-subtle-foreground"> · {t("places.here")}</span> : null}
+                        <li key={`${p.storyId}-${p.line}-${p.part}`} className="flex flex-col gap-0.5 border-s-2 ps-2">
+                            <span className="font-medium">
+                                {n ? (
+                                    <Link to="/translators" search={{ group: n.groupId, story: p.storyId }} hash={`n-${p.ord + 1}`} className="underline-offset-4 hover:underline">
+                                        {t("places.item", { group: n.group, story: n.story, n: p.ord + 1 })}
+                                    </Link>
+                                ) : (
+                                    t("places.itemBare", { story: p.storyId, n: p.ord + 1 })
+                                )}
+                                {here ? <span className="font-normal text-subtle-foreground"> · {t("places.here")}</span> : null}
+                            </span>
+                            {p.before ? (
+                                <span className="text-subtle-foreground">
+                                    {t("places.before")} <StoryText text={p.before} nickname={nickname} />
+                                </span>
+                            ) : null}
+                            {p.after ? (
+                                <span className="text-subtle-foreground">
+                                    {t("places.after")} <StoryText text={p.after} nickname={nickname} />
+                                </span>
+                            ) : null}
                         </li>
                     );
                 })}
@@ -379,17 +443,88 @@ export function PlacesList({ place, t }: { place: EditPlace; t: T }): React.Reac
     );
 }
 
+interface ISaveDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    place: EditPlace;
+    places: number;
+    /** Offer "only this place" (a new proposal; a rewrite keeps its scope). */
+    allowContext: boolean;
+    pending: boolean;
+    onSave: (context: boolean) => void;
+    nickname: string;
+    t: T;
+}
+
+/** Saving a proposal for an entry in several places: for all of them (with the list and a confirmation) or for this place only. */
+export function SaveDialog({ open, onOpenChange, place, places, allowContext, pending, onSave, nickname, t }: ISaveDialogProps): React.ReactElement {
+    const scopeId = useId();
+    const [context, setContext] = useState(false);
+    const [understood, setUnderstood] = useState(false);
+    const forAll = !context;
+    return (
+        <AlertDialog open={open} onOpenChange={onOpenChange}>
+            <AlertDialogPopup className="max-w-2xl">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{t("save.title", { count: places })}</AlertDialogTitle>
+                    <AlertDialogDescription>{t("save.proposalOnly")}</AlertDialogDescription>
+                    {allowContext ? (
+                        <RadioGroup aria-labelledby={scopeId} value={context ? "here" : "all"} onValueChange={(v) => setContext(v === "here")} className="gap-2 pt-2">
+                            <span id={scopeId} className="sr-only">
+                                {t("save.scope")}
+                            </span>
+                            {/* biome-ignore lint/a11y/noLabelWithoutControl: the kit Radio inside is the control */}
+                            <label className="flex items-start gap-2 text-sm">
+                                <Radio value="all" />
+                                <span className="flex flex-col">
+                                    <span className="font-medium">{t("save.all", { count: places })}</span>
+                                    <span className="text-muted-foreground text-xs">{t("save.allHint")}</span>
+                                </span>
+                            </label>
+                            {/* biome-ignore lint/a11y/noLabelWithoutControl: the kit Radio inside is the control */}
+                            <label className="flex items-start gap-2 text-sm">
+                                <Radio value="here" />
+                                <span className="flex flex-col">
+                                    <span className="font-medium">{t("save.here")}</span>
+                                    <span className="text-muted-foreground text-xs">{t("save.hereHint")}</span>
+                                </span>
+                            </label>
+                        </RadioGroup>
+                    ) : null}
+                    {forAll ? (
+                        <div className="flex flex-col gap-2 pt-2">
+                            <PlacesList place={place} nickname={nickname} t={t} />
+                            {/* biome-ignore lint/a11y/noLabelWithoutControl: the kit Checkbox inside is the control */}
+                            <label className="flex items-center gap-2 font-medium text-sm">
+                                <Checkbox checked={understood} onCheckedChange={(v) => setUnderstood(v === true)} />
+                                {t("save.understand", { count: places })}
+                            </label>
+                        </div>
+                    ) : null}
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogClose render={<Button variant="ghost" />}>{t("editor.cancel")}</AlertDialogClose>
+                    <Button onClick={() => onSave(context)} disabled={pending || (forAll && !understood)}>
+                        {pending ? <Spinner /> : null}
+                        {forAll ? t("save.saveAll", { count: places }) : t("save.saveHere")}
+                    </Button>
+                </AlertDialogFooter>
+            </AlertDialogPopup>
+        </AlertDialog>
+    );
+}
+
 /** "Also in N other places" under the editor, with the list on demand. */
-function PlacesNote({ line, place, t }: { line: TranslatorLine; place: EditPlace; t: T }): React.ReactElement | null {
+function PlacesNote({ line, place, nickname, t }: { line: TranslatorLine; place: EditPlace; nickname: string; t: T }): React.ReactElement | null {
     if (line.places < 2) return null;
     return (
         <Collapsible>
             <span className="flex flex-wrap items-center gap-1 text-warning-foreground text-xs">
                 {t("places.note", { count: line.places - 1 })}
-                <CollapsibleTrigger render={<Button variant="link" size="sm" className="h-auto px-0 text-xs" />}>{t("places.show")}</CollapsibleTrigger>
+                <CollapsibleTrigger render={<Button variant="link" size="xs" className="h-auto px-0 text-xs" />}>{t("places.show")}</CollapsibleTrigger>
             </span>
             <CollapsiblePanel className="pt-1">
-                <PlacesList place={place} t={t} />
+                <PlacesList place={place} nickname={nickname} t={t} />
             </CollapsiblePanel>
         </Collapsible>
     );
@@ -400,33 +535,30 @@ interface IEditorProps {
     place: EditPlace;
     initial: string;
     source: ProposalSource;
+    /** Editing a one-place proposal: it stays one. */
+    context: boolean;
+    nickname: string;
     onClose: () => void;
     t: T;
 }
 
-/** The in-row editor of my proposal: Ctrl+Enter saves, Esc cancels. */
-export function ProposalEditor({ line, place, initial, source, onClose, t }: IEditorProps): React.ReactElement {
+/** The in-row editor of my proposal: Ctrl+Enter saves, Esc cancels; `{@nickname}` is one chip. */
+export function ProposalEditor({ line, place, initial, source, context, nickname, onClose, t }: IEditorProps): React.ReactElement {
     const id = useId();
+    const hintId = useId();
     const [text, setText] = useState(initial);
-    const [confirming, setConfirming] = useState(false);
-    const save = useEditMutation((confirmMany: boolean) => createProposalFn({ data: { place, text, source, confirmMany } }), t("edit.failedSave"));
+    const [asking, setAsking] = useState(false);
+    const save = useEditMutation((c: { context: boolean; confirmMany: boolean }) => createProposalFn({ data: { place, text, source, context: c.context, confirmMany: c.confirmMany } }), t("edit.failedSave"));
     const clean = cleanText(text);
     const sameAsGame = line.ruGame !== null && clean === cleanText(line.ruGame);
     const canSave = clean.length > 0 && !sameAsGame && !save.isPending;
-    const many = line.places > CONFIRM_PLACES;
+    const several = line.places > CONFIRM_PLACES;
 
-    const submit = (confirmMany: boolean) => {
+    const done = { onSuccess: onClose };
+    const submit = () => {
         if (!canSave) return;
-        if (many && !confirmMany) {
-            setConfirming(true);
-            return;
-        }
-        save.mutate(confirmMany, {
-            onSuccess: () => {
-                setConfirming(false);
-                onClose();
-            },
-        });
+        if (several && !context) setAsking(true);
+        else save.mutate({ context, confirmMany: false }, done);
     };
 
     return (
@@ -434,27 +566,15 @@ export function ProposalEditor({ line, place, initial, source, onClose, t }: IEd
             <label htmlFor={id} className="text-subtle-foreground text-xs">
                 {source === "own" ? t("editor.label") : t(`editor.label.${source}` as "editor.label.sova")}
             </label>
-            <Textarea
-                id={id}
-                size="sm"
-                value={text}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
-                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        submit(false);
-                    } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        onClose();
-                    }
-                }}
-                autoFocus
-            />
+            <TokenEditor id={id} initial={initial} nickname={nickname} onChange={setText} onSubmit={submit} onCancel={onClose} insertLabel={t("editor.insertNickname")} describedBy={hintId} />
+            <span id={hintId} className="text-subtle-foreground text-xs">
+                {t("save.proposalOnly")}
+            </span>
             {line.ruGameMatch === "lines" || line.en.includes("\n") ? <span className="text-subtle-foreground text-xs">{t("editor.wholeEntry")}</span> : null}
             {sameAsGame ? <span className="text-subtle-foreground text-xs">{t("editor.sameAsGame")}</span> : null}
-            <PlacesNote line={line} place={place} t={t} />
+            {context ? <span className="text-subtle-foreground text-xs">{t("editor.contextOnly")}</span> : <PlacesNote line={line} place={place} nickname={nickname} t={t} />}
             <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" onClick={() => submit(false)} disabled={!canSave}>
+                <Button size="sm" onClick={submit} disabled={!canSave}>
                     {save.isPending ? <Spinner /> : null}
                     {t("editor.save")}
                 </Button>
@@ -463,32 +583,39 @@ export function ProposalEditor({ line, place, initial, source, onClose, t }: IEd
                 </Button>
                 <span className="text-subtle-foreground text-xs">{t("editor.keys")}</span>
             </div>
-
-            <AlertDialog open={confirming} onOpenChange={setConfirming}>
-                <AlertDialogPopup>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{t("confirm.title", { count: line.places })}</AlertDialogTitle>
-                        <AlertDialogDescription>{t("confirm.description")}</AlertDialogDescription>
-                        <PlacesList place={place} t={t} />
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogClose render={<Button variant="ghost" />}>{t("editor.cancel")}</AlertDialogClose>
-                        <Button onClick={() => submit(true)} disabled={save.isPending}>
-                            {save.isPending ? <Spinner /> : null}
-                            {t("confirm.save", { count: line.places })}
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogPopup>
-            </AlertDialog>
+            {asking ? <SaveDialog open={asking} onOpenChange={setAsking} place={place} places={line.places} allowContext pending={save.isPending} onSave={(c) => save.mutate({ context: c, confirmMany: !c }, done)} nickname={nickname} t={t} /> : null}
         </div>
     );
 }
 
-/** The in-row comment box. */
-export function CommentEditor({ place, onClose, t }: { place: EditPlace; onClose: () => void; t: T }): React.ReactElement {
+interface ICommentEditorProps {
+    line: TranslatorLine;
+    place: EditPlace;
+    edits: KeyEdits | undefined;
+    kind: "remark" | "note";
+    quote: string | null;
+    onClose: () => void;
+    t: T;
+}
+
+const LINE = "__line__";
+
+/** The in-row box for a remark or a translator's note (a note may be about one variant). */
+export function CommentEditor({ line, place, edits, kind, quote: initialQuote, onClose, t }: ICommentEditorProps): React.ReactElement {
     const id = useId();
+    const variantId = useId();
     const [text, setText] = useState("");
-    const save = useEditMutation(() => createCommentFn({ data: { place, text } }), t("comment.failed"));
+    const [quote, setQuote] = useState(initialQuote);
+    const [variant, setVariant] = useState<string>(LINE);
+    const options: { value: string; label: string }[] = [{ value: LINE, label: t("note.aboutLine") }];
+    if (line.ruGame) options.push({ value: "game", label: t("note.aboutGame") });
+    for (const p of proposalsAt(edits, place)) options.push({ value: `proposal:${p.id}`, label: t("note.aboutProposal", { name: p.author.name }) });
+    if (line.sova) options.push({ value: "sova", label: t("note.aboutSova") });
+    if (line.ai) options.push({ value: "ai", label: t("note.aboutAi") });
+    const save = useEditMutation(() => {
+        const [v, pid] = variant.split(":");
+        return createCommentFn({ data: { place, text, quote, kind, variant: variant === LINE ? null : v, proposalId: pid ? Number(pid) : null } });
+    }, t("comment.failed"));
     const submit = () => {
         if (cleanText(text).length === 0 || save.isPending) return;
         save.mutate(undefined, { onSuccess: onClose });
@@ -496,8 +623,37 @@ export function CommentEditor({ place, onClose, t }: { place: EditPlace; onClose
     return (
         <div className="flex flex-col gap-1.5">
             <label htmlFor={id} className="text-subtle-foreground text-xs">
-                {t("comment.label")}
+                {kind === "note" ? t("note.editorLabel") : t("remark.editorLabel")}
             </label>
+            {quote ? (
+                <span className="flex flex-wrap items-center gap-1 text-xs">
+                    <mark className="rounded-sm bg-warning/20 text-foreground">{quote}</mark>
+                    <Button variant="ghost" size="xs" onClick={() => setQuote(null)}>
+                        {t("comment.dropQuote")}
+                    </Button>
+                </span>
+            ) : (
+                <span className="text-subtle-foreground text-xs">{t("comment.quoteHint")}</span>
+            )}
+            {kind === "note" && options.length > 1 ? (
+                <div className="flex flex-col gap-1 sm:w-80">
+                    <label htmlFor={variantId} className="text-subtle-foreground text-xs">
+                        {t("note.about")}
+                    </label>
+                    <Select value={variant} onValueChange={(v: string | null) => setVariant(v ?? LINE)}>
+                        <SelectTrigger id={variantId} size="sm">
+                            <SelectValue>{() => options.find((o) => o.value === variant)?.label}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {options.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            ) : null}
             <Textarea
                 id={id}
                 size="sm"
@@ -517,7 +673,7 @@ export function CommentEditor({ place, onClose, t }: { place: EditPlace; onClose
             <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" onClick={submit} disabled={cleanText(text).length === 0 || save.isPending}>
                     {save.isPending ? <Spinner /> : null}
-                    {t("comment.save")}
+                    {kind === "note" ? t("note.save") : t("remark.save")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onClose}>
                     {t("editor.cancel")}

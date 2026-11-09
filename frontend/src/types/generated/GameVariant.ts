@@ -3,17 +3,16 @@
 /**
  * One way the game translates a term, from the Russian of its lines.
  */
-export type GameVariant = {
-    /**
-     * The word as the game writes it most often.
-     */
-    ru: string;
-    /**
-     * Lines of the term that hold the word (any ending).
-     */
-    lines: number;
-    /**
-     * The word is the glossary's form.
-     */
-    glossary: boolean;
-};
+export type GameVariant = { 
+/**
+ * The word as the game writes it most often.
+ */
+ru: string, 
+/**
+ * Lines of the term that hold the word (any ending).
+ */
+lines: number, 
+/**
+ * The word is the glossary's form.
+ */
+glossary: boolean, };

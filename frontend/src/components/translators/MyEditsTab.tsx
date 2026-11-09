@@ -9,7 +9,6 @@ import { Link } from "@tanstack/react-router";
 import { History, PenLine, Trash2 } from "lucide-react";
 import type React from "react";
 import { useId, useState } from "react";
-import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "#/components/ui/alert-dialog";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "#/components/ui/collapsible";
@@ -19,14 +18,15 @@ import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
 import { Switch } from "#/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/components/ui/table";
-import { Textarea } from "#/components/ui/textarea";
 import { useFormatters, useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { deleteProposalFn, editsQueryOptions, proposalVersionsQueryOptions, rewriteProposalFn, translatorsMeQueryOptions } from "#/lib/translators/api";
 import type { EditRow } from "#/types/generated/EditRow";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
-import { CONFIRM_PLACES, cleanText, isLead, PlacesList, useEditMutation } from "./LineEdits";
+import { CONFIRM_PLACES, cleanText, isLead, SaveDialog, useEditMutation } from "./LineEdits";
+import { StoryText } from "./StoryText";
 import { useStoryNames } from "./storyNames";
+import { TokenEditor } from "./TokenEditor";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
@@ -80,47 +80,31 @@ function Versions({ id, t }: { id: number; t: T }): React.ReactElement {
     );
 }
 
-function Rewrite({ row, onClose, t }: { row: EditRow; onClose: () => void; t: T }): React.ReactElement {
+function Rewrite({ row, nickname, onClose, t }: { row: EditRow; nickname: string; onClose: () => void; t: T }): React.ReactElement {
     const id = useId();
     const [text, setText] = useState(row.proposal.text);
-    const [confirming, setConfirming] = useState(false);
+    const [asking, setAsking] = useState(false);
     const save = useEditMutation((confirmMany: boolean) => rewriteProposalFn({ data: { id: row.proposal.id, text, confirmMany } }), t("edit.failedSave"));
     const clean = cleanText(text);
     const sameAsGame = row.ruGame !== null && clean === cleanText(row.ruGame);
     const canSave = clean.length > 0 && !sameAsGame && clean !== row.proposal.text && !save.isPending;
-    const submit = (confirmMany: boolean) => {
+    const several = !row.proposal.context && row.places > CONFIRM_PLACES;
+    const submit = () => {
         if (!canSave) return;
-        if (row.places > CONFIRM_PLACES && !confirmMany) {
-            setConfirming(true);
-            return;
-        }
-        save.mutate(confirmMany, { onSuccess: onClose });
+        if (several) setAsking(true);
+        else save.mutate(false, { onSuccess: onClose });
     };
     return (
         <div className="flex flex-col gap-1.5">
             <label htmlFor={id} className="text-subtle-foreground text-xs">
                 {t("editor.rewrite")}
             </label>
-            <Textarea
-                id={id}
-                size="sm"
-                value={text}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
-                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        submit(false);
-                    } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        onClose();
-                    }
-                }}
-                autoFocus
-            />
+            <TokenEditor id={id} initial={row.proposal.text} nickname={nickname} onChange={setText} onSubmit={submit} onCancel={onClose} insertLabel={t("editor.insertNickname")} />
+            <span className="text-subtle-foreground text-xs">{t("save.proposalOnly")}</span>
             {sameAsGame ? <span className="text-subtle-foreground text-xs">{t("editor.sameAsGame")}</span> : null}
-            {row.places > 1 ? <span className="text-warning-foreground text-xs">{t("places.note", { count: row.places - 1 })}</span> : null}
+            {several ? <span className="text-warning-foreground text-xs">{t("places.note", { count: row.places - 1 })}</span> : null}
             <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" onClick={() => submit(false)} disabled={!canSave}>
+                <Button size="sm" onClick={submit} disabled={!canSave}>
                     {save.isPending ? <Spinner /> : null}
                     {t("editor.save")}
                 </Button>
@@ -129,27 +113,12 @@ function Rewrite({ row, onClose, t }: { row: EditRow; onClose: () => void; t: T 
                 </Button>
                 <span className="text-subtle-foreground text-xs">{t("editor.keys")}</span>
             </div>
-            <AlertDialog open={confirming} onOpenChange={setConfirming}>
-                <AlertDialogPopup>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{t("confirm.title", { count: row.places })}</AlertDialogTitle>
-                        <AlertDialogDescription>{t("confirm.description")}</AlertDialogDescription>
-                        <PlacesList place={row.proposal.place} t={t} />
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogClose render={<Button variant="ghost" />}>{t("editor.cancel")}</AlertDialogClose>
-                        <Button onClick={() => submit(true)} disabled={save.isPending}>
-                            {save.isPending ? <Spinner /> : null}
-                            {t("confirm.save", { count: row.places })}
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogPopup>
-            </AlertDialog>
+            {asking ? <SaveDialog open={asking} onOpenChange={setAsking} place={row.proposal.place} places={row.places} allowContext={false} pending={save.isPending} onSave={() => save.mutate(true, { onSuccess: onClose })} nickname={nickname} t={t} /> : null}
         </div>
     );
 }
 
-function Row({ row, me, all, t }: { row: EditRow; me: TranslatorsMe; all: boolean; t: T }): React.ReactElement {
+function Row({ row, me, all, nickname, t }: { row: EditRow; me: TranslatorsMe; all: boolean; nickname: string; t: T }): React.ReactElement {
     const f = useFormatters();
     const [rewriting, setRewriting] = useState(false);
     const remove = useEditMutation(() => deleteProposalFn({ data: { id: row.proposal.id } }), t("edit.failedDelete"));
@@ -160,14 +129,23 @@ function Row({ row, me, all, t }: { row: EditRow; me: TranslatorsMe; all: boolea
         <TableRow className="group/row">
             <TableCell className={PROSE}>
                 <span className="flex flex-col gap-0.5">
-                    {row.ruGame ? <span className="whitespace-pre-line">{row.ruGame}</span> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
-                    <span className="whitespace-pre-line text-subtle-foreground text-xs">{row.en}</span>
+                    {row.ruGame ? <StoryText text={row.ruGame} nickname={nickname} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
+                    <span className="text-subtle-foreground text-xs">
+                        <StoryText text={row.en} nickname={nickname} />
+                    </span>
                 </span>
             </TableCell>
             <TableCell className={PROSE}>
                 <div className="flex flex-col gap-1">
                     {all ? <span className="text-subtle-foreground text-xs">{mine ? t("proposal.mine") : p.author.name}</span> : null}
-                    {rewriting ? <Rewrite row={row} onClose={() => setRewriting(false)} t={t} /> : <span className="whitespace-pre-line">{p.text}</span>}
+                    {rewriting ? <Rewrite row={row} nickname={nickname} onClose={() => setRewriting(false)} t={t} /> : <StoryText text={p.text} nickname={nickname} />}
+                    {p.context ? (
+                        <span>
+                            <Badge variant="info" size="sm">
+                                {t("proposal.contextBadge")}
+                            </Badge>
+                        </span>
+                    ) : null}
                     <Collapsible>
                         <div className="flex flex-wrap gap-1">
                             {mine && !rewriting ? (
@@ -254,7 +232,7 @@ export function MyEditsTab(): React.ReactElement {
                         </TableHeader>
                         <TableBody>
                             {rows.map((row) => (
-                                <Row key={row.proposal.id} row={row} me={me.data} all={query.data.all} t={t} />
+                                <Row key={row.proposal.id} row={row} me={me.data} all={query.data.all} nickname={me.data.nickname ?? t("nickname.fallback")} t={t} />
                             ))}
                         </TableBody>
                     </Table>

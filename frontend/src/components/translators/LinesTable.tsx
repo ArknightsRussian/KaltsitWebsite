@@ -1,23 +1,21 @@
 /**
  * One story's lines as a dense table: # | speaker | Russian as in the game |
  * English | Chinese (optional). Under the Russian: the glossary terms of the
- * line's English with whether the Russian holds their form, then the
- * variants (Sova, the AI, the dictionary under a plugin override), each in
- * its own tone. With Service on, the script's line numbers and its stage
- * commands sit between the lines as gray rows. Editing (LineEdits.tsx): the
- * approved variant above, the proposals and comments under the Russian, the
- * row's actions and the in-row editor at the bottom of the cell.
+ * line's English with whether the Russian holds their form, the proposals,
+ * Sova's and the AI's variants (each with "Propose this"), the notes and
+ * remarks. Hovering the Russian shows its actions (LineEdits.tsx); a double
+ * click on it proposes. With Service on, the stage commands sit between the
+ * lines as gray rows, in words.
  */
 import { Check, X } from "lucide-react";
 import type React from "react";
 import { Fragment, useMemo, useState } from "react";
-import { renderStoryNodes } from "#/components/story/reader/TextBox";
 import { Badge } from "#/components/ui/badge";
+import { Button } from "#/components/ui/button";
 import { InfoHint } from "#/components/ui/info-hint";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/components/ui/table";
 import { useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
-import { renderLine } from "#/lib/story/text";
 import { cn } from "#/lib/utils";
 import type { KeyEdits } from "#/types/generated/KeyEdits";
 import type { LineTerm } from "#/types/generated/LineTerm";
@@ -25,32 +23,15 @@ import type { OutdatedEdit } from "#/types/generated/OutdatedEdit";
 import type { StoryCommand } from "#/types/generated/StoryCommand";
 import type { TranslatorLine } from "#/types/generated/TranslatorLine";
 import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
-import { ApprovedVariant, CommentEditor, Comments, type EditorState, GameKeepers, LineActions, OutdatedHere, ProposalEditor, Proposals, placeOf, StatusDot } from "./LineEdits";
+import { ApprovedVariant, CellActions, CommentEditor, type EditorState, LineComments, OutdatedHere, ProposalEditor, Proposals, placeOf, quotesAt, StatusDot, TONE, Toned, VariantNotes } from "./LineEdits";
+import { StoryText } from "./StoryText";
+import { DISPLAYED_KINDS, describeCommands } from "./service";
 import type { messages } from "./translators.messages";
 
 type T = TypedT<typeof messages>;
 
 /** A prose cell wraps, reads from the top and stays dense (the kit cell is one nowrap line). */
 const PROSE = "whitespace-normal py-1.5 align-top leading-snug";
-
-/**
- * The tone of each variant under the Russian: a border in a status or data
- * colour from the project's tokens, the text stays foreground. `comment` is
- * kept for the reviewers' remarks to come.
- */
-const VARIANT_TONE = {
-    sova: "var(--info)",
-    ai: "var(--dmg-magic)",
-    dict: "var(--warning)",
-    comment: "var(--muted-foreground)",
-} as const;
-
-/** The command kinds the import turns into lines; every other kind is a stage command. */
-const DISPLAYED_KINDS = new Set(["name", "multiline", "text", "narration", "dialog", "voicewithin", "subtitle", "sticker", "decision"]);
-
-function StoryText({ text, nickname }: { text: string; nickname: string }): React.ReactElement {
-    return <span className="whitespace-pre-line">{renderStoryNodes(renderLine(text, nickname))}</span>;
-}
 
 function Speaker({ line, t }: { line: TranslatorLine; t: T }): React.ReactElement | null {
     if (line.kind === "option")
@@ -81,7 +62,7 @@ interface ITermGroup {
 }
 
 /** One entry per English text found: a key with several rows (`Amiya (Guard)`, `Amiya (Medic)`) shows all their Russian. */
-function groupTerms(terms: readonly LineTerm[]): ITermGroup[] {
+function groupTerms(terms: readonly LineTerm[], sovaSheet: string): ITermGroup[] {
     const out = new Map<string, ITermGroup>();
     for (const term of terms) {
         let g = out.get(term.matched);
@@ -93,7 +74,7 @@ function groupTerms(terms: readonly LineTerm[]): ITermGroup[] {
         if (!term.fromSova) g.fromSova = false;
         if (term.found === true) g.found = true;
         else if (term.found === false && g.found === null) g.found = false;
-        const about = [term.sheet, term.ruPlural, term.note].filter(Boolean).join(" · ");
+        const about = [term.fromSova ? sovaSheet : term.sheet, term.ruPlural, term.note].filter(Boolean).join(" · ");
         g.title = g.title ? `${g.title}\n${about}` : about;
     }
     return [...out.values()];
@@ -103,7 +84,7 @@ function Terms({ terms, t }: { terms: readonly LineTerm[]; t: T }): React.ReactE
     if (terms.length === 0) return null;
     return (
         <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs" aria-label={t("terms.label")}>
-            {groupTerms(terms).map((g) => (
+            {groupTerms(terms, t("glossary.sovaSheet")).map((g) => (
                 <li key={g.matched} className="inline-flex items-center gap-1" title={g.title}>
                     <span className="text-muted-foreground">{g.matched}</span>
                     <span className="text-subtle-foreground" aria-hidden="true">
@@ -129,15 +110,6 @@ function Terms({ terms, t }: { terms: readonly LineTerm[]; t: T }): React.ReactE
     );
 }
 
-function Variant({ tone, label, text, nickname }: { tone: keyof typeof VARIANT_TONE; label: string; text: string; nickname: string }): React.ReactElement {
-    return (
-        <div className="border-(--tone) border-s-2 ps-2" style={{ "--tone": VARIANT_TONE[tone] } as React.CSSProperties} data-variant={tone}>
-            <span className="me-1.5 text-subtle-foreground text-xs">{label}</span>
-            <StoryText text={text} nickname={nickname} />
-        </div>
-    );
-}
-
 interface IRuCellProps {
     line: TranslatorLine;
     storyId: string;
@@ -153,11 +125,28 @@ interface IRuCellProps {
 
 function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, editor, onEditor, t }: IRuCellProps): React.ReactElement {
     const place = placeOf(storyId, line);
+    const quotes = quotesAt(edits, place);
+    const notes = { edits, place, me, t };
+    const take = (source: "sova" | "ai", text: string) => (
+        <Button variant="ghost" size="xs" onClick={() => onEditor({ kind: "proposal", text, source, context: false })}>
+            {t("action.proposeThis")}
+        </Button>
+    );
     return (
-        <div className="flex flex-col gap-1">
-            <ApprovedVariant edits={edits} t={t} />
-            {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
-            <GameKeepers edits={edits} t={t} />
+        <div className="group/cell relative flex flex-col gap-1">
+            {editor === null ? <CellActions line={line} onOpen={onEditor} t={t} /> : null}
+            <ApprovedVariant edits={edits} nickname={nickname} t={t} />
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: a shortcut; the Propose button is the accessible way */}
+            <div
+                onDoubleClick={() => {
+                    if (!line.editable || editor) return;
+                    window.getSelection()?.removeAllRanges();
+                    onEditor({ kind: "proposal", text: line.ruGame ?? "", source: "own", context: false });
+                }}
+            >
+                {line.ruGame ? <StoryText text={line.ruGame} nickname={nickname} quotes={quotes} /> : <span className="text-subtle-foreground">{t("ru.missing")}</span>}
+            </div>
+            <VariantNotes {...notes} variant="game" />
             {line.pluginRole === "story" ? (
                 <span className="flex items-center gap-1">
                     <Badge variant="warning" size="sm">
@@ -176,28 +165,38 @@ function RuCell({ line, storyId, nickname, showVariants, edits, outdated, me, ed
             ) : null}
             {line.ruGameMatch === "lines" ? <span className="text-subtle-foreground text-xs">{t("ru.lineByLine")}</span> : null}
             <Terms terms={line.terms} t={t} />
-            <Proposals edits={edits} me={me} onEdit={(p) => onEditor({ kind: "proposal", text: p.text, source: p.source === "sova" || p.source === "ai" ? p.source : "own" })} t={t} />
+            <Proposals {...notes} nickname={nickname} onEdit={(p) => onEditor({ kind: "proposal", text: p.text, source: p.source === "sova" || p.source === "ai" ? p.source : "own", context: p.context })} />
             {showVariants ? (
                 <>
-                    {line.sova ? <Variant tone="sova" label={t("hints.sova")} text={line.sova} nickname={nickname} /> : null}
-                    {line.ai ? <Variant tone="ai" label={t("hints.ai")} text={line.ai} nickname={nickname} /> : null}
-                    {line.ruDict ? <Variant tone="dict" label={t("hints.dict")} text={line.ruDict} nickname={nickname} /> : null}
+                    {line.sova ? (
+                        <>
+                            <Toned tone={TONE.sova} label={t("hints.sova")} actions={line.editable && !editor ? take("sova", line.sova) : undefined}>
+                                <StoryText text={line.sova} nickname={nickname} />
+                            </Toned>
+                            <VariantNotes {...notes} variant="sova" />
+                        </>
+                    ) : null}
+                    {line.ai ? (
+                        <>
+                            <Toned tone={TONE.ai} label={t("hints.ai")} actions={line.editable && !editor ? take("ai", line.ai) : undefined}>
+                                <StoryText text={line.ai} nickname={nickname} />
+                            </Toned>
+                            <VariantNotes {...notes} variant="ai" />
+                        </>
+                    ) : null}
+                    {line.ruDict ? (
+                        <Toned tone={TONE.dict} label={t("hints.dict")}>
+                            <StoryText text={line.ruDict} nickname={nickname} />
+                        </Toned>
+                    ) : null}
                 </>
             ) : null}
-            <OutdatedHere items={outdated} t={t} />
-            <Comments edits={edits} me={me} t={t} />
-            {editor?.kind === "proposal" ? <ProposalEditor line={line} place={place} initial={editor.text} source={editor.source} onClose={() => onEditor(null)} t={t} /> : null}
-            {editor?.kind === "comment" ? <CommentEditor place={place} onClose={() => onEditor(null)} t={t} /> : null}
+            <OutdatedHere items={outdated} nickname={nickname} t={t} />
+            <LineComments {...notes} />
+            {editor?.kind === "proposal" ? <ProposalEditor line={line} place={place} initial={editor.text} source={editor.source} context={editor.context} nickname={nickname} onClose={() => onEditor(null)} t={t} /> : null}
+            {editor && editor.kind !== "proposal" ? <CommentEditor line={line} place={place} edits={edits} kind={editor.kind} quote={editor.quote} onClose={() => onEditor(null)} t={t} /> : null}
         </div>
     );
-}
-
-/** `background(image=bg_room, fadetime=1)`: a stage command, its long values cut. */
-function commandText(cmd: StoryCommand): string {
-    const args = Object.entries(cmd.args)
-        .filter(([, v]) => v !== undefined && v !== "")
-        .map(([k, v]) => `${k}=${(v ?? "").length > 40 ? `${(v ?? "").slice(0, 40)}…` : v}`);
-    return args.length > 0 ? `${cmd.kind}(${args.join(", ")})` : cmd.kind;
 }
 
 /** The stage commands strictly between two script lines. */
@@ -205,12 +204,13 @@ function commandsBetween(commands: readonly StoryCommand[], after: number, befor
     return commands.filter((c) => c.line > after && c.line < before && !DISPLAYED_KINDS.has(c.kind));
 }
 
-function ServiceRow({ commands, columns, t }: { commands: readonly StoryCommand[]; columns: number; t: T }): React.ReactElement | null {
-    if (commands.length === 0) return null;
+function ServiceRow({ commands, columns, nameOf, t }: { commands: readonly StoryCommand[]; columns: number; nameOf: (id: string) => string; t: T }): React.ReactElement | null {
+    const words = describeCommands(commands, t, nameOf);
+    if (!words) return null;
     return (
         <TableRow className="bg-muted/50 hover:bg-muted/50" aria-label={t("service.label")}>
-            <TableCell colSpan={columns} className="whitespace-normal py-1 font-mono text-subtle-foreground text-xs leading-snug">
-                {commands.map((c) => `${c.line} ${commandText(c)}`).join(" · ")}
+            <TableCell colSpan={columns} className="whitespace-normal py-1 text-subtle-foreground text-xs leading-snug">
+                {words}
             </TableCell>
         </TableRow>
     );
@@ -229,10 +229,13 @@ export interface ILinesTableProps {
     showVariants: boolean;
     /** The script's commands when Service is on, else null. */
     commands: readonly StoryCommand[] | null;
+    /** A sprite's name for "On stage". */
+    nameOf: (charId: string) => string;
+    /** Shown for `{@nickname}`. */
     nickname: string;
 }
 
-export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn, showVariants, commands, nickname }: ILinesTableProps): React.ReactElement {
+export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn, showVariants, commands, nameOf, nickname }: ILinesTableProps): React.ReactElement {
     const t: T = useT("translators");
     const columns = showCn ? 5 : 4;
     const byKey = useMemo(() => new Map(edits.map((e) => [e.editKey, e])), [edits]);
@@ -250,7 +253,7 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
         <Table aria-label={label}>
             <TableHeader>
                 <TableRow>
-                    <TableHead className="w-14">{t("table.line")}</TableHead>
+                    <TableHead className="w-12">{t("table.line")}</TableHead>
                     <TableHead className="w-36">{t("table.speaker")}</TableHead>
                     <TableHead>{t("table.ru")}</TableHead>
                     <TableHead>{t("table.en")}</TableHead>
@@ -261,26 +264,26 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
                 {lines.map((line, i) => {
                     const id = `${line.line}.${line.part}`;
                     const previous = i > 0 ? lines[i - 1].line : 0;
+                    const lineEdits = byKey.get(line.editKey);
                     return (
                         <Fragment key={id}>
-                            {commands ? <ServiceRow commands={commandsBetween(commands, previous, line.line)} columns={columns} t={t} /> : null}
-                            <TableRow id={`n-${i + 1}`} className={cn("group/row scroll-mt-(--site-header-height) target:bg-primary/10", line.kind === "option" && "bg-primary/5")} data-line={line.line} data-kind={line.kind} data-status={line.status}>
+                            {commands ? <ServiceRow commands={commandsBetween(commands, previous, line.line)} columns={columns} nameOf={nameOf} t={t} /> : null}
+                            <TableRow id={`n-${i + 1}`} className={cn("scroll-mt-(--site-header-height) target:bg-primary/10", line.kind === "option" && "bg-primary/5")} data-line={line.line} data-kind={line.kind} data-status={line.status}>
                                 <TableCell className="py-1.5 align-top text-subtle-foreground text-xs tabular-nums leading-snug">
                                     <span className="flex items-center gap-1.5">
                                         {i + 1}
                                         <StatusDot status={line.status} t={t} />
                                     </span>
-                                    <LineActions line={line} n={i + 1} edits={byKey.get(line.editKey)} me={me} place={placeOf(storyId, line)} onOpen={(state) => setEditing({ id, state })} t={t} />
                                     {commands ? <span className="block font-mono">{t("table.scriptLine", { line: line.line })}</span> : null}
                                 </TableCell>
                                 <TableCell className={PROSE}>
                                     <Speaker line={line} t={t} />
                                 </TableCell>
                                 <TableCell className={PROSE}>
-                                    <RuCell line={line} storyId={storyId} nickname={nickname} showVariants={showVariants} edits={byKey.get(line.editKey)} outdated={staleAt.get(id) ?? []} me={me} editor={editing?.id === id ? editing.state : null} onEditor={(state) => setEditing(state ? { id, state } : null)} t={t} />
+                                    <RuCell line={line} storyId={storyId} nickname={nickname} showVariants={showVariants} edits={lineEdits} outdated={staleAt.get(id) ?? []} me={me} editor={editing?.id === id ? editing.state : null} onEditor={(state) => setEditing(state ? { id, state } : null)} t={t} />
                                 </TableCell>
                                 <TableCell className={PROSE}>
-                                    <StoryText text={line.en} nickname={nickname} />
+                                    <StoryText text={line.en} nickname={nickname} quotes={quotesAt(lineEdits, placeOf(storyId, line))} />
                                 </TableCell>
                                 {showCn ? (
                                     <TableCell className={PROSE}>
@@ -292,7 +295,7 @@ export function LinesTable({ storyId, lines, edits, outdated, me, label, showCn,
                         </Fragment>
                     );
                 })}
-                {commands && lines.length > 0 ? <ServiceRow commands={commandsBetween(commands, lines[lines.length - 1].line, Number.POSITIVE_INFINITY)} columns={columns} t={t} /> : null}
+                {commands && lines.length > 0 ? <ServiceRow commands={commandsBetween(commands, lines[lines.length - 1].line, Number.POSITIVE_INFINITY)} columns={columns} nameOf={nameOf} t={t} /> : null}
             </TableBody>
         </Table>
     );

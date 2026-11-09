@@ -20,6 +20,7 @@ import { type BookGroup, bookOf } from "#/lib/story/book/book";
 import { toHtml } from "#/lib/story/book/html";
 import { resolveNickname, useStorySettings } from "#/lib/story/settings";
 import type { StoryScript } from "#/types/generated/StoryScript";
+import { SectionLocale } from "./SectionLocale";
 import { MembersOnly } from "./TranslatorsPage";
 import type { messages } from "./translators.messages";
 
@@ -74,7 +75,7 @@ function Loaded({ groupId, storyId }: { groupId: string; storyId: string }): Rea
     return <Book script={script.data} group={group} back={back} />;
 }
 
-export function TranslatorsBook({ group, story }: { group?: string; story?: string }): React.ReactElement {
+function SectionBook({ group, story }: { group?: string; story?: string }): React.ReactElement {
     const t: TypedT<typeof messages> = useT("translators");
     return (
         <MembersOnly>
@@ -88,5 +89,14 @@ export function TranslatorsBook({ group, story }: { group?: string; story?: stri
                 </div>
             )}
         </MembersOnly>
+    );
+}
+
+/** The section's book view, in the section's language. */
+export function TranslatorsBook(props: { group?: string; story?: string }): React.ReactElement {
+    return (
+        <SectionLocale>
+            <SectionBook {...props} />
+        </SectionLocale>
     );
 }

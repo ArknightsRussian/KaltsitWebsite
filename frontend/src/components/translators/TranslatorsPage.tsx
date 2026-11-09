@@ -10,10 +10,11 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookOpen } from "lucide-react";
+import { BookOpen, NotebookPen } from "lucide-react";
 import type React from "react";
 import { useEffect, useId, useMemo } from "react";
 import { Button } from "#/components/ui/button";
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { Combobox, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopup } from "#/components/ui/combobox";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "#/components/ui/empty";
 import { Label } from "#/components/ui/label";
@@ -24,14 +25,16 @@ import { Skeleton } from "#/components/ui/skeleton";
 import { Switch } from "#/components/ui/switch";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "#/components/ui/tabs";
 import { storyIndexQueryOptions, storyQueryOptions } from "#/lib/api/story";
-import { useT } from "#/lib/i18n";
+import { useLocale, useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { storyLabel } from "#/lib/story/book/book";
-import { resolveNickname, useStorySettings } from "#/lib/story/settings";
-import { translatorLinesQueryOptions, translatorsMeQueryOptions } from "#/lib/translators/api";
+import { charactersQueryOptions, translatorLinesQueryOptions, translatorsMeQueryOptions } from "#/lib/translators/api";
 import { GlossaryTab } from "./GlossaryTab";
+import { TONE, Toned } from "./LineEdits";
 import { LinesTable } from "./LinesTable";
 import { MyEditsTab } from "./MyEditsTab";
+import { SectionLangSwitch, SectionLocale } from "./SectionLocale";
+import { charBase } from "./service";
 import { groupLabel } from "./storyNames";
 import type { messages } from "./translators.messages";
 
@@ -74,17 +77,46 @@ function useScrollToRow(ready: boolean): void {
     }, [ready, hash]);
 }
 
+/** Sova's footnotes to the chapter (arktr), folded above the table. */
+function SovaNotes({ notes, t }: { notes: readonly string[]; t: T }): React.ReactElement | null {
+    if (notes.length === 0) return null;
+    return (
+        <Collapsible>
+            <CollapsibleTrigger render={<Button variant="ghost" size="sm" />}>
+                <NotebookPen aria-hidden="true" />
+                {t("sovaNotes.title", { count: notes.length })}
+            </CollapsibleTrigger>
+            <CollapsiblePanel className="flex flex-col gap-2 pt-2">
+                {notes.map((n) => (
+                    <Toned key={n} tone={TONE.note} label={t("sovaNotes.author")}>
+                        {n}
+                    </Toned>
+                ))}
+            </CollapsiblePanel>
+        </Collapsible>
+    );
+}
+
 function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesProps): React.ReactElement {
     const query = useQuery(translatorLinesQueryOptions(storyId));
     const me = useQuery(translatorsMeQueryOptions());
-    useScrollToRow(Boolean(query.data && me.data));
-    // The stage commands come from the site's own parse of the EN script.
+    // The stage commands come from the site's own parse of the EN script; the sprites' names from the import.
     const script = useQuery({ ...storyQueryOptions(storyId, "en"), enabled: showService });
-    const [settings] = useStorySettings();
-    const nickname = resolveNickname(settings.nickname);
+    const chars = useQuery({ ...charactersQueryOptions(), enabled: showService });
+    const locale = useLocale();
+    useScrollToRow(Boolean(query.data && me.data));
+    const nameOf = useMemo(() => {
+        const byId = new Map((chars.data ?? []).map((c) => [c.charId, c]));
+        return (id: string) => {
+            const c = byId.get(charBase(id));
+            if (!c) return charBase(id);
+            return locale === "ru" ? (c.nameRu ?? c.nameEn) : c.nameEn;
+        };
+    }, [chars.data, locale]);
     if (query.isError) return <LoadFailed message={t("load.lines")} onRetry={() => query.refetch()} />;
     if (!query.data || !me.data) return <Skeleton className="h-96 w-full rounded-2xl" />;
-    const { lines, importedAt, edits, outdated } = query.data;
+    const { lines, importedAt, edits, outdated, sovaNotes } = query.data;
+    const nickname = me.data.nickname ?? t("nickname.fallback");
     if (importedAt === null)
         return (
             <Empty>
@@ -105,7 +137,8 @@ function Lines({ storyId, title, showCn, showService, showVariants, t }: ILinesP
     return (
         <div className="flex flex-col gap-2">
             <p className="text-subtle-foreground text-xs">{t("table.summary", { count: lines.length, ru: withRu })}</p>
-            <LinesTable storyId={storyId} lines={lines} edits={edits} outdated={outdated} me={me.data} label={t("table.label", { story: title })} showCn={showCn} showVariants={showVariants} commands={showService ? (script.data?.commands ?? null) : null} nickname={nickname} />
+            <SovaNotes notes={sovaNotes} t={t} />
+            <LinesTable storyId={storyId} lines={lines} edits={edits} outdated={outdated} me={me.data} label={t("table.label", { story: title })} showCn={showCn} showVariants={showVariants} commands={showService ? (script.data?.commands ?? null) : null} nameOf={nameOf} nickname={nickname} />
         </div>
     );
 }
@@ -241,12 +274,20 @@ export function MembersOnly({ children }: { children: React.ReactNode }): React.
     return <>{children}</>;
 }
 
-export function TranslatorsPage({ search, onSearch }: ISearchProps): React.ReactElement {
+export function TranslatorsPage(props: ISearchProps): React.ReactElement {
+    return (
+        <SectionLocale>
+            <Page {...props} />
+        </SectionLocale>
+    );
+}
+
+function Page({ search, onSearch }: ISearchProps): React.ReactElement {
     const t: T = useT("translators");
     const tab: TranslatorsTab = search.tab ?? "story";
     return (
         <div className="page-shell flex flex-col gap-6">
-            <PageHeader title={t("page.title")} description={t("page.description")} />
+            <PageHeader title={t("page.title")} description={t("page.description")} actions={<SectionLangSwitch label={t("lang.label")} />} />
             <MembersOnly>
                 <Tabs value={tab} onValueChange={(v: string) => onSearch({ ...search, tab: v === "story" ? undefined : (v as TranslatorsTab) })}>
                     <TabsList aria-label={t("tabs.label")}>

@@ -12,9 +12,10 @@ import { Skeleton } from "#/components/ui/skeleton";
 import { useT } from "#/lib/i18n";
 import type { TypedT } from "#/lib/i18n/messages";
 import { TRANSLATORS_QUERY_ROOT, translatorsDevLoginFn, translatorsMeQueryOptions } from "#/lib/translators/api";
+import { SectionLocale } from "./SectionLocale";
 import type { messages } from "./translators.messages";
 
-export function DevLoginPage(): React.ReactElement {
+function DevLogin(): React.ReactElement {
     const t: TypedT<typeof messages> = useT("translators");
     const me = useQuery(translatorsMeQueryOptions());
     const queryClient = useQueryClient();
@@ -46,5 +47,14 @@ export function DevLoginPage(): React.ReactElement {
                 <p className="text-muted-foreground text-sm">{t("dev.off")}</p>
             )}
         </div>
+    );
+}
+
+/** The development sign-in, in the section's language. */
+export function DevLoginPage(): React.ReactElement {
+    return (
+        <SectionLocale>
+            <DevLogin />
+        </SectionLocale>
     );
 }
