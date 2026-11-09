@@ -619,5 +619,12 @@ pub async fn export(
     .await
     .map_err(|e| ApiError::Internal(e.into()))?
     .map_err(|e| ApiError::Internal(e.into()))?;
+    let mut result = result;
+    match query.only.as_deref() {
+        // The list: names and sizes, no contents (a patch is ~140 MB).
+        Some("") => result.files.iter_mut().for_each(|f| f.content.clear()),
+        Some(name) => result.files.retain(|f| f.name == name),
+        None => {}
+    }
     Ok(Json(result))
 }

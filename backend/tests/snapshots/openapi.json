@@ -13197,6 +13197,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "only",
+            "in": "query",
+            "description": "Empty: the report and the file list without contents; a file name: that file only.\nLeft out: everything.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -23585,6 +23594,7 @@
         "description": "One file of an export.",
         "required": [
           "name",
+          "size",
           "content"
         ],
         "properties": {
@@ -23593,6 +23603,11 @@
           },
           "name": {
             "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Size in bytes (UTF-8)."
           }
         }
       },

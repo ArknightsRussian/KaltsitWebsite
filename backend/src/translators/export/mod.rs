@@ -38,6 +38,10 @@ pub struct ExportQuery {
     pub mode: String,
     /// `file` (00_translators.txt) or `patch` (copies of 11_ui / 12_story / 13_names).
     pub format: String,
+    /// Empty: the report and the file list without contents; a file name: that file only.
+    /// Left out: everything.
+    #[serde(default)]
+    pub only: Option<String>,
 }
 
 /// One file of an export.
@@ -46,7 +50,19 @@ pub struct ExportQuery {
 #[ts(export)]
 pub struct ExportFile {
     pub name: String,
+    /// Size in bytes (UTF-8).
+    pub size: i32,
     pub content: String,
+}
+
+impl ExportFile {
+    fn new(name: String, content: String) -> Self {
+        Self {
+            size: i32::try_from(content.len()).unwrap_or(i32::MAX),
+            name,
+            content,
+        }
+    }
 }
 
 /// A translation left out of the dictionary file, and why.
@@ -314,10 +330,10 @@ pub fn build(
                 keys: replaced,
             });
             let head = header(&report, usize::try_from(replaced).unwrap_or(0), "заплатка");
-            files.push(ExportFile {
-                name: format!("{tag}{name}"),
-                content: format!("{head}{body}"),
-            });
+            files.push(ExportFile::new(
+                format!("{tag}{name}"),
+                format!("{head}{body}"),
+            ));
         }
         report.written = report.replaced.iter().map(|r| r.keys).sum::<i32>() + report.appended;
     } else {
@@ -328,10 +344,7 @@ pub fn build(
         }
         report.written = i32::try_from(entries.len()).unwrap_or(i32::MAX);
         let head = header(&report, entries.len(), "правки");
-        files.push(ExportFile {
-            name: ours.to_owned(),
-            content: format!("{head}{body}"),
-        });
+        files.push(ExportFile::new(ours.to_owned(), format!("{head}{body}")));
     }
 
     // What the game loads after our file (kit §3.3: by full path, descending,
@@ -378,9 +391,9 @@ pub fn build(
         .collect();
 
     report.plugin_rows = i32::try_from(plugin.len()).unwrap_or(i32::MAX);
-    files.push(ExportFile {
-        name: format!("{tag}plugin.csv"),
-        content: csv(
+    files.push(ExportFile::new(
+        format!("{tag}plugin.csv"),
+        csv(
             &[
                 "ключ (английский)",
                 "роль плагина",
@@ -389,7 +402,7 @@ pub fn build(
             ],
             &plugin,
         ),
-    });
+    ));
     let ctx: Vec<Vec<String>> = context
         .iter()
         .map(|c| {
@@ -405,9 +418,9 @@ pub fn build(
         })
         .collect();
     report.context_rows = i32::try_from(ctx.len()).unwrap_or(i32::MAX);
-    files.push(ExportFile {
-        name: format!("{tag}context.csv"),
-        content: csv(
+    files.push(ExportFile::new(
+        format!("{tag}context.csv"),
+        csv(
             &[
                 "история",
                 "№ строки",
@@ -419,11 +432,11 @@ pub fn build(
             ],
             &ctx,
         ),
-    });
-    files.push(ExportFile {
-        name: format!("{tag}report.txt"),
-        content: report_text(&report, ours),
-    });
+    ));
+    files.push(ExportFile::new(
+        format!("{tag}report.txt"),
+        report_text(&report, ours),
+    ));
     Ok(ExportResult { files, report })
 }
 

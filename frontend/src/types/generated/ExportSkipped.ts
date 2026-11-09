@@ -3,4 +3,4 @@
 /**
  * A translation left out of the dictionary file, and why.
  */
-export type ExportSkipped = { key: string, reason: string, };
+export type ExportSkipped = { key: string; reason: string };
