@@ -27,11 +27,14 @@ fn person(id: Uuid, name: String) -> EditPerson {
 pub struct PlaceLine {
     pub edit_key: String,
     pub ru_game: Option<String>,
+    pub sova: Option<String>,
+    pub ai: Option<String>,
 }
 
 pub async fn place_line(pool: &PgPool, p: &EditPlace) -> Result<Option<PlaceLine>, sqlx::Error> {
-    let row: Option<(String, Option<String>)> = sqlx::query_as(
-        "SELECT edit_key, ru_game FROM translators.story_lines
+    #[allow(clippy::type_complexity)]
+    let row: Option<(String, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT edit_key, ru_game, sova, ai FROM translators.story_lines
          WHERE server = $1 AND story_id = $2 AND line = $3 AND part = $4",
     )
     .bind(SERVER)
@@ -40,7 +43,12 @@ pub async fn place_line(pool: &PgPool, p: &EditPlace) -> Result<Option<PlaceLine
     .bind(p.part)
     .fetch_optional(pool)
     .await?;
-    Ok(row.map(|(edit_key, ru_game)| PlaceLine { edit_key, ru_game }))
+    Ok(row.map(|(edit_key, ru_game, sova, ai)| PlaceLine {
+        edit_key,
+        ru_game,
+        sova,
+        ai,
+    }))
 }
 
 /// The game's Russian for a key (the same at every place).
@@ -75,9 +83,16 @@ pub async fn place_counts(
 }
 
 pub async fn places(pool: &PgPool, key: &str, limit: i64) -> Result<Vec<KeyPlace>, sqlx::Error> {
-    let rows: Vec<(String, i32, i16, i32)> = sqlx::query_as(
-        "SELECT story_id, line, part, ord FROM translators.story_lines
-         WHERE server = $1 AND edit_key = $2 ORDER BY story_id, ord LIMIT $3",
+    #[allow(clippy::type_complexity)]
+    let rows: Vec<(String, i32, i16, i32, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT s.story_id, s.line, s.part, s.ord,
+                COALESCE(b.ru_game, b.en), COALESCE(a.ru_game, a.en)
+         FROM translators.story_lines s
+         LEFT JOIN translators.story_lines b
+             ON b.server = s.server AND b.story_id = s.story_id AND b.ord = s.ord - 1
+         LEFT JOIN translators.story_lines a
+             ON a.server = s.server AND a.story_id = s.story_id AND a.ord = s.ord + 1
+         WHERE s.server = $1 AND s.edit_key = $2 ORDER BY s.story_id, s.ord LIMIT $3",
     )
     .bind(SERVER)
     .bind(key)
@@ -86,11 +101,13 @@ pub async fn places(pool: &PgPool, key: &str, limit: i64) -> Result<Vec<KeyPlace
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(story_id, line, part, ord)| KeyPlace {
+        .map(|(story_id, line, part, ord, before, after)| KeyPlace {
             story_id,
             line,
             part,
             ord,
+            before,
+            after,
         })
         .collect())
 }
@@ -109,12 +126,13 @@ struct ProposalRow {
     line: i32,
     part: i16,
     outdated_at: Option<DateTime<Utc>>,
+    context: bool,
     versions: i64,
 }
 
 const PROPOSAL_COLUMNS: &str = "p.id, p.edit_key, p.text, p.source, p.author_id, \
      COALESCE(NULLIF(u.nickname, ''), u.uid) AS author_name, p.created_at, p.updated_at, \
-     p.story_id, p.line, p.part, p.outdated_at, \
+     p.story_id, p.line, p.part, p.outdated_at, p.context, \
      (SELECT COUNT(*) FROM translators.proposal_versions v WHERE v.proposal_id = p.id) AS versions";
 
 impl ProposalRow {
@@ -136,6 +154,7 @@ impl ProposalRow {
                 line: self.line,
                 part: self.part,
             },
+            context: self.context,
             outdated: self.outdated_at.is_some(),
         }
     }
@@ -233,28 +252,35 @@ pub async fn key_edits(pool: &PgPool, keys: &[String]) -> Result<Vec<KeyEdits>, 
     Ok(out)
 }
 
+#[derive(sqlx::FromRow)]
+struct CommentRow {
+    id: i64,
+    edit_key: String,
+    text: String,
+    author_id: Uuid,
+    author_name: String,
+    created_at: DateTime<Utc>,
+    resolved_by: Option<Uuid>,
+    resolver_name: Option<String>,
+    resolved_at: Option<DateTime<Utc>>,
+    story_id: String,
+    line: i32,
+    part: i16,
+    quote: Option<String>,
+    kind: String,
+    variant: Option<String>,
+    proposal_id: Option<i64>,
+    variant_text: Option<String>,
+}
+
 async fn comments(
     pool: &PgPool,
     keys: &[String],
 ) -> Result<Vec<(String, EditComment)>, sqlx::Error> {
-    #[allow(clippy::type_complexity)]
-    let rows: Vec<(
-        i64,
-        String,
-        String,
-        Uuid,
-        String,
-        DateTime<Utc>,
-        Option<Uuid>,
-        Option<String>,
-        Option<DateTime<Utc>>,
-        String,
-        i32,
-        i16,
-    )> = sqlx::query_as(&format!(
-        "SELECT c.id, c.edit_key, c.text, c.author_id, {NAME}, c.created_at,
-                c.resolved_by, COALESCE(NULLIF(r.nickname, ''), r.uid), c.resolved_at,
-                c.story_id, c.line, c.part
+    let rows: Vec<CommentRow> = sqlx::query_as(&format!(
+        "SELECT c.id, c.edit_key, c.text, c.author_id, {NAME} AS author_name, c.created_at,
+                c.resolved_by, COALESCE(NULLIF(r.nickname, ''), r.uid) AS resolver_name, c.resolved_at,
+                c.story_id, c.line, c.part, c.quote, c.kind, c.variant, c.proposal_id, c.variant_text
          FROM translators.comments c JOIN users u ON u.id = c.author_id
          LEFT JOIN users r ON r.id = c.resolved_by
          WHERE c.deleted_at IS NULL AND c.edit_key = ANY($1) ORDER BY c.created_at"
@@ -264,26 +290,31 @@ async fn comments(
     .await?;
     Ok(rows
         .into_iter()
-        .map(
-            |(id, key, text, author, name, created, rby, rname, rat, story_id, line, part)| {
-                (
-                    key,
-                    EditComment {
-                        id,
-                        text,
-                        author: person(author, name),
-                        created_at: created.timestamp(),
-                        resolved_by: rby.map(|i| person(i, rname.unwrap_or_default())),
-                        resolved_at: rat.map(|t| t.timestamp()),
-                        place: EditPlace {
-                            story_id,
-                            line,
-                            part,
-                        },
+        .map(|c| {
+            (
+                c.edit_key,
+                EditComment {
+                    id: c.id,
+                    text: c.text,
+                    author: person(c.author_id, c.author_name),
+                    created_at: c.created_at.timestamp(),
+                    resolved_by: c
+                        .resolved_by
+                        .map(|i| person(i, c.resolver_name.unwrap_or_default())),
+                    resolved_at: c.resolved_at.map(|t| t.timestamp()),
+                    place: EditPlace {
+                        story_id: c.story_id,
+                        line: c.line,
+                        part: c.part,
                     },
-                )
-            },
-        )
+                    quote: c.quote,
+                    kind: c.kind,
+                    variant: c.variant,
+                    proposal_id: c.proposal_id,
+                    variant_text: c.variant_text,
+                },
+            )
+        })
         .collect())
 }
 
@@ -322,18 +353,27 @@ pub async fn outdated_in_story(
         .collect())
 }
 
-/// The caller's live proposal for a key, if any: `(id, text, source)`.
+/// The caller's live proposal for a key in a scope (every place, or this
+/// place only), if any: `(id, text, source)`.
 async fn my_proposal(
     tx: &mut Transaction<'_, Postgres>,
     key: &str,
     author: Uuid,
+    context: Option<&EditPlace>,
 ) -> Result<Option<(i64, String, String)>, sqlx::Error> {
     sqlx::query_as(
         "SELECT id, text, source FROM translators.proposals
-         WHERE edit_key = $1 AND author_id = $2 AND deleted_at IS NULL FOR UPDATE",
+         WHERE edit_key = $1 AND author_id = $2 AND deleted_at IS NULL
+           AND context = $3
+           AND (NOT $3 OR (story_id = $4 AND line = $5 AND part = $6))
+         FOR UPDATE",
     )
     .bind(key)
     .bind(author)
+    .bind(context.is_some())
+    .bind(context.map(|p| p.story_id.as_str()))
+    .bind(context.map(|p| p.line))
+    .bind(context.map(|p| p.part))
     .fetch_optional(&mut **tx)
     .await
 }
@@ -357,18 +397,22 @@ async fn add_version(
     Ok(())
 }
 
-/// Write the caller's proposal for the key, or rewrite the one they have (a
+/// Write the caller's proposal for the key (for every place, or for this
+/// place only when `context`), or rewrite the one they have in that scope (a
 /// new version; the place moves to where it was rewritten). Returns its id.
+#[allow(clippy::too_many_arguments)]
 pub async fn upsert_proposal(
     pool: &PgPool,
     key: &str,
     place: &EditPlace,
     text: &str,
     source: &str,
+    context: bool,
     author: Uuid,
 ) -> Result<i64, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    let id = if let Some((id, old_text, old_source)) = my_proposal(&mut tx, key, author).await? {
+    let mine = my_proposal(&mut tx, key, author, context.then_some(place)).await?;
+    let id = if let Some((id, old_text, old_source)) = mine {
         if old_text != text || old_source != source {
             sqlx::query(
                 "UPDATE translators.proposals SET text = $2, source = $3, updated_at = NOW(),
@@ -388,8 +432,8 @@ pub async fn upsert_proposal(
         id
     } else {
         let id: i64 = sqlx::query_scalar(
-            "INSERT INTO translators.proposals (edit_key, text, source, author_id, story_id, line, part)
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            "INSERT INTO translators.proposals (edit_key, text, source, author_id, story_id, line, part, context)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
         )
         .bind(key)
         .bind(text)
@@ -398,6 +442,7 @@ pub async fn upsert_proposal(
         .bind(&place.story_id)
         .bind(place.line)
         .bind(place.part)
+        .bind(context)
         .fetch_one(&mut *tx)
         .await?;
         add_version(&mut tx, id, text, source, author).await?;
@@ -407,13 +452,13 @@ pub async fn upsert_proposal(
     Ok(id)
 }
 
-/// A live proposal's key, author and text.
+/// A live proposal: its key, author, text, source and whether it is for one place only.
 pub async fn proposal_owner(
     pool: &PgPool,
     id: i64,
-) -> Result<Option<(String, Uuid, String, String)>, sqlx::Error> {
+) -> Result<Option<(String, Uuid, String, String, bool)>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT edit_key, author_id, text, source FROM translators.proposals WHERE id = $1 AND deleted_at IS NULL",
+        "SELECT edit_key, author_id, text, source, context FROM translators.proposals WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -504,16 +549,30 @@ pub async fn set_agreement(
     Ok(())
 }
 
+/// What a new comment or note is: its kind and, for a note on one variant,
+/// which one and its text as it is now.
+pub struct NewComment<'a> {
+    pub text: &'a str,
+    pub quote: Option<&'a str>,
+    pub kind: &'a str,
+    pub variant: Option<&'a str>,
+    pub proposal_id: Option<i64>,
+    pub variant_text: Option<&'a str>,
+}
+
 pub async fn add_comment(
     pool: &PgPool,
     key: &str,
     place: &EditPlace,
-    text: &str,
+    c: &NewComment<'_>,
     author: Uuid,
 ) -> Result<i64, sqlx::Error> {
+    let text = c.text;
+    let quote = c.quote;
     sqlx::query_scalar(
-        "INSERT INTO translators.comments (edit_key, text, author_id, story_id, line, part)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO translators.comments
+             (edit_key, text, author_id, story_id, line, part, quote, kind, variant, proposal_id, variant_text)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id",
     )
     .bind(key)
     .bind(text)
@@ -521,14 +580,19 @@ pub async fn add_comment(
     .bind(&place.story_id)
     .bind(place.line)
     .bind(place.part)
+    .bind(quote)
+    .bind(c.kind)
+    .bind(c.variant)
+    .bind(c.proposal_id)
+    .bind(c.variant_text)
     .fetch_one(pool)
     .await
 }
 
-/// A live comment's author.
-pub async fn comment_author(pool: &PgPool, id: i64) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar(
-        "SELECT author_id FROM translators.comments WHERE id = $1 AND deleted_at IS NULL",
+/// A live comment's author and kind.
+pub async fn comment_author(pool: &PgPool, id: i64) -> Result<Option<(Uuid, String)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT author_id, kind FROM translators.comments WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -634,4 +698,19 @@ pub async fn mark_outdated(pool: &PgPool) -> Result<(), sqlx::Error> {
         .await?;
     }
     Ok(())
+}
+
+/// Every named story sprite.
+pub async fn char_names(pool: &PgPool) -> Result<Vec<super::dto::CharName>, sqlx::Error> {
+    sqlx::query_as("SELECT char_id, name_en, name_ru FROM translators.char_names ORDER BY char_id")
+        .fetch_all(pool)
+        .await
+}
+
+/// Sova's notes to a story's chapter, in order.
+pub async fn sova_notes(pool: &PgPool, story_id: &str) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar("SELECT text FROM translators.sova_notes WHERE story_id = $1 ORDER BY idx")
+        .bind(story_id)
+        .fetch_all(pool)
+        .await
 }

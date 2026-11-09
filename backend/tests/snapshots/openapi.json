@@ -12822,12 +12822,50 @@
         ]
       }
     },
+    "/api/translators/characters": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Who each story sprite is, by who talks right after it comes on stage\n(rebuilt by the import), for the Service rows. Members only.",
+        "operationId": "characters",
+        "responses": {
+          "200": {
+            "description": "The named sprites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharName"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/translators/comments": {
       "post": {
         "tags": [
           "translators"
         ],
-        "summary": "A note on the line's entry. Members only.",
+        "summary": "A remark (a question or a problem) or a translator's note on the line's\nentry, a note possibly about one variant. Members only.",
         "operationId": "create_comment",
         "requestBody": {
           "content": {
@@ -12921,7 +12959,7 @@
         "tags": [
           "translators"
         ],
-        "summary": "Mark a comment resolved or open again: its author or the lead.",
+        "summary": "Mark a remark resolved or open again: its author or the lead. A\ntranslator's note is never resolved (400).",
         "operationId": "resolve_comment",
         "parameters": [
           {
@@ -13100,6 +13138,65 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/glossary/{id}/lines": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The story lines holding one glossary term, with whether the Russian\nholds its form. Members only.",
+        "operationId": "glossary_lines",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The term.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "missing",
+            "in": "query",
+            "description": "Only the lines whose Russian lacks the glossary's form.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 200 lines in story order, and how many there are.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlossaryLines"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -20632,6 +20729,29 @@
           }
         }
       },
+      "CharName": {
+        "type": "object",
+        "description": "Who a story sprite is, for the Service rows (\"On stage: Amiya\").",
+        "required": [
+          "charId",
+          "nameEn"
+        ],
+        "properties": {
+          "charId": {
+            "type": "string",
+            "description": "The sprite's id without pose and face (`char_002_amiya`)."
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameRu": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CharacterSprite": {
         "type": "object",
         "required": [
@@ -20854,8 +20974,36 @@
               "text"
             ],
             "properties": {
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "`remark` (default) or `note`."
+              },
+              "proposalId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "quote": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The selected fragment of the line, if any."
+              },
               "text": {
                 "type": "string"
+              },
+              "variant": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "For a note about one variant: `game`, `sova`, `ai` or `proposal` (with `proposalId`)."
               }
             }
           }
@@ -22435,7 +22583,8 @@
           "text",
           "author",
           "createdAt",
-          "place"
+          "place",
+          "kind"
         ],
         "properties": {
           "author": {
@@ -22449,8 +22598,26 @@
             "type": "integer",
             "format": "int64"
           },
+          "kind": {
+            "type": "string",
+            "description": "`remark` (a question or problem, can be resolved) or `note` (a\ntranslator's note: never resolved, always shown)."
+          },
           "place": {
             "$ref": "#/components/schemas/EditPlace"
+          },
+          "proposalId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The fragment of the line it is about, as selected."
           },
           "resolvedAt": {
             "type": [
@@ -22471,6 +22638,20 @@
           },
           "text": {
             "type": "string"
+          },
+          "variant": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The variant a note is about: `game`, `sova`, `ai` or `proposal`; null for the line."
+          },
+          "variantText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The variant's text when the note was written."
           }
         }
       },
@@ -23886,6 +24067,30 @@
           }
         }
       },
+      "GameVariant": {
+        "type": "object",
+        "description": "One way the game translates a term, from the Russian of its lines.",
+        "required": [
+          "ru",
+          "lines",
+          "glossary"
+        ],
+        "properties": {
+          "glossary": {
+            "type": "boolean",
+            "description": "The word is the glossary's form."
+          },
+          "lines": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Lines of the term that hold the word (any ending)."
+          },
+          "ru": {
+            "type": "string",
+            "description": "The word as the game writes it most often."
+          }
+        }
+      },
       "GamedataOverride": {
         "type": "object",
         "description": "`gamedata_overrides` row - a hand-entered replacement for one field of one\ngame-data entity in one locale.",
@@ -24013,6 +24218,63 @@
           }
         }
       },
+      "GlossaryLine": {
+        "type": "object",
+        "description": "One story line holding a glossary term.",
+        "required": [
+          "storyId",
+          "ord",
+          "en"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "found": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The Russian holds the glossary's form; null when not checked."
+          },
+          "ord": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0-based order in its story (the table's № minus one)."
+          },
+          "ruGame": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "storyId": {
+            "type": "string"
+          }
+        }
+      },
+      "GlossaryLines": {
+        "type": "object",
+        "description": "A term's story lines.",
+        "required": [
+          "total",
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryLine"
+            },
+            "description": "Up to 200, in story order."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Every line holding the term (with `missing`: those without the form)."
+          }
+        }
+      },
       "GlossaryTerm": {
         "type": "object",
         "description": "One glossary entry for the Glossary tab.",
@@ -24025,17 +24287,32 @@
           "ru",
           "caseSensitive",
           "fromSova",
-          "storyLines"
+          "storyLines",
+          "gameVariants",
+          "checkedLines",
+          "foundLines"
         ],
         "properties": {
           "caseSensitive": {
             "type": "boolean"
+          },
+          "checkedLines": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Its lines that have a Russian to check, and of those, the lines holding the glossary's form."
           },
           "cn": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "cnGame": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its Chinese from the game's speaker names, when it is a speaker."
           },
           "comment": {
             "type": [
@@ -24047,8 +24324,19 @@
             "type": "string",
             "description": "The English cell as written."
           },
+          "foundLines": {
+            "type": "integer",
+            "format": "int32"
+          },
           "fromSova": {
             "type": "boolean"
+          },
+          "gameVariants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameVariant"
+            },
+            "description": "The Russian words the game uses for it, most lines first (up to 5)."
           },
           "id": {
             "type": "integer",
@@ -25132,6 +25420,19 @@
           "ord"
         ],
         "properties": {
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The line before and after it in the story: the game's Russian, else the English."
+          },
           "line": {
             "type": "integer",
             "format": "int32"
@@ -29135,6 +29436,7 @@
           "versions",
           "agreements",
           "place",
+          "context",
           "outdated"
         ],
         "properties": {
@@ -29147,6 +29449,10 @@
           },
           "author": {
             "$ref": "#/components/schemas/EditPerson"
+          },
+          "context": {
+            "type": "boolean",
+            "description": "For this place only: never exported to the dictionaries."
           },
           "createdAt": {
             "type": "integer",
@@ -29203,7 +29509,11 @@
             "properties": {
               "confirmMany": {
                 "type": "boolean",
-                "description": "Required when the entry stands in more than 20 places."
+                "description": "Required for a proposal for every place when the entry stands in more than one."
+              },
+              "context": {
+                "type": "boolean",
+                "description": "For this place only (a context translation), not for every place of the entry."
               },
               "source": {
                 "type": "string",
@@ -36580,7 +36890,8 @@
           "hints",
           "lines",
           "edits",
-          "outdated"
+          "outdated",
+          "sovaNotes"
         ],
         "properties": {
           "edits": {
@@ -36615,6 +36926,13 @@
             },
             "description": "Decisions left at this story's places for an English that has changed."
           },
+          "sovaNotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sova's footnotes to the story's chapter (arktr), members only like her texts."
+          },
           "storyId": {
             "type": "string"
           }
@@ -36635,6 +36953,13 @@
           "member": {
             "type": "boolean",
             "description": "A signed-in translator: sees Sova's and the AI's texts."
+          },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member's game nickname, shown for `{@nickname}`; null when unknown."
           },
           "role": {
             "type": [

@@ -25,4 +25,8 @@ export type TranslatorStoryLines = {
      * Decisions left at this story's places for an English that has changed.
      */
     outdated: Array<OutdatedEdit>;
+    /**
+     * Sova's footnotes to the story's chapter (arktr), members only like her texts.
+     */
+    sovaNotes: Array<string>;
 };

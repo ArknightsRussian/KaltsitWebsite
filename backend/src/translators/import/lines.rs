@@ -125,6 +125,59 @@ pub fn displayed(commands: &[StoryCommand]) -> Vec<Line> {
     out
 }
 
+/// A story sprite's id without its pose and face: `char_002_amiya_1#3` ->
+/// `char_002_amiya`, `char_1002_nsabr_2` -> `char_1002_nsabr`, `avg_npc_012` stays.
+pub fn char_base(id: &str) -> String {
+    let id = id.trim().split('#').next().unwrap_or("").to_lowercase();
+    let parts: Vec<&str> = id.split('_').collect();
+    if parts.len() >= 4
+        && parts
+            .last()
+            .is_some_and(|p| p.chars().all(|c| c.is_ascii_digit()))
+    {
+        parts[..parts.len() - 1].join("_")
+    } else {
+        id
+    }
+}
+
+/// Votes for who a sprite is: after a `character` command, the first speaker
+/// that talks is counted for the focused sprite (`focus=2` is `name2`).
+pub fn char_votes(commands: &[StoryCommand], votes: &mut HashMap<String, HashMap<String, u32>>) {
+    let mut focused: Option<String> = None;
+    for cmd in commands {
+        let arg = |k: &str| {
+            cmd.args
+                .get(k)
+                .map(String::as_str)
+                .filter(|v| !v.trim().is_empty())
+        };
+        match cmd.kind.as_str() {
+            "character" | "charslot" => {
+                let pick = if arg("focus") == Some("2") {
+                    arg("name2")
+                } else {
+                    arg("name")
+                };
+                focused = pick.map(char_base);
+            }
+            "name" | "multiline" => {
+                let speaker = arg("name").unwrap_or("").trim();
+                if let Some(base) = focused.take()
+                    && speaker.chars().any(char::is_alphabetic)
+                {
+                    *votes
+                        .entry(base)
+                        .or_default()
+                        .entry(speaker.to_owned())
+                        .or_default() += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// The dictionaries and the plugin catalog, indexed for the lookups below.
 pub struct Matcher<'a> {
     dict: &'a Dictionaries,
@@ -339,6 +392,19 @@ mod tests {
             }
         }
         d
+    }
+
+    #[test]
+    fn sprites_are_named_by_who_talks_after_them() {
+        assert_eq!(char_base("char_002_amiya_1#3"), "char_002_amiya");
+        assert_eq!(char_base("char_1002_nsabr_2"), "char_1002_nsabr");
+        assert_eq!(char_base("avg_npc_012"), "avg_npc_012");
+        let script = "[Character(name=\"char_002_amiya_1#1\")]\n[name=\"Amiya\"] Hi.\n[name=\"Amiya\"] Again.\n[Character(name=\"char_1_a_1\", name2=\"char_2_b_1\", focus=2)]\n[name=\"B\"] Me.\n";
+        let mut votes = HashMap::new();
+        char_votes(&parse(script), &mut votes);
+        assert_eq!(votes["char_002_amiya"]["Amiya"], 1);
+        assert_eq!(votes["char_2_b"]["B"], 1);
+        assert!(!votes.contains_key("char_1_a"));
     }
 
     #[test]

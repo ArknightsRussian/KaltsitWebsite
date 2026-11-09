@@ -120,6 +120,10 @@ pub struct StoredTerm {
     pub case_sensitive: bool,
     pub from_sova: bool,
     pub story_lines: i32,
+    pub game_variants: sqlx::types::Json<Vec<GameVariant>>,
+    pub checked_lines: i32,
+    pub found_lines: i32,
+    pub cn_game: Option<String>,
 }
 
 impl StoredTerm {
@@ -166,40 +170,287 @@ pub async fn meta(
     .await
 }
 
-/// Count, for every term, the story lines whose English holds its key.
+/// One way the game translates a term, from the Russian of its lines.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GameVariant {
+    /// The word as the game writes it most often.
+    pub ru: String,
+    /// Lines of the term that hold the word (any ending).
+    pub lines: i32,
+    /// The word is the glossary's form.
+    pub glossary: bool,
+}
+
+/// What [`recount`] works out for one term.
+#[derive(Debug, Default, Clone)]
+pub struct TermStats {
+    pub story_lines: i32,
+    pub checked_lines: i32,
+    pub found_lines: i32,
+    pub game_variants: Vec<GameVariant>,
+    pub cn_game: Option<String>,
+}
+
+/// One story line as the stats read it.
+pub struct StatLine {
+    pub en: String,
+    pub ru_game: Option<String>,
+    pub speaker_en: String,
+    pub speaker_cn: Option<String>,
+}
+
+/// The stems of a line's Cyrillic words of three letters or more (`ё` = `е`),
+/// each with the word as written.
+fn ru_stems(s: &str) -> Vec<(String, String)> {
+    s.split(|c: char| !c.is_alphabetic())
+        .filter(|w| {
+            w.chars().count() >= 3 && w.chars().all(|c| ('\u{0400}'..='\u{04FF}').contains(&c))
+        })
+        .map(|w| {
+            (
+                matcher::stem(&w.to_lowercase().replace('ё', "е")),
+                w.to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// A word counts as a variant of a term when it is in at least two of the
+/// term's lines, in at least 5 % of them, and a quarter or more of all the
+/// story lines holding it are the term's (so "это", "что" never are).
+const VARIANT_MIN_LINES: u32 = 2;
+const VARIANT_MIN_SHARE: f64 = 0.05;
+const VARIANT_MIN_PRECISION: f64 = 0.25;
+const VARIANTS_SHOWN: usize = 5;
+
+/// Per term: its story lines, how many have a Russian and hold the glossary's
+/// form, the Russian words the game uses for it, and its Chinese from the
+/// speakers' names.
+pub fn stats(terms: &[Term], lines: &[StatLine]) -> Vec<TermStats> {
+    use std::collections::{HashMap, HashSet};
+    let finder = Finder::new(terms);
+    let mut by_term: Vec<Vec<usize>> = vec![Vec::new(); terms.len()];
+    let mut df: HashMap<String, u32> = HashMap::new();
+    for (i, l) in lines.iter().enumerate() {
+        let mut seen = HashSet::new();
+        for f in finder.find(&l.en) {
+            for t in f.terms {
+                if seen.insert(t) {
+                    by_term[t].push(i);
+                }
+            }
+        }
+        if let Some(ru) = &l.ru_game {
+            let uniq: HashSet<String> = ru_stems(ru).into_iter().map(|w| w.0).collect();
+            for w in uniq {
+                *df.entry(w).or_default() += 1;
+            }
+        }
+    }
+    // Speakers: English name (lower case) -> Chinese name -> lines.
+    let mut speakers: HashMap<String, HashMap<String, u32>> = HashMap::new();
+    for l in lines {
+        if let Some(cn) = l.speaker_cn.as_deref().filter(|c| !c.trim().is_empty())
+            && !l.speaker_en.is_empty()
+        {
+            *speakers
+                .entry(l.speaker_en.to_lowercase())
+                .or_default()
+                .entry(cn.to_owned())
+                .or_default() += 1;
+        }
+    }
+    terms
+        .iter()
+        .zip(&by_term)
+        .map(|(term, idx)| {
+            let mut out = TermStats {
+                story_lines: i32::try_from(idx.len()).unwrap_or(i32::MAX),
+                ..TermStats::default()
+            };
+            let with_ru: Vec<&str> = idx
+                .iter()
+                .filter_map(|&i| lines[i].ru_game.as_deref())
+                .collect();
+            out.checked_lines = i32::try_from(with_ru.len()).unwrap_or(i32::MAX);
+            out.found_lines = i32::try_from(
+                with_ru
+                    .iter()
+                    .filter(|r| matcher::term_found(r, term))
+                    .count(),
+            )
+            .unwrap_or(i32::MAX);
+            // Stems in the term's lines: (lines, spellings).
+            let mut counts: HashMap<String, (u32, HashMap<String, u32>)> = HashMap::new();
+            for ru in &with_ru {
+                let mut seen = HashSet::new();
+                for (st, orig) in ru_stems(ru) {
+                    let e = counts.entry(st.clone()).or_default();
+                    if seen.insert(st) {
+                        e.0 += 1;
+                    }
+                    *e.1.entry(orig).or_default() += 1;
+                }
+            }
+            let n = with_ru.len() as f64;
+            let forms: Vec<String> = term
+                .ru
+                .split(" / ")
+                .chain(term.ru_plural.as_deref())
+                .map(|f| parse::split_bracket(f).0)
+                .collect();
+            let mut variants: Vec<GameVariant> = counts
+                .into_iter()
+                .filter(|(st, (c, _))| {
+                    let global = f64::from(df.get(st).copied().unwrap_or(*c).max(1));
+                    *c >= VARIANT_MIN_LINES
+                        && f64::from(*c) >= VARIANT_MIN_SHARE * n
+                        && f64::from(*c) / global >= VARIANT_MIN_PRECISION
+                })
+                .map(|(st, (c, spellings))| {
+                    let ru = spellings
+                        .into_iter()
+                        .max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0)))
+                        .map_or(st, |(o, _)| o);
+                    let glossary = forms.iter().any(|f| matcher::has_form(&ru, f));
+                    GameVariant {
+                        ru,
+                        lines: i32::try_from(c).unwrap_or(i32::MAX),
+                        glossary,
+                    }
+                })
+                .collect();
+            variants.sort_by(|a, b| b.lines.cmp(&a.lines).then_with(|| a.ru.cmp(&b.ru)));
+            variants.truncate(VARIANTS_SHOWN);
+            out.game_variants = variants;
+            out.cn_game = speakers.get(&term.key.to_lowercase()).and_then(|by| {
+                let total: u32 = by.values().sum();
+                let (cn, k) = by
+                    .iter()
+                    .max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0)))?;
+                (*k >= 2 && f64::from(*k) >= 0.6 * f64::from(total)).then(|| cn.clone())
+            });
+            out
+        })
+        .collect()
+}
+
+/// Work out every term's [`TermStats`] over the story lines and store them.
 pub async fn recount(pool: &PgPool) -> anyhow::Result<()> {
     let stored = load(pool).await?;
     if stored.is_empty() {
         return Ok(());
     }
-    let lines: Vec<String> = sqlx::query_scalar("SELECT en FROM translators.story_lines")
-        .fetch_all(pool)
-        .await?;
+    let rows: Vec<(String, Option<String>, String, Option<String>)> =
+        sqlx::query_as("SELECT en, ru_game, speaker_en, speaker_cn FROM translators.story_lines")
+            .fetch_all(pool)
+            .await?;
     let ids: Vec<i32> = stored.iter().map(|s| s.id).collect();
-    let counts = tokio::task::spawn_blocking(move || {
+    let all = tokio::task::spawn_blocking(move || {
         let terms: Vec<Term> = stored.iter().map(StoredTerm::as_term).collect();
-        let finder = Finder::new(&terms);
-        let mut counts = vec![0_i32; terms.len()];
-        for en in &lines {
-            let mut seen = std::collections::HashSet::new();
-            for f in finder.find(en) {
-                for t in f.terms {
-                    if seen.insert(t) {
-                        counts[t] += 1;
-                    }
-                }
-            }
-        }
-        counts
+        let lines: Vec<StatLine> = rows
+            .into_iter()
+            .map(|(en, ru_game, speaker_en, speaker_cn)| StatLine {
+                en,
+                ru_game,
+                speaker_en,
+                speaker_cn,
+            })
+            .collect();
+        stats(&terms, &lines)
     })
     .await?;
+    let counts: Vec<i32> = all.iter().map(|s| s.story_lines).collect();
+    let checked: Vec<i32> = all.iter().map(|s| s.checked_lines).collect();
+    let found: Vec<i32> = all.iter().map(|s| s.found_lines).collect();
+    let variants: Vec<serde_json::Value> = all
+        .iter()
+        .map(|s| serde_json::to_value(&s.game_variants).unwrap_or_default())
+        .collect();
+    let cn: Vec<Option<String>> = all.iter().map(|s| s.cn_game.clone()).collect();
     sqlx::query(
-        "UPDATE translators.glossary_terms g SET story_lines = c.n
-         FROM UNNEST($1::int[], $2::int[]) AS c(id, n) WHERE g.id = c.id",
+        "UPDATE translators.glossary_terms g
+         SET story_lines = c.n, checked_lines = c.checked, found_lines = c.found,
+             game_variants = c.variants, cn_game = c.cn
+         FROM UNNEST($1::int[], $2::int[], $3::int[], $4::int[], $5::jsonb[], $6::text[])
+             AS c(id, n, checked, found, variants, cn)
+         WHERE g.id = c.id",
     )
     .bind(&ids)
     .bind(&counts)
+    .bind(&checked)
+    .bind(&found)
+    .bind(&variants)
+    .bind(&cn)
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod stats_tests {
+    use super::*;
+
+    fn term(key: &str, ru: &str) -> Term {
+        Term {
+            sheet: "Расы".into(),
+            row: 2,
+            en: key.into(),
+            key: key.into(),
+            qualifier: None,
+            ru: ru.into(),
+            ru_plural: None,
+            note: None,
+            synonyms: None,
+            comment: None,
+            cn: None,
+            case_sensitive: true,
+            from_sova: false,
+        }
+    }
+
+    fn line(en: &str, ru: &str) -> StatLine {
+        StatLine {
+            en: en.into(),
+            ru_game: Some(ru.into()),
+            speaker_en: String::new(),
+            speaker_cn: None,
+        }
+    }
+
+    #[test]
+    fn variants_consistency_and_chinese() {
+        let terms = vec![term("Ursus", "Урсин")];
+        let mut lines = vec![
+            line("The Ursus are here.", "Урсины здесь."),
+            line("An Ursus soldier.", "Солдат урсин."),
+            line("Back to Ursus.", "Назад в Урсус."),
+            line("Ursus again.", "Снова Урсус, это урсус."),
+            line("Nothing.", "Это ничего."),
+            line("Something.", "Это что-то."),
+        ];
+        lines.push(StatLine {
+            en: "Hi.".into(),
+            ru_game: None,
+            speaker_en: "Ursus".into(),
+            speaker_cn: Some("乌萨斯".into()),
+        });
+        lines.push(StatLine {
+            en: "Yo.".into(),
+            ru_game: None,
+            speaker_en: "Ursus".into(),
+            speaker_cn: Some("乌萨斯".into()),
+        });
+        let s = &stats(&terms, &lines)[0];
+        assert_eq!((s.story_lines, s.checked_lines, s.found_lines), (4, 4, 2));
+        let v: Vec<(&str, i32, bool)> = s
+            .game_variants
+            .iter()
+            .map(|v| (v.ru.as_str(), v.lines, v.glossary))
+            .collect();
+        assert_eq!(v, vec![("Урсины", 2, true), ("Урсус", 2, false)]);
+        assert_eq!(s.cn_game.as_deref(), Some("乌萨斯"));
+    }
 }

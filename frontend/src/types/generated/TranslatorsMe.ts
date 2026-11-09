@@ -17,6 +17,10 @@ export type TranslatorsMe = {
      */
     role: string | null;
     /**
+     * The member's game nickname, shown for `{@nickname}`; null when unknown.
+     */
+    nickname: string | null;
+    /**
      * The development sign-in is switched on for this backend.
      */
     devLogin: boolean;

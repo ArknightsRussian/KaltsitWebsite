@@ -49,6 +49,8 @@ pub struct Proposal {
     /// Who agrees with it.
     pub agreements: Vec<EditPerson>,
     pub place: EditPlace,
+    /// For this place only: never exported to the dictionaries.
+    pub context: bool,
     /// Its English is gone from the story since an import.
     pub outdated: bool,
 }
@@ -96,6 +98,17 @@ pub struct EditComment {
     #[ts(type = "number | null")]
     pub resolved_at: Option<i64>,
     pub place: EditPlace,
+    /// The fragment of the line it is about, as selected.
+    pub quote: Option<String>,
+    /// `remark` (a question or problem, can be resolved) or `note` (a
+    /// translator's note: never resolved, always shown).
+    pub kind: String,
+    /// The variant a note is about: `game`, `sova`, `ai` or `proposal`; null for the line.
+    pub variant: Option<String>,
+    #[ts(type = "number | null")]
+    pub proposal_id: Option<i64>,
+    /// The variant's text when the note was written.
+    pub variant_text: Option<String>,
 }
 
 /// Everything decided or proposed for one dictionary entry.
@@ -139,7 +152,10 @@ pub struct ProposalInput {
     pub text: String,
     /// `own`, `sova` or `ai`.
     pub source: String,
-    /// Required when the entry stands in more than 20 places.
+    /// For this place only (a context translation), not for every place of the entry.
+    #[serde(default)]
+    pub context: bool,
+    /// Required for a proposal for every place when the entry stands in more than one.
     #[serde(default)]
     pub confirm_many: bool,
 }
@@ -171,6 +187,17 @@ pub struct CommentInput {
     #[serde(flatten)]
     pub place: EditPlace,
     pub text: String,
+    /// The selected fragment of the line, if any.
+    #[serde(default)]
+    pub quote: Option<String>,
+    /// `remark` (default) or `note`.
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// For a note about one variant: `game`, `sova`, `ai` or `proposal` (with `proposalId`).
+    #[serde(default)]
+    pub variant: Option<String>,
+    #[serde(default)]
+    pub proposal_id: Option<i64>,
 }
 
 /// Mark a comment resolved, or not.
@@ -190,6 +217,9 @@ pub struct KeyPlace {
     pub part: i16,
     /// The line's 0-based order in its story (the table's № minus one).
     pub ord: i32,
+    /// The line before and after it in the story: the game's Russian, else the English.
+    pub before: Option<String>,
+    pub after: Option<String>,
 }
 
 /// Every place of the entry at a place.
@@ -239,4 +269,15 @@ pub struct EditRows {
     pub all: bool,
     /// Newest first, up to 2,000.
     pub rows: Vec<EditRow>,
+}
+
+/// Who a story sprite is, for the Service rows ("On stage: Amiya").
+#[derive(Debug, Serialize, TS, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CharName {
+    /// The sprite's id without pose and face (`char_002_amiya`).
+    pub char_id: String,
+    pub name_en: String,
+    pub name_ru: Option<String>,
 }

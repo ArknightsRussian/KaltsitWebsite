@@ -4,8 +4,12 @@
 
 use crate::translators::import::normalize::plain;
 
-/// More places than this: the edit is confirmed separately, with the list.
-pub const CONFIRM_PLACES: i32 = 20;
+/// More places than this: a proposal for every place is confirmed separately,
+/// with the list (a proposal for one place never is).
+pub const CONFIRM_PLACES: i32 = 1;
+
+/// The longest quoted fragment of a comment, in characters.
+pub const MAX_QUOTE: usize = 500;
 
 /// The longest proposal or comment, in characters.
 pub const MAX_TEXT: usize = 4_000;

@@ -15,6 +15,8 @@ pub struct TranslatorsMe {
     pub user_id: Option<String>,
     /// `translator`, `editor` (the lead) or `admin`; null for a non-member.
     pub role: Option<String>,
+    /// The member's game nickname, shown for `{@nickname}`; null when unknown.
+    pub nickname: Option<String>,
     /// The development sign-in is switched on for this backend.
     pub dev_login: bool,
 }
@@ -77,6 +79,8 @@ pub struct TranslatorStoryLines {
     pub edits: Vec<super::edits::dto::KeyEdits>,
     /// Decisions left at this story's places for an English that has changed.
     pub outdated: Vec<super::edits::dto::OutdatedEdit>,
+    /// Sova's footnotes to the story's chapter (arktr), members only like her texts.
+    pub sova_notes: Vec<String>,
 }
 
 /// The import's state (service key only; not used by the page).
@@ -136,6 +140,48 @@ pub struct GlossaryTerm {
     pub from_sova: bool,
     /// Story lines whose English holds the key.
     pub story_lines: i32,
+    /// The Russian words the game uses for it, most lines first (up to 5).
+    pub game_variants: Vec<super::glossary::GameVariant>,
+    /// Its lines that have a Russian to check, and of those, the lines holding the glossary's form.
+    pub checked_lines: i32,
+    pub found_lines: i32,
+    /// Its Chinese from the game's speaker names, when it is a speaker.
+    pub cn_game: Option<String>,
+}
+
+/// One story line holding a glossary term.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GlossaryLine {
+    pub story_id: String,
+    /// 0-based order in its story (the table's № minus one).
+    pub ord: i32,
+    pub en: String,
+    pub ru_game: Option<String>,
+    /// The Russian holds the glossary's form; null when not checked.
+    pub found: Option<bool>,
+}
+
+/// A term's story lines.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GlossaryLines {
+    /// Every line holding the term (with `missing`: those without the form).
+    pub total: i32,
+    /// Up to 200, in story order.
+    pub lines: Vec<GlossaryLine>,
+}
+
+/// Which lines of a term.
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+pub struct GlossaryLinesQuery {
+    /// Only the lines whose Russian lacks the glossary's form.
+    #[serde(default)]
+    pub missing: bool,
 }
 
 /// The whole stored glossary and its freshness.

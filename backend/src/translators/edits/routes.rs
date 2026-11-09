@@ -41,10 +41,16 @@ async fn editable_place(state: &AppState, place: &EditPlace) -> Result<PlaceLine
     Ok(line)
 }
 
-/// 409 when the entry stands in more places than [`CONFIRM_PLACES`] and the
-/// caller did not confirm the edit with the list in front of them.
-async fn check_many(state: &AppState, key: &str, confirmed: bool) -> Result<(), ApiError> {
-    if confirmed {
+/// 409 when a proposal for every place of an entry that stands in more
+/// places than [`CONFIRM_PLACES`] was not confirmed with the list in front of
+/// the caller. A proposal for one place needs no confirmation.
+async fn check_many(
+    state: &AppState,
+    key: &str,
+    confirmed: bool,
+    context: bool,
+) -> Result<(), ApiError> {
+    if confirmed || context {
         return Ok(());
     }
     let n = db::place_counts(&state.db, &[key.to_owned()])
@@ -105,13 +111,14 @@ pub async fn create_proposal(
     }
     let line = editable_place(&state, &input.place).await?;
     let text = proposal_text(&input.text, line.ru_game.as_deref())?;
-    check_many(&state, &line.edit_key, input.confirm_many).await?;
+    check_many(&state, &line.edit_key, input.confirm_many, input.context).await?;
     let id = db::upsert_proposal(
         &state.db,
         &line.edit_key,
         &input.place,
         &text,
         &input.source,
+        input.context,
         me.id,
     )
     .await?;
@@ -143,7 +150,7 @@ pub async fn rewrite_proposal(
     Json(input): Json<ProposalRewrite>,
 ) -> Result<StatusCode, ApiError> {
     let me = require_member(&state, &auth).await?;
-    let (key, author, old, source) = db::proposal_owner(&state.db, id)
+    let (key, author, old, source, context) = db::proposal_owner(&state.db, id)
         .await?
         .ok_or(ApiError::NotFound)?;
     if author != me.id {
@@ -154,7 +161,7 @@ pub async fn rewrite_proposal(
     if text == old {
         return Ok(StatusCode::NO_CONTENT);
     }
-    check_many(&state, &key, input.confirm_many).await?;
+    check_many(&state, &key, input.confirm_many, context).await?;
     db::rewrite_proposal(&state.db, id, &text, &source, me.id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -181,7 +188,7 @@ pub async fn delete_proposal(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     let me = require_member(&state, &auth).await?;
-    let (_, author, _, _) = db::proposal_owner(&state.db, id)
+    let (_, author, _, _, _) = db::proposal_owner(&state.db, id)
         .await?
         .ok_or(ApiError::NotFound)?;
     if author != me.id {
@@ -243,7 +250,7 @@ pub async fn set_agreement(
     let me = require_member(&state, &auth).await?;
     let line = editable_place(&state, &input.place).await?;
     if let Some(id) = input.proposal_id {
-        let (key, author, _, _) = db::proposal_owner(&state.db, id)
+        let (key, author, _, _, _) = db::proposal_owner(&state.db, id)
             .await?
             .ok_or(ApiError::NotFound)?;
         if key != line.edit_key {
@@ -272,7 +279,8 @@ pub async fn set_agreement(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// A note on the line's entry. Members only.
+/// A remark (a question or a problem) or a translator's note on the line's
+/// entry, a note possibly about one variant. Members only.
 #[utoipa::path(
     post,
     path = "/translators/comments",
@@ -303,7 +311,61 @@ pub async fn create_comment(
             status::MAX_TEXT
         ))
     })?;
-    let id = db::add_comment(&state.db, &line.edit_key, &input.place, &text, me.id).await?;
+    let quote = input
+        .quote
+        .as_deref()
+        .map(str::trim)
+        .filter(|q| !q.is_empty())
+        .map(|q| q.chars().take(status::MAX_QUOTE).collect::<String>());
+    let kind = input.kind.as_deref().unwrap_or("remark");
+    if !matches!(kind, "remark" | "note") {
+        return Err(ApiError::BadRequest("kind: remark or note".into()));
+    }
+    // A note may be about one variant; its text is kept as it is now.
+    let variant_text = match (input.variant.as_deref(), input.proposal_id) {
+        (None, _) => None,
+        (Some("game"), _) => line.ru_game.clone(),
+        (Some("sova"), _) => line.sova.clone(),
+        (Some("ai"), _) => line.ai.clone(),
+        (Some("proposal"), Some(id)) => {
+            let (key, _, text, _, _) = db::proposal_owner(&state.db, id)
+                .await?
+                .ok_or(ApiError::NotFound)?;
+            if key != line.edit_key {
+                return Err(ApiError::BadRequest(
+                    "the proposal is for another line".into(),
+                ));
+            }
+            Some(text)
+        }
+        _ => {
+            return Err(ApiError::BadRequest(
+                "variant: game, sova, ai or proposal with its id".into(),
+            ));
+        }
+    };
+    if input.variant.is_some() && (kind != "note" || variant_text.is_none()) {
+        return Err(ApiError::BadRequest(
+            "only a note is about a variant, and the line must have it".into(),
+        ));
+    }
+    let id = db::add_comment(
+        &state.db,
+        &line.edit_key,
+        &input.place,
+        &db::NewComment {
+            text: &text,
+            quote: quote.as_deref(),
+            kind,
+            variant: input.variant.as_deref(),
+            proposal_id: input
+                .proposal_id
+                .filter(|_| input.variant.as_deref() == Some("proposal")),
+            variant_text: variant_text.as_deref(),
+        },
+        me.id,
+    )
+    .await?;
     Ok(Json(EditCreated { id }))
 }
 
@@ -328,7 +390,7 @@ pub async fn delete_comment(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     let me = require_member(&state, &auth).await?;
-    let author = db::comment_author(&state.db, id)
+    let (author, _) = db::comment_author(&state.db, id)
         .await?
         .ok_or(ApiError::NotFound)?;
     if author != me.id {
@@ -338,7 +400,8 @@ pub async fn delete_comment(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Mark a comment resolved or open again: its author or the lead.
+/// Mark a remark resolved or open again: its author or the lead. A
+/// translator's note is never resolved (400).
 #[utoipa::path(
     put,
     path = "/translators/comments/{id}/resolved",
@@ -361,9 +424,14 @@ pub async fn resolve_comment(
     Json(input): Json<ResolveInput>,
 ) -> Result<StatusCode, ApiError> {
     let me = require_member(&state, &auth).await?;
-    let author = db::comment_author(&state.db, id)
+    let (author, kind) = db::comment_author(&state.db, id)
         .await?
         .ok_or(ApiError::NotFound)?;
+    if kind == "note" {
+        return Err(ApiError::BadRequest(
+            "a translator's note is never resolved".into(),
+        ));
+    }
     if author != me.id && !me.leads() {
         return Err(ApiError::Forbidden);
     }
@@ -438,4 +506,26 @@ pub async fn edits(
         all: query.all,
         rows,
     }))
+}
+
+/// Who each story sprite is, by who talks right after it comes on stage
+/// (rebuilt by the import), for the Service rows. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/characters",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "The named sprites.", body = Vec<super::dto::CharName>),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn characters(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+) -> Result<Json<Vec<super::dto::CharName>>, ApiError> {
+    require_member(&state, &auth).await?;
+    Ok(Json(db::char_names(&state.db).await?))
 }

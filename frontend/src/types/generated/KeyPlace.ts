@@ -11,4 +11,9 @@ export type KeyPlace = {
      * The line's 0-based order in its story (the table's № minus one).
      */
     ord: number;
+    /**
+     * The line before and after it in the story: the game's Russian, else the English.
+     */
+    before: string | null;
+    after: string | null;
 };

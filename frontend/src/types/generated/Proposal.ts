@@ -32,6 +32,10 @@ export type Proposal = {
     agreements: Array<EditPerson>;
     place: EditPlace;
     /**
+     * For this place only: never exported to the dictionaries.
+     */
+    context: boolean;
+    /**
      * Its English is gone from the story since an import.
      */
     outdated: boolean;

@@ -82,6 +82,8 @@ pub struct ImportSummary {
     pub with_sova: usize,
     pub with_ai: usize,
     pub with_cn: usize,
+    /// Sova's chapter notes attached to stories (a note per story of its chapter).
+    pub sova_notes: usize,
     pub dictionary_files: Vec<String>,
     pub dictionary_entries: usize,
     pub plugin_loaded: bool,
@@ -100,13 +102,32 @@ const EXAMPLES: usize = 10;
 /// One story's id and its lines, in file order.
 pub type StoryLines = (String, Vec<Line>);
 
+/// Who a story sprite is (see [`lines::char_votes`]).
+#[derive(Debug, Clone)]
+pub struct CharName {
+    pub char_id: String,
+    pub name_en: String,
+    pub name_ru: Option<String>,
+    pub votes: u32,
+    pub total: u32,
+}
+
+/// The import's output: every story's lines, the sprites' names, the summary.
+pub struct Built {
+    pub stories: Vec<StoryLines>,
+    pub chars: Vec<CharName>,
+    /// Sova's chapter notes by site story id.
+    pub sova_notes: Vec<(String, Vec<String>)>,
+    pub summary: ImportSummary,
+}
+
 /// Build every line of every story. Synchronous and CPU-bound: run it off the
 /// async workers.
 pub fn build(
     sources: &Sources,
     assets_dir: &Path,
     stories: &[(String, StoryRef)],
-) -> anyhow::Result<(Vec<StoryLines>, ImportSummary)> {
+) -> anyhow::Result<Built> {
     let started = std::time::Instant::now();
     let mut summary = ImportSummary {
         server: "en".into(),
@@ -126,14 +147,17 @@ pub fn build(
     };
     summary.plugin_loaded = plugin.is_some();
     let matcher = Matcher::new(&dict, plugin.as_ref());
-    let arktr_rows = match &sources.arktr_dir {
+    let arktr = match &sources.arktr_dir {
         Some(d) => arktr::load(d)?,
-        None => HashMap::new(),
+        None => arktr::Arktr::default(),
     };
+    let arktr_rows = &arktr.rows;
     summary.arktr_stories = arktr_rows.len();
+    let mut sova_notes = Vec::new();
 
     let mut out = Vec::with_capacity(stories.len());
     let mut seen_txt = HashSet::new();
+    let mut votes: HashMap<String, HashMap<String, u32>> = HashMap::new();
     for (id, story_ref) in stories {
         let script = match crate::core::story::load_script(assets_dir, &story_ref.story_txt) {
             Ok(s) => s,
@@ -143,9 +167,14 @@ pub fn build(
             }
         };
         summary.stories += 1;
-        let mut lines = lines::displayed(&crate::core::story::parser::parse(&script));
+        let commands = crate::core::story::parser::parse(&script);
+        lines::char_votes(&commands, &mut votes);
+        let mut lines = lines::displayed(&commands);
         for l in &mut lines {
             matcher.apply(l);
+        }
+        if let Some(notes) = arktr.notes.get(&story_ref.story_txt) {
+            sova_notes.push((id.clone(), notes.clone()));
         }
         if let Some(rows) = arktr_rows.get(&story_ref.story_txt) {
             if seen_txt.insert(story_ref.story_txt.clone()) {
@@ -200,8 +229,32 @@ pub fn build(
         }
         out.push((id.clone(), lines));
     }
+    let mut chars: Vec<CharName> = votes
+        .into_iter()
+        .filter_map(|(char_id, by)| {
+            let total: u32 = by.values().sum();
+            let (name, n) = by
+                .into_iter()
+                .max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0)))?;
+            // A clear majority of at least two lines, else the sprite stays unnamed.
+            (n >= 2 && n * 2 >= total).then(|| CharName {
+                name_ru: matcher.dict(&name).map(|(v, _, _)| v),
+                char_id,
+                name_en: name,
+                votes: n,
+                total,
+            })
+        })
+        .collect();
+    chars.sort_by(|a, b| a.char_id.cmp(&b.char_id));
     summary.millis = started.elapsed().as_millis();
-    Ok((out, summary))
+    summary.sova_notes = sova_notes.iter().map(|(_, n)| n.len()).sum();
+    Ok(Built {
+        stories: out,
+        chars,
+        sova_notes,
+        summary,
+    })
 }
 
 /// Replace the server's rows and record the run, in one transaction.
@@ -210,6 +263,8 @@ pub async fn store(
     server: &str,
     started_at: chrono::DateTime<chrono::Utc>,
     stories: &[StoryLines],
+    chars: &[CharName],
+    sova_notes: &[(String, Vec<String>)],
     summary: &ImportSummary,
 ) -> Result<(), sqlx::Error> {
     // 20 binds per row, under Postgres's 65,535-parameter limit.
@@ -257,6 +312,41 @@ pub async fn store(
         });
         // Two texts on one line and part would be a parser change; keep the first.
         qb.push(" ON CONFLICT (server, story_id, line, part) DO NOTHING");
+        qb.build().execute(&mut *tx).await?;
+    }
+    sqlx::query("DELETE FROM translators.sova_notes")
+        .execute(&mut *tx)
+        .await?;
+    let notes: Vec<(&str, i32, &str)> = sova_notes
+        .iter()
+        .flat_map(|(id, n)| {
+            n.iter()
+                .enumerate()
+                .map(move |(i, t)| (id.as_str(), i32::try_from(i).unwrap_or(0), t.as_str()))
+        })
+        .collect();
+    for chunk in notes.chunks(5_000) {
+        let mut qb: QueryBuilder<Postgres> =
+            QueryBuilder::new("INSERT INTO translators.sova_notes (story_id, idx, text) ");
+        qb.push_values(chunk, |mut b, (id, i, t)| {
+            b.push_bind(*id).push_bind(*i).push_bind(*t);
+        });
+        qb.build().execute(&mut *tx).await?;
+    }
+    sqlx::query("DELETE FROM translators.char_names")
+        .execute(&mut *tx)
+        .await?;
+    for chunk in chars.chunks(5_000) {
+        let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
+            "INSERT INTO translators.char_names (char_id, name_en, name_ru, votes, total) ",
+        );
+        qb.push_values(chunk, |mut b, c| {
+            b.push_bind(&c.char_id)
+                .push_bind(&c.name_en)
+                .push_bind(&c.name_ru)
+                .push_bind(i32::try_from(c.votes).unwrap_or(i32::MAX))
+                .push_bind(i32::try_from(c.total).unwrap_or(i32::MAX));
+        });
         qb.build().execute(&mut *tx).await?;
     }
     sqlx::query(

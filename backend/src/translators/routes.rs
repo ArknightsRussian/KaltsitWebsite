@@ -1,10 +1,13 @@
 //! HTTP routes of the translators' section, under `/api/translators`.
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use uuid::Uuid;
 
-use super::dto::{Glossary, GlossaryTerm, LineTerm, TranslatorStoryLines, TranslatorsMe};
+use super::dto::{
+    Glossary, GlossaryLine, GlossaryLines, GlossaryLinesQuery, GlossaryTerm, LineTerm,
+    TranslatorStoryLines, TranslatorsMe,
+};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -28,6 +31,7 @@ pub struct Member {
     pub id: Uuid,
     /// `translator`, `editor` or `admin`.
     pub role: String,
+    pub nickname: Option<String>,
 }
 
 impl Member {
@@ -46,7 +50,7 @@ async fn member_of(state: &AppState, auth: &MaybeAuthUser) -> Result<Option<Memb
     };
     Ok(db::member_role(&state.db, id)
         .await?
-        .map(|role| Member { id, role }))
+        .map(|(role, nickname)| Member { id, role, nickname }))
 }
 
 /// Whether the caller is a signed-in translator, and whether the development sign-in is on.
@@ -68,6 +72,7 @@ pub async fn me(
     Ok(Json(TranslatorsMe {
         member: member.is_some(),
         user_id: member.as_ref().map(|m| m.id.to_string()),
+        nickname: member.as_ref().and_then(|m| m.nickname.clone()),
         role: member.map(|m| m.role),
         dev_login: dev_login_enabled(),
     }))
@@ -139,6 +144,7 @@ pub async fn story_lines(
         }
     }
     let (edits, outdated) = edits::attach(&state.db, &story_id, &mut lines).await?;
+    let sova_notes = edits::db::sova_notes(&state.db, &story_id).await?;
     let imported_at = db::last_import(&state.db, SERVER)
         .await?
         .map(|t| t.timestamp());
@@ -149,6 +155,7 @@ pub async fn story_lines(
         lines,
         edits,
         outdated,
+        sova_notes,
     }))
 }
 
@@ -195,6 +202,10 @@ async fn glossary_body(state: &AppState) -> Result<Glossary, ApiError> {
             case_sensitive: t.case_sensitive,
             from_sova: t.from_sova,
             story_lines: t.story_lines,
+            game_variants: t.game_variants.0,
+            checked_lines: t.checked_lines,
+            found_lines: t.found_lines,
+            cn_game: t.cn_game,
         })
         .collect();
     Ok(Glossary {
@@ -205,6 +216,75 @@ async fn glossary_body(state: &AppState) -> Result<Glossary, ApiError> {
         refreshing: glossary::refreshing(),
         terms,
     })
+}
+
+/// The story lines holding one glossary term, with whether the Russian
+/// holds its form. Members only.
+#[utoipa::path(
+    get,
+    path = "/translators/glossary/{id}/lines",
+    tag = "translators",
+    security(("bearer_auth" = [])),
+    params(("id" = i32, Path, description = "The term."), GlossaryLinesQuery),
+    responses(
+        (status = 200, description = "Up to 200 lines in story order, and how many there are.", body = GlossaryLines),
+        (status = 401, response = crate::app::openapi::responses::Unauthorized),
+        (status = 403, response = crate::app::openapi::responses::Forbidden),
+        (status = 404, response = crate::app::openapi::responses::NotFound),
+        (status = 500, response = crate::app::openapi::responses::InternalError)
+    )
+)]
+pub async fn glossary_lines(
+    State(state): State<AppState>,
+    auth: MaybeAuthUser,
+    Path(id): Path<i32>,
+    Query(query): Query<GlossaryLinesQuery>,
+) -> Result<Json<GlossaryLines>, ApiError> {
+    const SHOWN: usize = 200;
+    require_member(&state, &auth).await?;
+    let stored = glossary::load(&state.db).await?;
+    let at = stored
+        .iter()
+        .position(|t| t.id == id)
+        .ok_or(ApiError::NotFound)?;
+    // Candidates by a plain substring, then the glossary's own matching (word
+    // edges, case, longer terms first) decides.
+    let rows: Vec<(String, i32, String, Option<String>)> = sqlx::query_as(
+        "SELECT story_id, ord, en, ru_game FROM translators.story_lines
+         WHERE server = $1 AND strpos(lower(en), lower($2)) > 0 ORDER BY story_id, ord",
+    )
+    .bind(SERVER)
+    .bind(&stored[at].key)
+    .fetch_all(&state.db)
+    .await?;
+    let terms: Vec<_> = stored.iter().map(glossary::StoredTerm::as_term).collect();
+    let finder = glossary::matcher::Finder::new(&terms);
+    let term = &terms[at];
+    let mut total = 0;
+    let mut lines = Vec::new();
+    for (story_id, ord, en, ru_game) in rows {
+        if !finder.find(&en).iter().any(|f| f.terms.contains(&at)) {
+            continue;
+        }
+        let found = (!term.from_sova)
+            .then_some(ru_game.as_deref())
+            .flatten()
+            .map(|ru| glossary::matcher::term_found(ru, term));
+        if query.missing && found != Some(false) {
+            continue;
+        }
+        total += 1;
+        if lines.len() < SHOWN {
+            lines.push(GlossaryLine {
+                story_id,
+                ord,
+                en,
+                ru_game,
+                found,
+            });
+        }
+    }
+    Ok(Json(GlossaryLines { total, lines }))
 }
 
 /// Download the glossary again from the team's sheet, in the background.
@@ -330,11 +410,20 @@ async fn import_now(state: &AppState, sources: Sources) -> Result<(), ApiError> 
         .map(|(id, r)| (id.clone(), r.clone()))
         .collect();
     stories.sort_by(|a, b| a.0.cmp(&b.0));
-    let (lines, summary) =
-        tokio::task::spawn_blocking(move || import::build(&sources, &assets_dir, &stories))
-            .await
-            .map_err(|e| ApiError::Internal(e.into()))??;
-    import::store(&state.db, SERVER, started_at, &lines, &summary).await?;
+    let built = tokio::task::spawn_blocking(move || import::build(&sources, &assets_dir, &stories))
+        .await
+        .map_err(|e| ApiError::Internal(e.into()))??;
+    let summary = built.summary;
+    import::store(
+        &state.db,
+        SERVER,
+        started_at,
+        &built.stories,
+        &built.chars,
+        &built.sova_notes,
+        &summary,
+    )
+    .await?;
     edits::db::mark_outdated(&state.db).await?;
     // The glossary rides along: a failed download keeps the stored copy, and
     // the counts are redone over the new lines either way.

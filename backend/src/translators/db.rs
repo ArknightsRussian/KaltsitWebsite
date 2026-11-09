@@ -14,6 +14,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!("migrations/t002_glossary.sql"),
     ),
     ("t003_edits", include_str!("migrations/t003_edits.sql")),
+    ("t004_context", include_str!("migrations/t004_context.sql")),
 ];
 
 pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -48,12 +49,19 @@ pub async fn migrate(pool: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// The member's role (`translator`, `editor`, `admin`), or `None` for a non-member.
-pub async fn member_role(pool: &PgPool, user_id: Uuid) -> Result<Option<String>, sqlx::Error> {
-    sqlx::query_scalar("SELECT role FROM translators.members WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
+/// The member's role (`translator`, `editor`, `admin`) and game nickname, or
+/// `None` for a non-member.
+pub async fn member_role(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Option<(String, Option<String>)>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT m.role, NULLIF(u.nickname, '') FROM translators.members m
+         JOIN users u ON u.id = m.user_id WHERE m.user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
 }
 
 pub async fn add_member(pool: &PgPool, user_id: Uuid, note: &str) -> Result<(), sqlx::Error> {

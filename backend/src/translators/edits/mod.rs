@@ -29,6 +29,7 @@ pub fn router() -> OpenApiRouter<AppState> {
         .routes(routes!(routes::resolve_comment))
         .routes(routes!(routes::places))
         .routes(routes!(routes::edits))
+        .routes(routes!(routes::characters))
 }
 
 /// Fill each line's places and status, and return the edits for the
@@ -56,7 +57,18 @@ pub async fn attach(
         l.status = status::line_status(
             e.is_some_and(|e| e.approval.is_some()),
             stale.contains(&here),
-            e.map_or(0, |e| e.proposals.len()),
+            // A proposal for one place counts only there.
+            e.map_or(0, |e| {
+                e.proposals
+                    .iter()
+                    .filter(|p| {
+                        !p.context
+                            || (p.place.story_id == story_id
+                                && p.place.line == here.0
+                                && p.place.part == here.1)
+                    })
+                    .count()
+            }),
         )
         .as_str()
         .to_owned();

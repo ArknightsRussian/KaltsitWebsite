@@ -94,7 +94,11 @@ async fn proposals_votes_comments_and_outdated() {
     let a = user(&pool, "anna").await;
     let b = user(&pool, "boris").await;
     assert_eq!(
-        tdb::member_role(&pool, a).await.unwrap().as_deref(),
+        tdb::member_role(&pool, a)
+            .await
+            .unwrap()
+            .map(|r| r.0)
+            .as_deref(),
         Some("translator")
     );
 
@@ -109,6 +113,12 @@ async fn proposals_votes_comments_and_outdated() {
     assert_eq!(counts.get("Hello."), Some(&2));
     let places = db::places(&pool, &key, 10).await.unwrap();
     assert_eq!(
+        places[0].before.as_deref(),
+        Some("Доктор?"),
+        "the line before, in Russian"
+    );
+    assert_eq!(places[1].after, None);
+    assert_eq!(
         places
             .iter()
             .map(|p| (p.story_id.as_str(), p.ord))
@@ -117,12 +127,20 @@ async fn proposals_votes_comments_and_outdated() {
     );
 
     // Anna writes, then takes Sova's: one proposal, two versions.
-    let p1 = db::upsert_proposal(&pool, &key, &place("s1", 5), "Здравствуй.", "own", a)
+    let p1 = db::upsert_proposal(&pool, &key, &place("s1", 5), "Здравствуй.", "own", false, a)
         .await
         .unwrap();
-    let again = db::upsert_proposal(&pool, &key, &place("s2", 7), "Здравствуйте.", "sova", a)
-        .await
-        .unwrap();
+    let again = db::upsert_proposal(
+        &pool,
+        &key,
+        &place("s2", 7),
+        "Здравствуйте.",
+        "sova",
+        false,
+        a,
+    )
+    .await
+    .unwrap();
     assert_eq!(p1, again);
     db::rewrite_proposal(&pool, p1, "Добрый день.", "sova", a)
         .await
@@ -132,7 +150,7 @@ async fn proposals_votes_comments_and_outdated() {
         versions.iter().map(|v| v.text.as_str()).collect::<Vec<_>>(),
         vec!["Добрый день.", "Здравствуйте.", "Здравствуй."]
     );
-    let p2 = db::upsert_proposal(&pool, &key, &place("s1", 5), "Хай.", "own", b)
+    let p2 = db::upsert_proposal(&pool, &key, &place("s1", 5), "Хай.", "own", false, b)
         .await
         .unwrap();
     assert_ne!(p1, p2);
@@ -145,9 +163,22 @@ async fn proposals_votes_comments_and_outdated() {
         .await
         .unwrap();
     db::set_agreement(&pool, &key, None, a, true).await.unwrap();
-    let c = db::add_comment(&pool, &key, &place("s1", 5), "Слишком официально?", b)
-        .await
-        .unwrap();
+    let c = db::add_comment(
+        &pool,
+        &key,
+        &place("s1", 5),
+        &db::NewComment {
+            text: "Слишком официально?",
+            quote: Some("Хай"),
+            kind: "remark",
+            variant: None,
+            proposal_id: None,
+            variant_text: None,
+        },
+        b,
+    )
+    .await
+    .unwrap();
     db::resolve_comment(&pool, c, Some(a)).await.unwrap();
 
     let mut lines = tdb::story_lines(&pool, "en", "s1", true).await.unwrap();
@@ -165,6 +196,30 @@ async fn proposals_votes_comments_and_outdated() {
     assert_eq!(e.proposals[0].source, "sova");
     assert_eq!(e.game_agreements.len(), 1);
     assert_eq!(e.comments[0].resolved_by.as_ref().unwrap().name, "anna");
+    assert_eq!(e.comments[0].quote.as_deref(), Some("Хай"));
+
+    // A proposal for one place: a separate proposal, counted only there.
+    let pc = db::upsert_proposal(
+        &pool,
+        &key,
+        &place("s2", 7),
+        "Привет-привет.",
+        "own",
+        true,
+        b,
+    )
+    .await
+    .unwrap();
+    assert_ne!(pc, p2);
+    let mut s2 = tdb::story_lines(&pool, "en", "s2", true).await.unwrap();
+    edits::attach(&pool, "s2", &mut s2).await.unwrap();
+    let mut s1 = tdb::story_lines(&pool, "en", "s1", true).await.unwrap();
+    let (got1, _) = edits::attach(&pool, "s1", &mut s1).await.unwrap();
+    assert_eq!(s1[1].status, "proposed");
+    let ctx = got1[0].proposals.iter().find(|p| p.id == pc).unwrap();
+    assert!(ctx.context);
+    assert_eq!(ctx.place.story_id, "s2");
+    db::delete_proposal(&pool, pc).await.unwrap();
 
     let mine = db::edit_rows(&pool, Some(a)).await.unwrap();
     assert_eq!(mine.len(), 1);
