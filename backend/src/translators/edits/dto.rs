@@ -1,0 +1,381 @@
+//! Wire types of line editing.
+
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+use utoipa::{IntoParams, ToSchema};
+
+/// A section member as an author or a voter.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EditPerson {
+    pub id: String,
+    pub name: String,
+}
+
+/// One displayed text of one story: where an edit was made.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, ToSchema, IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+#[ts(export)]
+pub struct EditPlace {
+    pub story_id: String,
+    /// 1-based line in the EN script.
+    pub line: i32,
+    /// The option number of a decision, else 0.
+    pub part: i16,
+}
+
+/// A translator's proposed Russian for one dictionary entry.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Proposal {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub edit_key: String,
+    pub text: String,
+    /// `own`, `sova`, `ai` (or `kit`, unused for now).
+    pub source: String,
+    pub author: EditPerson,
+    /// Unix seconds.
+    #[ts(type = "number")]
+    pub created_at: i64,
+    /// Unix seconds of the last rewrite, null when never rewritten.
+    #[ts(type = "number | null")]
+    pub edited_at: Option<i64>,
+    /// Texts it has had, the current one included.
+    pub versions: i32,
+    /// Who agrees with it.
+    pub agreements: Vec<EditPerson>,
+    pub place: EditPlace,
+    /// For this place only: never exported to the dictionaries.
+    pub context: bool,
+    /// Its English is gone from the story since an import.
+    pub outdated: bool,
+    /// A proposal for one place approved by the lead (for that place only).
+    pub approved_by: Option<EditPerson>,
+    #[ts(type = "number | null")]
+    pub approved_at: Option<i64>,
+    /// A one-place proposal: the pack version its text went out in, if it has.
+    pub released_in: Option<String>,
+}
+
+/// One text a proposal has had.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ProposalVersion {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub text: String,
+    pub source: String,
+    pub author: EditPerson,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// The lead's decision for an entry.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Approval {
+    /// `game` (checked and kept, never exported), `proposal`, `sova` or `ai`.
+    pub variant: String,
+    /// The approved proposal; null for the other variants.
+    #[ts(type = "number | null")]
+    pub proposal_id: Option<i64>,
+    pub text: String,
+    pub by: EditPerson,
+    #[ts(type = "number")]
+    pub at: i64,
+    /// The pack version this text went out in, if it has.
+    pub released_in: Option<String>,
+}
+
+/// A note on an entry.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EditComment {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub text: String,
+    pub author: EditPerson,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    pub resolved_by: Option<EditPerson>,
+    #[ts(type = "number | null")]
+    pub resolved_at: Option<i64>,
+    pub place: EditPlace,
+    /// The fragment of the line it is about, as selected.
+    pub quote: Option<String>,
+    /// `remark` (a question or problem, can be resolved) or `note` (a
+    /// translator's note: never resolved, always shown).
+    pub kind: String,
+    /// The variant a note is about: `game`, `sova`, `ai` or `proposal`; null for the line.
+    pub variant: Option<String>,
+    #[ts(type = "number | null")]
+    pub proposal_id: Option<i64>,
+    /// The variant's text when the note was written.
+    pub variant_text: Option<String>,
+}
+
+/// Everything decided or proposed for one dictionary entry.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct KeyEdits {
+    pub edit_key: String,
+    pub approval: Option<Approval>,
+    /// Who keeps the game's Russian ("agree" with it).
+    pub game_agreements: Vec<EditPerson>,
+    /// Who agrees with Sova's or the AI's variant at a place.
+    pub place_agreements: Vec<PlaceAgreement>,
+    /// Most agreed first, then oldest first.
+    pub proposals: Vec<Proposal>,
+    /// Oldest first.
+    pub comments: Vec<EditComment>,
+}
+
+/// An approval or proposal left at a place whose English has changed.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OutdatedEdit {
+    /// `proposal` or `approval`.
+    pub kind: String,
+    pub line: i32,
+    pub part: i16,
+    /// The English it was made for.
+    pub edit_key: String,
+    pub text: String,
+    pub author: EditPerson,
+    #[ts(type = "number")]
+    pub at: i64,
+}
+
+/// Write or rewrite the caller's proposal for the entry at a place.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposalInput {
+    #[serde(flatten)]
+    pub place: EditPlace,
+    pub text: String,
+    /// `own`, `sova` or `ai`.
+    pub source: String,
+    /// For this place only (a context translation), not for every place of the entry.
+    #[serde(default)]
+    pub context: bool,
+    /// Required for a proposal for every place when the entry stands in more than one.
+    #[serde(default)]
+    pub confirm_many: bool,
+}
+
+/// Rewrite one's own proposal.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposalRewrite {
+    pub text: String,
+    #[serde(default)]
+    pub confirm_many: bool,
+}
+
+/// Agree with a variant of the entry at a place, or take it back.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgreementInput {
+    #[serde(flatten)]
+    pub place: EditPlace,
+    /// The proposal; null = the game's Russian ("keep as in the game").
+    pub proposal_id: Option<i64>,
+    /// `game`, `sova`, `ai` or `proposal`; when left out, `proposal` with an id, else `game`.
+    #[serde(default)]
+    pub variant: Option<String>,
+    pub agree: bool,
+}
+
+/// A note on the entry at a place.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentInput {
+    #[serde(flatten)]
+    pub place: EditPlace,
+    pub text: String,
+    /// The selected fragment of the line, if any.
+    #[serde(default)]
+    pub quote: Option<String>,
+    /// `remark` (default) or `note`.
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// For a note about one variant: `game`, `sova`, `ai` or `proposal` (with `proposalId`).
+    #[serde(default)]
+    pub variant: Option<String>,
+    #[serde(default)]
+    pub proposal_id: Option<i64>,
+}
+
+/// Mark a comment resolved, or not.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolveInput {
+    pub resolved: bool,
+}
+
+/// One story line holding the entry.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct KeyPlace {
+    pub story_id: String,
+    pub line: i32,
+    pub part: i16,
+    /// The line's 0-based order in its story (the table's № minus one).
+    pub ord: i32,
+    /// The line before and after it in the story: the game's Russian, else the English.
+    pub before: Option<String>,
+    pub after: Option<String>,
+}
+
+/// Every place of the entry at a place.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct KeyPlaces {
+    pub edit_key: String,
+    pub total: i32,
+    /// Up to 500, in story order.
+    pub places: Vec<KeyPlace>,
+}
+
+/// "My edits": which proposals.
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+pub struct EditsQuery {
+    /// Everyone's (the lead only); else the caller's.
+    #[serde(default)]
+    pub all: bool,
+}
+
+/// One row of "My edits".
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EditRow {
+    pub proposal: Proposal,
+    /// The English of the entry.
+    pub en: String,
+    /// The game's Russian now ("was").
+    pub ru_game: Option<String>,
+    /// The proposal's place's 0-based order in its story, when the line is still there.
+    pub ord: Option<i32>,
+    /// `proposed`, `approved`, `otherApproved` or `outdated`.
+    pub state: String,
+    /// Places holding the entry.
+    pub places: i32,
+}
+
+/// "My edits".
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EditRows {
+    pub all: bool,
+    /// Newest first, up to 2,000.
+    pub rows: Vec<EditRow>,
+}
+
+/// Who a story sprite is, for the Service rows ("On stage: Amiya").
+#[derive(Debug, Serialize, TS, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CharName {
+    /// The sprite's id without pose and face (`char_002_amiya`).
+    pub char_id: String,
+    pub name_en: String,
+    pub name_ru: Option<String>,
+    /// Named by who talks right after it (not an operator): a guess.
+    pub guessed: bool,
+}
+
+/// A chapter or story name of the library with the game's Russian.
+#[derive(Debug, Serialize, TS, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NameRu {
+    pub en: String,
+    pub ru: String,
+}
+
+/// Who agrees with Sova's or the AI's variant at one place.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PlaceAgreement {
+    /// `sova` or `ai`.
+    pub variant: String,
+    pub place: EditPlace,
+    pub people: Vec<EditPerson>,
+}
+
+/// A member who has read a story, and when.
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StoryRead {
+    pub by: EditPerson,
+    #[ts(type = "number")]
+    pub at: i64,
+}
+
+/// Mark a story read by the caller, or not.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadInput {
+    pub read: bool,
+}
+
+/// A story's progress: its lines that can be edited, approved ones, ones
+/// waiting for a decision (proposals, not approved) and outdated ones.
+#[derive(Debug, Clone, Serialize, TS, ToSchema, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StoryProgress {
+    pub story_id: String,
+    pub total: i32,
+    pub approved: i32,
+    pub waiting: i32,
+    pub outdated: i32,
+}
+
+/// Approve a variant of the line's entry (the lead), or withdraw the approval.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalInput {
+    #[serde(flatten)]
+    pub place: EditPlace,
+    /// `game`, `sova`, `ai` or `proposal` (with `proposalId`).
+    pub variant: String,
+    #[serde(default)]
+    pub proposal_id: Option<i64>,
+    pub approve: bool,
+}
+
+/// Several approvals at once: a whole scene's recommended variants, or the
+/// game's Russian for a whole scene.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalBatch {
+    pub items: Vec<ApprovalInput>,
+}
+
+/// How many approvals a batch made.
+#[derive(Debug, Serialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ApprovalBatchResult {
+    pub approved: i32,
+    /// Items skipped (a line with nothing to translate, a variant it lacks).
+    pub skipped: i32,
+}

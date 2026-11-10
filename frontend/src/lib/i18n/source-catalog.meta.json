@@ -1,6 +1,6 @@
 {
     "generatedBy": "bun run i18n:extract",
-    "generatedAt": "2026-11-03T23:03:12.883Z",
+    "generatedAt": "2026-11-09T18:41:20.713Z",
     "entries": [
         {
             "key": "admin.home.access.everyList",
@@ -20388,6 +20388,13 @@
             "namespace": "nav",
             "source_text": "Tools",
             "description": "Top-level nav menu grouping the calculators and planners.",
+            "placeholders": []
+        },
+        {
+            "key": "nav.header.translators",
+            "namespace": "nav",
+            "source_text": "For translators",
+            "description": "Top-level nav link to the section for the Russian translation team (fork: translators' section).",
             "placeholders": []
         },
         {
@@ -53950,6 +53957,2373 @@
             "source_text": "Sign in to save",
             "description": "Save button label when signed out.",
             "placeholders": []
+        },
+        {
+            "key": "translators.access.description",
+            "namespace": "translators",
+            "source_text": "This section is for the Russian translation team. Sign in and ask the team to add your account.",
+            "description": "Line under the No access heading.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.access.title",
+            "namespace": "translators",
+            "source_text": "No access",
+            "description": "Heading shown on the translators' section to anyone who is not a member of the translation team.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.action.note",
+            "namespace": "translators",
+            "source_text": "Note",
+            "description": "Button on a line: a translator's note (why it is translated so, a reference, a fact); never resolved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.action.propose",
+            "namespace": "translators",
+            "source_text": "Propose",
+            "description": "Button at the top right of a line's Russian (on hover): opens the editor for a proposed translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.action.proposeThis",
+            "namespace": "translators",
+            "source_text": "Propose this",
+            "description": "Small button under Sova's or the AI's variant: opens the editor filled with that variant.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.action.remark",
+            "namespace": "translators",
+            "source_text": "Remark",
+            "description": "Button on a line: a remark (a question or a problem) that can later be marked resolved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save your vote.",
+            "description": "Toast when agreeing with a variant (or taking it back) fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.hint",
+            "namespace": "translators",
+            "source_text": "Agree with this variant",
+            "description": "Tooltip of the agree button when nobody has agreed yet.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.label",
+            "namespace": "translators",
+            "source_text": "Agree",
+            "description": "Accessible name of the agree button of a variant (a thumbs-up with the count).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.agree.who",
+            "namespace": "translators",
+            "source_text": "{count, plural, one {# agrees} other {# agree}}: {names}",
+            "description": "Tooltip of the agree button: how many and who.",
+            "placeholders": [
+                "count",
+                "names"
+            ]
+        },
+        {
+            "key": "translators.ambiguous.badge",
+            "namespace": "translators",
+            "source_text": "Left in English",
+            "description": "Badge on a line the plugin deliberately shows untranslated.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.ambiguous.hint",
+            "namespace": "translators",
+            "source_text": "The plugin shows this line in English on purpose, whatever the dictionary says.",
+            "description": "Explanation behind the Left in English badge.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approve.button",
+            "namespace": "translators",
+            "source_text": "Approve",
+            "description": "The lead's button on a variant: approve it for the game (the game's Russian: checked, kept).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approve.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save the approval.",
+            "description": "Toast when approving or withdrawing fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approve.withdraw",
+            "namespace": "translators",
+            "source_text": "Withdraw approval",
+            "description": "The lead's button on the approved variant.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approved.game",
+            "namespace": "translators",
+            "source_text": "Checked as in the game by {name}, {date}",
+            "description": "Label over a line whose current game translation the lead checked and kept.",
+            "placeholders": [
+                "date",
+                "name"
+            ]
+        },
+        {
+            "key": "translators.approved.here",
+            "namespace": "translators",
+            "source_text": "approved for this place",
+            "description": "Badge on a one-place proposal the lead approved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.approved.label",
+            "namespace": "translators",
+            "source_text": "Approved by {name}, {date}",
+            "description": "Label over the approved translation of a line; name is the lead, date when.",
+            "placeholders": [
+                "date",
+                "name"
+            ]
+        },
+        {
+            "key": "translators.book.back",
+            "namespace": "translators",
+            "source_text": "Back to the section",
+            "description": "Button above the book view opened from the translators' section: returns to the same chapter and story.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.book.open",
+            "namespace": "translators",
+            "source_text": "Book view",
+            "description": "Link that opens the chosen story in the site's book view.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.confirm",
+            "namespace": "translators",
+            "source_text": "Approve",
+            "description": "Button confirming a batch approval.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.done",
+            "namespace": "translators",
+            "source_text": "Approved: {approved}, skipped: {skipped}.",
+            "description": "Toast after a batch approval.",
+            "placeholders": [
+                "approved",
+                "skipped"
+            ]
+        },
+        {
+            "key": "translators.bulk.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't approve the scene.",
+            "description": "Toast when a batch approval fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.game",
+            "namespace": "translators",
+            "source_text": "Whole scene as in the game, checked…",
+            "description": "The lead's button above the table: marks the game's Russian of the scene's lines checked.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.gameHint",
+            "namespace": "translators",
+            "source_text": "Lines already approved are left as they are. Checked means the game's text stays; it is never exported.",
+            "description": "Text of the dialog marking a scene as in the game.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.gameInclude",
+            "namespace": "translators",
+            "source_text": "Include them too",
+            "description": "Checkbox in the as-in-the-game dialog: also mark the left-out lines checked.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.gameSkipped",
+            "namespace": "translators",
+            "source_text": "Left out: {proposals} with proposals, {marks} with a mark on the game's text.",
+            "description": "In the as-in-the-game dialog: how many lines are left out by default.",
+            "placeholders": [
+                "marks",
+                "proposals"
+            ]
+        },
+        {
+            "key": "translators.bulk.gameTitle",
+            "namespace": "translators",
+            "source_text": "Mark the game's Russian checked in {count, plural, one {# line} other {# lines}}",
+            "description": "Heading of the dialog marking a scene as in the game.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.bulk.recommended",
+            "namespace": "translators",
+            "source_text": "Approve the recommended in the whole scene…",
+            "description": "The lead's button above the table: opens the list of recommended variants to approve.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.recommendedHint",
+            "namespace": "translators",
+            "source_text": "Untick the lines to leave out. Each approval holds for every place of its line.",
+            "description": "Text of the dialog approving recommended variants.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.bulk.recommendedTitle",
+            "namespace": "translators",
+            "source_text": "Approve {count, plural, one {# recommended variant} other {# recommended variants}}",
+            "description": "Heading of the dialog approving a scene's recommended variants.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.category.is",
+            "namespace": "translators",
+            "source_text": "Integrated Strategies",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.category.main",
+            "namespace": "translators",
+            "source_text": "Main story",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.category.reclamation",
+            "namespace": "translators",
+            "source_text": "Reclamation Algorithm",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.category.record",
+            "namespace": "translators",
+            "source_text": "Operator record",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.category.side",
+            "namespace": "translators",
+            "source_text": "Event",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.category.sideContent",
+            "namespace": "translators",
+            "source_text": "Other",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.category.vignette",
+            "namespace": "translators",
+            "source_text": "Side story",
+            "description": "Chapter kind in the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.address",
+            "namespace": "translators",
+            "source_text": "“{form}”",
+            "description": "Short mark: the variant addresses with this form, unlike the speaker's neighbouring lines.",
+            "placeholders": [
+                "form"
+            ]
+        },
+        {
+            "key": "translators.checks.addressHint",
+            "namespace": "translators",
+            "source_text": "The speaker's neighbouring lines in this scene say “{form}”.",
+            "description": "Tooltip of the ты / вы mark; form is what the neighbouring lines use.",
+            "placeholders": [
+                "form"
+            ]
+        },
+        {
+            "key": "translators.checks.glossaryHint",
+            "namespace": "translators",
+            "source_text": "The glossary's form is missing: {terms}",
+            "description": "Tooltip of the missing glossary terms of a variant; terms are 'English → Russian' pairs.",
+            "placeholders": [
+                "terms"
+            ]
+        },
+        {
+            "key": "translators.checks.longer",
+            "namespace": "translators",
+            "source_text": "+{share}",
+            "description": "Short mark: the variant is noticeably longer than the game's Russian; share is how much longer (a percentage).",
+            "placeholders": [
+                "share"
+            ]
+        },
+        {
+            "key": "translators.checks.longerHint",
+            "namespace": "translators",
+            "source_text": "Noticeably longer than the game's Russian (more than 15% and more than 15 characters): it may not fit the dialogue box.",
+            "description": "Tooltip of the length mark.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.newlines",
+            "namespace": "translators",
+            "source_text": "line breaks {ru} / {en}",
+            "description": "Short mark: the variant's line breaks differ from the English (variant's count / English's).",
+            "placeholders": [
+                "en",
+                "ru"
+            ]
+        },
+        {
+            "key": "translators.checks.newlinesHint",
+            "namespace": "translators",
+            "source_text": "Line breaks: {ru} here, {en} in the English.",
+            "description": "Tooltip of the line-breaks mark.",
+            "placeholders": [
+                "en",
+                "ru"
+            ]
+        },
+        {
+            "key": "translators.checks.placeholdersHint",
+            "namespace": "translators",
+            "source_text": "A substitution ({0}, the nickname) is missing or extra compared with the English.",
+            "description": "Tooltip of the substitutions mark; the mark itself lists them.",
+            "placeholders": [
+                "0"
+            ]
+        },
+        {
+            "key": "translators.checks.recommended",
+            "namespace": "translators",
+            "source_text": "recommended",
+            "description": "Badge on the one variant of a line that passes every check and wins by the rule (most agreed proposal, else Sova's, the AI's, the game's).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.recommendedHint",
+            "namespace": "translators",
+            "source_text": "Passes every check; picked by the rule: the most agreed proposal, else Sova's, else the AI's, else the game's.",
+            "description": "Tooltip of the recommended badge.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.tags",
+            "namespace": "translators",
+            "source_text": "tags",
+            "description": "Short mark: the variant's markup tags (italics, colour) differ from the English.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.checks.tagsHint",
+            "namespace": "translators",
+            "source_text": "The tags (italics, colour) differ from the English: the emphasis is lost or broken.",
+            "description": "Tooltip of the tags mark.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.delete",
+            "namespace": "translators",
+            "source_text": "Delete",
+            "description": "Button deleting the viewer's own comment.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.dropQuote",
+            "namespace": "translators",
+            "source_text": "Whole line",
+            "description": "Button removing the selected fragment from a new remark or note.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save the comment.",
+            "description": "Toast when adding, resolving or deleting a comment fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.quote",
+            "namespace": "translators",
+            "source_text": "On: “{quote}”",
+            "description": "The fragment of the line a remark or note is about.",
+            "placeholders": [
+                "quote"
+            ]
+        },
+        {
+            "key": "translators.comment.quoteHint",
+            "namespace": "translators",
+            "source_text": "To comment on a fragment, select it in the line before clicking.",
+            "description": "Hint in the remark or note box when no fragment is selected.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.reopen",
+            "namespace": "translators",
+            "source_text": "Reopen",
+            "description": "Button marking a resolved comment as open again.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.resolve",
+            "namespace": "translators",
+            "source_text": "Resolved",
+            "description": "Button marking a comment as resolved (it then folds away).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.comment.resolvedBy",
+            "namespace": "translators",
+            "source_text": "resolved by {name}",
+            "description": "Marks a resolved comment; name is who resolved it.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.comment.resolvedCount",
+            "namespace": "translators",
+            "source_text": "{count, plural, one {# resolved comment} other {# resolved comments}}",
+            "description": "Button that unfolds the resolved comments of a line.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.dev.button",
+            "namespace": "translators",
+            "source_text": "Sign in as translator",
+            "description": "Button on the development sign-in page.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.dev.description",
+            "namespace": "translators",
+            "source_text": "Signs you in as a local translator account without a game account. Works only on a backend started with TRANSLATORS_DEV_LOGIN=1.",
+            "description": "Line under the heading of the development sign-in page.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.dev.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't sign in.",
+            "description": "Shown when the development sign-in request fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.dev.off",
+            "namespace": "translators",
+            "source_text": "Development sign-in is switched off on this backend.",
+            "description": "Shown on the development sign-in page when the backend does not allow it.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.dev.title",
+            "namespace": "translators",
+            "source_text": "Development sign-in",
+            "description": "Heading of the development sign-in page.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.devLogin.link",
+            "namespace": "translators",
+            "source_text": "Development sign-in",
+            "description": "Link to the development sign-in page, shown only when it is switched on.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edit.failedDelete",
+            "namespace": "translators",
+            "source_text": "Couldn't delete the proposal.",
+            "description": "Toast when deleting a proposal fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edit.failedSave",
+            "namespace": "translators",
+            "source_text": "Couldn't save the proposal.",
+            "description": "Toast when saving a proposal fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.cancel",
+            "namespace": "translators",
+            "source_text": "Cancel",
+            "description": "Button closing the editor without saving.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.contextOnly",
+            "namespace": "translators",
+            "source_text": "This proposal is for this place only.",
+            "description": "Under the editor of a one-place proposal.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.insertNickname",
+            "namespace": "translators",
+            "source_text": "Insert the nickname",
+            "description": "Button under the editor: inserts the {@nickname} chip at the cursor.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.keys",
+            "namespace": "translators",
+            "source_text": "Ctrl+Enter saves, Esc cancels",
+            "description": "Keyboard hint under the editor.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.label",
+            "namespace": "translators",
+            "source_text": "My translation",
+            "description": "Label of the editor of the viewer's own proposal.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.label.ai",
+            "namespace": "translators",
+            "source_text": "My translation, from the AI's",
+            "description": "Label of the editor when it started from the AI's translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.label.sova",
+            "namespace": "translators",
+            "source_text": "My translation, from Sova's",
+            "description": "Label of the editor when it started from Sova's translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.rewrite",
+            "namespace": "translators",
+            "source_text": "Rewrite my proposal",
+            "description": "Label of the rewrite box in My edits.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.sameAsGame",
+            "namespace": "translators",
+            "source_text": "This is the game's text as it is: there is nothing to propose.",
+            "description": "Under the editor when the text equals the game's current Russian (saving is off).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.save",
+            "namespace": "translators",
+            "source_text": "Save",
+            "description": "Button saving the proposal.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.editor.wholeEntry",
+            "namespace": "translators",
+            "source_text": "This is one dictionary entry: the edit saves all its lines together.",
+            "description": "Under the editor of a multi-line story text.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.all",
+            "namespace": "translators",
+            "source_text": "Everyone's",
+            "description": "Switch for the lead in My edits: show every translator's proposals.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.col.date",
+            "namespace": "translators",
+            "source_text": "Date",
+            "description": "My edits column: when the proposal was last saved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.col.now",
+            "namespace": "translators",
+            "source_text": "Now (proposed)",
+            "description": "My edits column: the proposal's text.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.col.state",
+            "namespace": "translators",
+            "source_text": "State",
+            "description": "My edits column: proposed, approved, outdated.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.col.was",
+            "namespace": "translators",
+            "source_text": "Was (in the game)",
+            "description": "My edits column: the game's Russian now and its English.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.col.where",
+            "namespace": "translators",
+            "source_text": "Where",
+            "description": "My edits column: the place of the proposal.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.count",
+            "namespace": "translators",
+            "source_text": "{count, plural, one {# proposal} other {# proposals}}",
+            "description": "Above the My edits table.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.edits.empty",
+            "namespace": "translators",
+            "source_text": "No proposals yet",
+            "description": "Heading of the empty My edits tab.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.emptyHint",
+            "namespace": "translators",
+            "source_text": "Open a story and use Propose on a line, or Propose this under Sova's or the AI's variant.",
+            "description": "Hint under the empty My edits heading.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.intro",
+            "namespace": "translators",
+            "source_text": "Your proposals: what the game shows now, what you propose and where.",
+            "description": "Line at the top of the My edits tab.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.load",
+            "namespace": "translators",
+            "source_text": "Couldn't load the edits.",
+            "description": "Load failure of My edits.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.edits.tableLabel",
+            "namespace": "translators",
+            "source_text": "Proposals",
+            "description": "Accessible name of the My edits table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.empty.choose",
+            "namespace": "translators",
+            "source_text": "Choose a chapter and a story.",
+            "description": "Shown before a story is chosen.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.empty.noLines",
+            "namespace": "translators",
+            "source_text": "This story has no text lines.",
+            "description": "Shown for a story with nothing to translate.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.empty.notImported",
+            "namespace": "translators",
+            "source_text": "The story text has not been imported yet.",
+            "description": "Shown when the section's database is empty.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.after",
+            "namespace": "translators",
+            "source_text": "Loaded after ours (they win on the same key): {files}",
+            "description": "Export report: files that override ours.",
+            "placeholders": [
+                "files"
+            ]
+        },
+        {
+            "key": "translators.export.afterNone",
+            "namespace": "translators",
+            "source_text": "No file loads after ours: it wins.",
+            "description": "Export report: nothing overrides ours.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.archive",
+            "namespace": "translators",
+            "source_text": "Download the archive {name}",
+            "description": "Button downloading the whole export as a ZIP; name is the archive's file name.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.export.download",
+            "namespace": "translators",
+            "source_text": "Download",
+            "description": "Link downloading one exported file.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.files",
+            "namespace": "translators",
+            "source_text": "Files",
+            "description": "Heading of the list of exported files.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format",
+            "namespace": "translators",
+            "source_text": "Format",
+            "description": "Label of the export format choice.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format.file",
+            "namespace": "translators",
+            "source_text": "One file 00_translators.txt — to check at home",
+            "description": "Export format: a separate dictionary file.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format.fileHint",
+            "namespace": "translators",
+            "source_text": "A separate dictionary file to drop into the game and press Alt+R.",
+            "description": "Hint under the to-check-at-home export format.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format.patch",
+            "namespace": "translators",
+            "source_text": "Corrected copies of 11_ui, 12_story, 13_names (main)",
+            "description": "Export format: the pack's files with the changed values.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.format.patchHint",
+            "namespace": "translators",
+            "source_text": "The pack's own files with the approved values put in; only the changed ones go in the archive.",
+            "description": "Hint under the main export format.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.howTo",
+            "namespace": "translators",
+            "source_text": "Put the file in BepInEx\\Translation\\ru\\Text and press Alt+R in the game (or restart the game).",
+            "description": "Hint in the export dialog: how to try an exported dictionary file in the game. Keep the folder path and the key as they are.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.howToPatch",
+            "namespace": "translators",
+            "source_text": "Replace the files in BepInEx\\\\Translation\\\\ru\\\\Text with the corrected copies (keep the originals) and press Alt+R in the game (or restart it).",
+            "description": "Hint in the export dialog for the main format.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.load",
+            "namespace": "translators",
+            "source_text": "Couldn't prepare the export.",
+            "description": "Load failure of the export.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode",
+            "namespace": "translators",
+            "source_text": "What",
+            "description": "Label of the export mode choice.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode.approved",
+            "namespace": "translators",
+            "source_text": "Approved — for the game",
+            "description": "Export mode: the lead's approvals (the lead only).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode.approvedHint",
+            "namespace": "translators",
+            "source_text": "Only the lead or the pack maintainer can export it.",
+            "description": "Hint under the approved mode for other members.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.mode.review",
+            "namespace": "translators",
+            "source_text": "All proposals — for checking (REVIEW)",
+            "description": "Export mode: every proposal not approved, marked REVIEW, not for the game.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.open",
+            "namespace": "translators",
+            "source_text": "Export…",
+            "description": "Button in My edits opening the export to the XUnity dictionaries.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.plugin",
+            "namespace": "translators",
+            "source_text": "RichTextFix plugin strings (plugin_strings.tsv): {count}",
+            "description": "Export report: plugin lines.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.export.run",
+            "namespace": "translators",
+            "source_text": "Prepare",
+            "description": "Button preparing the export.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.skipped",
+            "namespace": "translators",
+            "source_text": "Left out (XUnity cannot read them): {count}",
+            "description": "Export report: unwritable keys.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.export.story",
+            "namespace": "translators",
+            "source_text": "Story lines for the bundles (story_lines.tsv): {count}, of them for one place: {context}",
+            "description": "Export report: rows of story_lines.tsv and how many are one-place proposals.",
+            "placeholders": [
+                "context",
+                "count"
+            ]
+        },
+        {
+            "key": "translators.export.title",
+            "namespace": "translators",
+            "source_text": "Export to the XUnity dictionaries",
+            "description": "Heading of the export dialog.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.export.written",
+            "namespace": "translators",
+            "source_text": "Lines changed in the dictionaries: {count}",
+            "description": "Export report: lines written.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.filter.all",
+            "namespace": "translators",
+            "source_text": "All lines",
+            "description": "Filter option: every line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.count",
+            "namespace": "translators",
+            "source_text": "{shown} of {total}",
+            "description": "How many lines the filter shows.",
+            "placeholders": [
+                "shown",
+                "total"
+            ]
+        },
+        {
+            "key": "translators.filter.label",
+            "namespace": "translators",
+            "source_text": "Show",
+            "description": "Label of the filter above the story table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.outdated",
+            "namespace": "translators",
+            "source_text": "Outdated",
+            "description": "Filter option: lines with a decision left for a previous English.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.proposals",
+            "namespace": "translators",
+            "source_text": "With proposals",
+            "description": "Filter option: lines with translators' proposals.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.recommended",
+            "namespace": "translators",
+            "source_text": "With a recommendation",
+            "description": "Filter option: lines where a variant is recommended (the game's text has a mark).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.filter.remarks",
+            "namespace": "translators",
+            "source_text": "With open remarks",
+            "description": "Filter option: lines with remarks not yet resolved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.clear",
+            "namespace": "translators",
+            "source_text": "Clear search",
+            "description": "Button that empties the glossary search box.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.cnFromGame",
+            "namespace": "translators",
+            "source_text": "From the game's speaker names",
+            "description": "Tooltip of a Chinese name taken from the story's speakers.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.cn",
+            "namespace": "translators",
+            "source_text": "CN",
+            "description": "Glossary column: the term's Chinese.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.consistency",
+            "namespace": "translators",
+            "source_text": "Consistency",
+            "description": "Glossary column: the share of the term's lines whose Russian holds the glossary's form.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.count",
+            "namespace": "translators",
+            "source_text": "In story",
+            "description": "Glossary column: how many story lines hold the term.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.en",
+            "namespace": "translators",
+            "source_text": "English",
+            "description": "Glossary column: the English term.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.game",
+            "namespace": "translators",
+            "source_text": "As in the game",
+            "description": "Glossary column: the Russian words the game uses for the term, with the number of lines.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.notes",
+            "namespace": "translators",
+            "source_text": "Notes",
+            "description": "Glossary column: the sheet's notes, synonyms and comment.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.col.ru",
+            "namespace": "translators",
+            "source_text": "Russian",
+            "description": "Glossary column: how to translate it.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.consistencyHint",
+            "namespace": "translators",
+            "source_text": "{found} of {checked} lines hold the glossary's form",
+            "description": "Tooltip of the consistency value.",
+            "placeholders": [
+                "checked",
+                "found"
+            ]
+        },
+        {
+            "key": "translators.glossary.copy",
+            "namespace": "translators",
+            "source_text": "Copy downloaded {date}",
+            "description": "Date of the stored copy of the glossary.",
+            "placeholders": [
+                "date"
+            ]
+        },
+        {
+            "key": "translators.glossary.empty",
+            "namespace": "translators",
+            "source_text": "No terms match.",
+            "description": "Shown when the search and filter leave no terms.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.failed",
+            "namespace": "translators",
+            "source_text": "The last download failed ({date}). The stored copy is shown.",
+            "description": "Warning when the last download of the glossary failed; date is the attempt's time.",
+            "placeholders": [
+                "date"
+            ]
+        },
+        {
+            "key": "translators.glossary.lines.count",
+            "namespace": "translators",
+            "source_text": "{shown} of {total}",
+            "description": "How many lines are listed out of all.",
+            "placeholders": [
+                "shown",
+                "total"
+            ]
+        },
+        {
+            "key": "translators.glossary.lines.description",
+            "namespace": "translators",
+            "source_text": "Glossary: {ru}",
+            "description": "Line under the heading: the glossary's translation.",
+            "placeholders": [
+                "ru"
+            ]
+        },
+        {
+            "key": "translators.glossary.lines.empty",
+            "namespace": "translators",
+            "source_text": "No lines.",
+            "description": "Shown when a term has no lines (or none without the form).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.lines.load",
+            "namespace": "translators",
+            "source_text": "Couldn't load the lines.",
+            "description": "Load failure of a term's lines.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.lines.missing",
+            "namespace": "translators",
+            "source_text": "Only lines without the glossary's form",
+            "description": "Switch in the term lines dialog.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.lines.title",
+            "namespace": "translators",
+            "source_text": "Lines with “{term}”",
+            "description": "Heading of the dialog listing a term's story lines.",
+            "placeholders": [
+                "term"
+            ]
+        },
+        {
+            "key": "translators.glossary.load",
+            "namespace": "translators",
+            "source_text": "Couldn't load the glossary.",
+            "description": "Load failure of the Glossary tab.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.none",
+            "namespace": "translators",
+            "source_text": "The glossary hasn't been downloaded yet.",
+            "description": "Shown on the Glossary tab when no copy is stored.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.open",
+            "namespace": "translators",
+            "source_text": "Open in the sheet",
+            "description": "Link to the team's Google Sheet, where the glossary is edited.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.plural",
+            "namespace": "translators",
+            "source_text": "pl. {form}",
+            "description": "The Russian plural of a race or similar term; form is the plural.",
+            "placeholders": [
+                "form"
+            ]
+        },
+        {
+            "key": "translators.glossary.readOnly",
+            "namespace": "translators",
+            "source_text": "Edits are made in the sheet only.",
+            "description": "Note beside the link to the sheet.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.refresh",
+            "namespace": "translators",
+            "source_text": "Refresh glossary",
+            "description": "Button that downloads the glossary again from the team's Google Sheet.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.refreshing",
+            "namespace": "translators",
+            "source_text": "Downloading…",
+            "description": "The refresh button while the download runs.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.search",
+            "namespace": "translators",
+            "source_text": "Search English or Russian",
+            "description": "Placeholder of the glossary search box.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.searchLabel",
+            "namespace": "translators",
+            "source_text": "Search the glossary",
+            "description": "Accessible name of the glossary search box.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sharedHint",
+            "namespace": "translators",
+            "source_text": "Same English as “{key}”: the story cannot tell them apart, so the lines are counted there.",
+            "description": "Tooltip of the dash for a glossary entry spelled like another.",
+            "placeholders": [
+                "key"
+            ]
+        },
+        {
+            "key": "translators.glossary.sheet",
+            "namespace": "translators",
+            "source_text": "Sheet",
+            "description": "Label of the sheet filter of the glossary, and its column.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sheetAll",
+            "namespace": "translators",
+            "source_text": "All sheets",
+            "description": "Sheet filter option: every sheet.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.showLines",
+            "namespace": "translators",
+            "source_text": "Show lines",
+            "description": "Button opening the story lines of a glossary term.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sort",
+            "namespace": "translators",
+            "source_text": "Sort",
+            "description": "Label of the glossary sort select.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sort.consistency",
+            "namespace": "translators",
+            "source_text": "Least consistent first",
+            "description": "Glossary sort option.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sort.count",
+            "namespace": "translators",
+            "source_text": "Most used in the story",
+            "description": "Sort option: by how many story lines hold the term.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sort.en",
+            "namespace": "translators",
+            "source_text": "English A–Z",
+            "description": "Sort option: by the English term.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sort.ru",
+            "namespace": "translators",
+            "source_text": "Russian А–Я",
+            "description": "Sort option: by the Russian term.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sort.sheet",
+            "namespace": "translators",
+            "source_text": "As in the sheet",
+            "description": "Sort option: sheet and row order.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.sovaSheet",
+            "namespace": "translators",
+            "source_text": "Sova's glossary (not approved)",
+            "description": "Name shown for the glossary sheet copied from Sova's glossary; its terms are variants, not approved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.summary",
+            "namespace": "translators",
+            "source_text": "{shown, plural, one {# term} other {# terms}} of {total}",
+            "description": "Count above the glossary table.",
+            "placeholders": [
+                "shown",
+                "total"
+            ]
+        },
+        {
+            "key": "translators.glossary.tableLabel",
+            "namespace": "translators",
+            "source_text": "Team glossary",
+            "description": "Accessible name of the glossary table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.glossary.variantGlossary",
+            "namespace": "translators",
+            "source_text": "The glossary's form",
+            "description": "Marks the game's word that is the glossary's form.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.hints.ai",
+            "namespace": "translators",
+            "source_text": "AI",
+            "description": "Label of the machine translation of a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.hints.dict",
+            "namespace": "translators",
+            "source_text": "Dictionary (overridden by the plugin)",
+            "description": "Label of the dictionary's own Russian when the plugin shows a different one.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.hints.sova",
+            "namespace": "translators",
+            "source_text": "Sova",
+            "description": "Label of Sova's translation of a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.history.current",
+            "namespace": "translators",
+            "source_text": "current",
+            "description": "Marks the current text in a proposal's history.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.history.label",
+            "namespace": "translators",
+            "source_text": "Texts of this proposal, newest first",
+            "description": "Accessible name of a proposal's history list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.history.load",
+            "namespace": "translators",
+            "source_text": "Couldn't load the history.",
+            "description": "Load failure of a proposal's history.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.history.open",
+            "namespace": "translators",
+            "source_text": "History ({count})",
+            "description": "Button unfolding the texts a proposal has had; count is how many.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.lang.label",
+            "namespace": "translators",
+            "source_text": "Section language",
+            "description": "Accessible name of the RU | EN switch of the translators' section.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.line.option",
+            "namespace": "translators",
+            "source_text": "Choice {part}",
+            "description": "Badge of a reply option of the player's decision in the lines table.",
+            "placeholders": [
+                "part"
+            ]
+        },
+        {
+            "key": "translators.line.sticker",
+            "namespace": "translators",
+            "source_text": "On-screen text",
+            "description": "Label of a sticker text in the lines table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.line.subtitle",
+            "namespace": "translators",
+            "source_text": "Caption",
+            "description": "Label of a subtitle text (shown over the scene) in the lines table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.load.access",
+            "namespace": "translators",
+            "source_text": "Couldn't check your access to the section.",
+            "description": "Load failure of the membership check of the translators' section.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.load.index",
+            "namespace": "translators",
+            "source_text": "Couldn't load the story list.",
+            "description": "Load failure of the chapter list.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.load.lines",
+            "namespace": "translators",
+            "source_text": "Couldn't load the story lines.",
+            "description": "Load failure of the lines table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.meta.description",
+            "namespace": "translators",
+            "source_text": "Story text side by side: English, Russian as the game shows it now, and Chinese.",
+            "description": "Search-engine description of the translators' section.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.meta.title",
+            "namespace": "translators",
+            "source_text": "For translators",
+            "description": "Browser tab title of the translators' section (/translators).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.nickname.fallback",
+            "namespace": "translators",
+            "source_text": "Doctor",
+            "description": "Shown for {@nickname} in story text when the signed-in member has no game nickname.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.about",
+            "namespace": "translators",
+            "source_text": "About",
+            "description": "Label of the select choosing what a note is about: the line or one variant.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.aboutAi",
+            "namespace": "translators",
+            "source_text": "The AI's variant",
+            "description": "Option: the note is about the AI's translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.aboutGame",
+            "namespace": "translators",
+            "source_text": "The Russian as in the game",
+            "description": "Option: the note is about the game's current translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.aboutLine",
+            "namespace": "translators",
+            "source_text": "The whole line",
+            "description": "Option: the note is about the line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.aboutProposal",
+            "namespace": "translators",
+            "source_text": "{name}'s proposal",
+            "description": "Option: the note is about a translator's proposal; name is its author.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.note.aboutSova",
+            "namespace": "translators",
+            "source_text": "Sova's variant",
+            "description": "Option: the note is about Sova's translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.editorLabel",
+            "namespace": "translators",
+            "source_text": "Translator's note",
+            "description": "Label of the note box.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.forGone",
+            "namespace": "translators",
+            "source_text": "About a variant that is no longer here: {text}",
+            "description": "Above a note whose variant was deleted or replaced; text is the variant as it was.",
+            "placeholders": [
+                "text"
+            ]
+        },
+        {
+            "key": "translators.note.label",
+            "namespace": "translators",
+            "source_text": "Translator's note",
+            "description": "Label of a translator's note under a line or a variant.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.note.save",
+            "namespace": "translators",
+            "source_text": "Add note",
+            "description": "Button saving a translator's note.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.outdated.approval",
+            "namespace": "translators",
+            "source_text": "Approved by {name} for the previous English",
+            "description": "Label of an approval left at a line whose English has since changed.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.outdated.proposal",
+            "namespace": "translators",
+            "source_text": "{name}'s proposal for the previous English",
+            "description": "Label of a proposal left at a line whose English has since changed; name is its author.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.outdated.was",
+            "namespace": "translators",
+            "source_text": "Was for: {en}",
+            "description": "The old English text an outdated decision was made for.",
+            "placeholders": [
+                "en"
+            ]
+        },
+        {
+            "key": "translators.page.description",
+            "namespace": "translators",
+            "source_text": "Story text side by side: English, Russian as the game shows it now with the ArknightsRU pack, and the Chinese original. Members propose translations and comment on lines.",
+            "description": "Line under the heading of the translators' section.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.page.title",
+            "namespace": "translators",
+            "source_text": "For translators",
+            "description": "Page heading of the translators' section.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.picker.chapter",
+            "namespace": "translators",
+            "source_text": "Chapter",
+            "description": "Label of the chapter (story group) search box.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.picker.chapterEmpty",
+            "namespace": "translators",
+            "source_text": "No chapters match.",
+            "description": "Shown in the chapter search list when nothing matches the typed text.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.picker.chapterPlaceholder",
+            "namespace": "translators",
+            "source_text": "Search {count, plural, one {# chapter} other {# chapters}}",
+            "description": "Placeholder of the chapter search box; count is the number of chapters.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.picker.story",
+            "namespace": "translators",
+            "source_text": "Story",
+            "description": "Label of the story select inside the chosen chapter.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.picker.storyPlaceholder",
+            "namespace": "translators",
+            "source_text": "Choose a story",
+            "description": "Story select before a story is chosen.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.places.after",
+            "namespace": "translators",
+            "source_text": "After:",
+            "description": "Label of the line after, in the list of the places of a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.places.before",
+            "namespace": "translators",
+            "source_text": "Before:",
+            "description": "Label of the line before, in the list of the places of a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.places.here",
+            "namespace": "translators",
+            "source_text": "this line",
+            "description": "Marks the current line in the list of its places.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.places.item",
+            "namespace": "translators",
+            "source_text": "{group} › {story} · line {n}",
+            "description": "One place of a line: chapter › story · line number in the story table.",
+            "placeholders": [
+                "group",
+                "n",
+                "story"
+            ]
+        },
+        {
+            "key": "translators.places.itemBare",
+            "namespace": "translators",
+            "source_text": "{story} · line {n}",
+            "description": "One place of a line whose chapter is unknown.",
+            "placeholders": [
+                "n",
+                "story"
+            ]
+        },
+        {
+            "key": "translators.places.load",
+            "namespace": "translators",
+            "source_text": "Couldn't load the places of this line.",
+            "description": "Load failure of the list of places of a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.places.more",
+            "namespace": "translators",
+            "source_text": "and {count} more",
+            "description": "Under a cut list of places.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.places.note",
+            "namespace": "translators",
+            "source_text": "This line also stands in {count, plural, one {# other place} other {# other places}}: the edit applies to all.",
+            "description": "Warning under the editor when the same dictionary entry appears elsewhere in the story.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.places.show",
+            "namespace": "translators",
+            "source_text": "Show places",
+            "description": "Button unfolding the list of the places of a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.plugin.badge",
+            "namespace": "translators",
+            "source_text": "Plugin",
+            "description": "Badge on a line whose Russian comes from the RichTextFix plugin's built-in catalog.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.plugin.hint",
+            "namespace": "translators",
+            "source_text": "Line from the plugin: an edit through the dictionary may not take effect.",
+            "description": "Explanation behind the Plugin badge.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.progress.label",
+            "namespace": "translators",
+            "source_text": "Progress of the story",
+            "description": "Accessible name of the story's progress meter.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.progress.short",
+            "namespace": "translators",
+            "source_text": "{checked} checked · {waiting} waiting · {outdated} outdated",
+            "description": "Short progress under a chapter or story name in the pickers.",
+            "placeholders": [
+                "checked",
+                "outdated",
+                "waiting"
+            ]
+        },
+        {
+            "key": "translators.progress.summary",
+            "namespace": "translators",
+            "source_text": "Checked {checked} · waiting {waiting} · outdated {outdated}",
+            "description": "Story progress above the table; checked is a percentage, waiting and outdated are line counts.",
+            "placeholders": [
+                "checked",
+                "outdated",
+                "waiting"
+            ]
+        },
+        {
+            "key": "translators.proposal.agreed",
+            "namespace": "translators",
+            "source_text": "{count, plural, one {# agrees} other {# agree}}",
+            "description": "How many translators agree with a proposal.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.proposal.by",
+            "namespace": "translators",
+            "source_text": "{name}",
+            "description": "Author label over another translator's proposal; name is the author.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.proposal.contextBadge",
+            "namespace": "translators",
+            "source_text": "This place only",
+            "description": "Badge on a proposal made for one place of the line only (not for every place of the same English).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.delete",
+            "namespace": "translators",
+            "source_text": "Delete",
+            "description": "Button deleting the viewer's own proposal.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.edit",
+            "namespace": "translators",
+            "source_text": "Edit",
+            "description": "Button under the viewer's own proposal in the story table: opens it in the editor.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.edited",
+            "namespace": "translators",
+            "source_text": "edited",
+            "description": "Marks a proposal that was rewritten after it was first saved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.from.ai",
+            "namespace": "translators",
+            "source_text": "from the AI's",
+            "description": "Marks a proposal that started from the AI's translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.from.kit",
+            "namespace": "translators",
+            "source_text": "from the review kit",
+            "description": "Marks a proposal that came from the review kit's reports (reserved).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.from.own",
+            "namespace": "translators",
+            "source_text": "own text",
+            "description": "Marks a proposal written by the translator.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.from.sova",
+            "namespace": "translators",
+            "source_text": "from Sova's",
+            "description": "Marks a proposal that started from Sova's translation.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.mine",
+            "namespace": "translators",
+            "source_text": "My proposal",
+            "description": "Author label of the viewer's own proposal for a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.proposal.rewrite",
+            "namespace": "translators",
+            "source_text": "Rewrite",
+            "description": "Button in My edits: opens the proposal's text for rewriting.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.read.button",
+            "namespace": "translators",
+            "source_text": "I have read this scene",
+            "description": "Toggle above the story table: the member marks the story read.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.read.by",
+            "namespace": "translators",
+            "source_text": "Read: {names}",
+            "description": "Who has read the story, with dates; names is a comma-separated list.",
+            "placeholders": [
+                "names"
+            ]
+        },
+        {
+            "key": "translators.read.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't save the mark.",
+            "description": "Toast when marking a story read fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.read.item",
+            "namespace": "translators",
+            "source_text": "{name} ({date})",
+            "description": "One reader of the story and when.",
+            "placeholders": [
+                "date",
+                "name"
+            ]
+        },
+        {
+            "key": "translators.release.done",
+            "namespace": "translators",
+            "source_text": "Marked in {version}: dictionary {dictionary}, plugin {plugin}, tied to a place {context}.",
+            "description": "After marking a release: how many entries of each kind.",
+            "placeholders": [
+                "context",
+                "dictionary",
+                "plugin",
+                "version"
+            ]
+        },
+        {
+            "key": "translators.release.failed",
+            "namespace": "translators",
+            "source_text": "Couldn't mark the release.",
+            "description": "Toast when marking a pack release fails.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.release.hint",
+            "namespace": "translators",
+            "source_text": "After building the pack from this export, mark it: every approved entry not yet out with the same text is marked as gone out in this version.",
+            "description": "Text of the pack maintainer's block.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.release.in",
+            "namespace": "translators",
+            "source_text": "went out in pack {version}",
+            "description": "Badge on an approved variant whose text went out in a pack version.",
+            "placeholders": [
+                "version"
+            ]
+        },
+        {
+            "key": "translators.release.last",
+            "namespace": "translators",
+            "source_text": "Last: {version} ({date}, {by})",
+            "description": "The last pack version marked.",
+            "placeholders": [
+                "by",
+                "date",
+                "version"
+            ]
+        },
+        {
+            "key": "translators.release.mark",
+            "namespace": "translators",
+            "source_text": "Mark as gone out",
+            "description": "Button marking the approved entries as gone out in the pack version.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.release.note",
+            "namespace": "translators",
+            "source_text": "Note",
+            "description": "Label of the optional note of a pack release.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.release.title",
+            "namespace": "translators",
+            "source_text": "Went out in a pack",
+            "description": "Heading of the pack maintainer's block in the export dialog.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.release.version",
+            "namespace": "translators",
+            "source_text": "Pack version",
+            "description": "Label of the pack version field.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.remark.editorLabel",
+            "namespace": "translators",
+            "source_text": "Remark on this line",
+            "description": "Label of the remark box.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.remark.label",
+            "namespace": "translators",
+            "source_text": "Remark",
+            "description": "Label of a remark under a line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.remark.save",
+            "namespace": "translators",
+            "source_text": "Add remark",
+            "description": "Button saving a remark.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.ru.lineByLine",
+            "namespace": "translators",
+            "source_text": "Assembled line by line",
+            "description": "Note under a Russian text that was found one line at a time.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.ru.missing",
+            "namespace": "translators",
+            "source_text": "No translation found",
+            "description": "Russian cell when no dictionary line matched the English text.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.all",
+            "namespace": "translators",
+            "source_text": "For all {count} places",
+            "description": "Option of the save dialog: one translation of this English everywhere.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.save.allHint",
+            "namespace": "translators",
+            "source_text": "The game uses one translation for this English text: it goes to the dictionary export.",
+            "description": "Hint under the all-places option.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.here",
+            "namespace": "translators",
+            "source_text": "Only for this place",
+            "description": "Option of the save dialog: a translation tied to this place.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.hereHint",
+            "namespace": "translators",
+            "source_text": "Kept apart with this story and line; not in the dictionary export. Listed for a context translation through the plugin.",
+            "description": "Hint under the this-place-only option.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.hereShort",
+            "namespace": "translators",
+            "source_text": "This text stands in {count} places — the translation changes everywhere.",
+            "description": "In the save dialog instead of the one-place choice, for an interface or short line.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.save.proposalOnly",
+            "namespace": "translators",
+            "source_text": "This is a proposal. It reaches the game only after the lead approves it.",
+            "description": "Shown under the editor and in the save dialog.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.saveAll",
+            "namespace": "translators",
+            "source_text": "Save for {count} places",
+            "description": "Button saving a proposal for all places.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.save.saveHere",
+            "namespace": "translators",
+            "source_text": "Save for this place",
+            "description": "Button saving a proposal for this place only.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.scope",
+            "namespace": "translators",
+            "source_text": "Where the proposal applies",
+            "description": "Accessible name of the choice between all places and this place only.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.save.title",
+            "namespace": "translators",
+            "source_text": "This line stands in {count} places",
+            "description": "Heading of the dialog when saving a proposal for a line whose English appears in several places.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.save.understand",
+            "namespace": "translators",
+            "source_text": "I understand that I change the translation in all {count} places",
+            "description": "Checkbox the member must tick before saving for all places.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.service.background",
+            "namespace": "translators",
+            "source_text": "Background: {name}",
+            "description": "Stage command in words: the background changes; name is the image key.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.service.backgroundClear",
+            "namespace": "translators",
+            "source_text": "Background removed",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.branch",
+            "namespace": "translators",
+            "source_text": "Branch: choice {options}",
+            "description": "Stage command in words: the following lines are shown after the given choice.",
+            "placeholders": [
+                "options"
+            ]
+        },
+        {
+            "key": "translators.service.cameraEffect",
+            "namespace": "translators",
+            "source_text": "Camera effect",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.fadeIn",
+            "namespace": "translators",
+            "source_text": "Fade in",
+            "description": "Stage command in words: the screen appears again.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.fadeOut",
+            "namespace": "translators",
+            "source_text": "Fade out",
+            "description": "Stage command in words: the screen darkens.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.guessed",
+            "namespace": "translators",
+            "source_text": "{name} (presumably)",
+            "description": "A story sprite's name guessed from who talks after it appears (not an operator).",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.service.image",
+            "namespace": "translators",
+            "source_text": "Picture: {name}",
+            "description": "Stage command in words: a full-screen picture shows.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.service.imageClear",
+            "namespace": "translators",
+            "source_text": "Picture removed",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.label",
+            "namespace": "translators",
+            "source_text": "Stage commands",
+            "description": "Accessible name of a gray separator row listing the script's stage commands between two lines.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.music",
+            "namespace": "translators",
+            "source_text": "Music: {name}",
+            "description": "Stage command in words: music starts; name is the track key.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.service.musicStop",
+            "namespace": "translators",
+            "source_text": "Music stops",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.onStage",
+            "namespace": "translators",
+            "source_text": "On stage: {names}",
+            "description": "Stage command in words: who is shown; names are the characters.",
+            "placeholders": [
+                "names"
+            ]
+        },
+        {
+            "key": "translators.service.other",
+            "namespace": "translators",
+            "source_text": "{name}",
+            "description": "Stage command the section does not describe: its name only.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.service.pause",
+            "namespace": "translators",
+            "source_text": "Pause",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.shake",
+            "namespace": "translators",
+            "source_text": "Camera shake",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.sound",
+            "namespace": "translators",
+            "source_text": "Sound: {name}",
+            "description": "Stage command in words: a sound plays; name is its key.",
+            "placeholders": [
+                "name"
+            ]
+        },
+        {
+            "key": "translators.service.soundStop",
+            "namespace": "translators",
+            "source_text": "Sound stops",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.stageClear",
+            "namespace": "translators",
+            "source_text": "Stage empty",
+            "description": "Stage command in words: the characters leave.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.video",
+            "namespace": "translators",
+            "source_text": "Video",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.service.volume",
+            "namespace": "translators",
+            "source_text": "Volume",
+            "description": "Stage command in words.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.sovaNotes.author",
+            "namespace": "translators",
+            "source_text": "Sova",
+            "description": "Author label of one of Sova's notes.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.sovaNotes.title",
+            "namespace": "translators",
+            "source_text": "Sova's notes to the chapter ({count})",
+            "description": "Button unfolding Sova's footnotes to the chapter, above the story table.",
+            "placeholders": [
+                "count"
+            ]
+        },
+        {
+            "key": "translators.state.approved",
+            "namespace": "translators",
+            "source_text": "Approved",
+            "description": "State of a proposal the lead approved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.state.otherApproved",
+            "namespace": "translators",
+            "source_text": "Another approved",
+            "description": "State of a proposal when the lead approved another variant for the line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.state.outdated",
+            "namespace": "translators",
+            "source_text": "Outdated",
+            "description": "State of a proposal whose English is gone from the story since an import.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.state.proposed",
+            "namespace": "translators",
+            "source_text": "Proposed",
+            "description": "State of a proposal in My edits: waiting for the lead.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.status.approved",
+            "namespace": "translators",
+            "source_text": "Approved",
+            "description": "Status of a story line whose translation the lead approved.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.status.outdated",
+            "namespace": "translators",
+            "source_text": "Outdated",
+            "description": "Status of a decision made for an English text the story no longer has at that place (it changed in an import).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.status.proposed",
+            "namespace": "translators",
+            "source_text": "Has proposals",
+            "description": "Status of a story line with at least one translator's proposal; shown as a dot by the line number.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.status.unchecked",
+            "namespace": "translators",
+            "source_text": "Not checked",
+            "description": "Status of a story line nobody has proposed or decided anything for.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.table.cn",
+            "namespace": "translators",
+            "source_text": "Chinese",
+            "description": "Column: the Chinese original.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.table.en",
+            "namespace": "translators",
+            "source_text": "English",
+            "description": "Column: the English text.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.table.label",
+            "namespace": "translators",
+            "source_text": "Lines of {story}",
+            "description": "Accessible name of the lines table; story is the story's title.",
+            "placeholders": [
+                "story"
+            ]
+        },
+        {
+            "key": "translators.table.line",
+            "namespace": "translators",
+            "source_text": "#",
+            "description": "Column: the line's number in the story (1, 2, 3…).",
+            "placeholders": []
+        },
+        {
+            "key": "translators.table.ru",
+            "namespace": "translators",
+            "source_text": "Russian (in game)",
+            "description": "Column: the Russian the game shows now.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.table.scriptLine",
+            "namespace": "translators",
+            "source_text": "line {line}",
+            "description": "Under a line's number, and before a stage command, when Service is on: its line in the English script file.",
+            "placeholders": [
+                "line"
+            ]
+        },
+        {
+            "key": "translators.table.speaker",
+            "namespace": "translators",
+            "source_text": "Speaker",
+            "description": "Column: who says the line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.table.summary",
+            "namespace": "translators",
+            "source_text": "{count, plural, one {# line} other {# lines}}, {ru} with Russian",
+            "description": "Count above the lines table; ru is how many have a Russian text.",
+            "placeholders": [
+                "count",
+                "ru"
+            ]
+        },
+        {
+            "key": "translators.tabs.edits",
+            "namespace": "translators",
+            "source_text": "My edits",
+            "description": "Tab of the translators' section: the member's own proposals (everyone's for the lead), with history.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.tabs.glossary",
+            "namespace": "translators",
+            "source_text": "Glossary",
+            "description": "Tab of the translators' section: the team's whole glossary, read from its Google Sheet.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.tabs.label",
+            "namespace": "translators",
+            "source_text": "Section views",
+            "description": "Accessible name of the tab strip of the translators' section.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.tabs.story",
+            "namespace": "translators",
+            "source_text": "Story",
+            "description": "Tab of the translators' section: chapter, story and its lines.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.terms.found",
+            "namespace": "translators",
+            "source_text": "form found",
+            "description": "Mark beside a glossary term whose Russian form is in the line's Russian.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.terms.label",
+            "namespace": "translators",
+            "source_text": "Glossary terms in this line",
+            "description": "Accessible name of the list of glossary terms found in a line's English.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.terms.notFound",
+            "namespace": "translators",
+            "source_text": "form not found",
+            "description": "Mark beside a glossary term whose Russian form is not in the line's Russian (by word stem). Not an error.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.terms.variant",
+            "namespace": "translators",
+            "source_text": "Sova's glossary",
+            "description": "Mark beside a term from the sheet copied from Sova's glossary: a variant, never checked.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.toggle.cn",
+            "namespace": "translators",
+            "source_text": "Chinese",
+            "description": "Switch that shows the Chinese column of the table.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.toggle.cnHint",
+            "namespace": "translators",
+            "source_text": "The Chinese original, for the stories already processed in arktr.",
+            "description": "Second line under the Chinese switch.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.toggle.service",
+            "namespace": "translators",
+            "source_text": "Service",
+            "description": "Switch that shows script line numbers and the script's stage commands (scene, background, pause…) between the lines.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.toggle.serviceHint",
+            "namespace": "translators",
+            "source_text": "Stage commands in words between the lines.",
+            "description": "Second line under the Service switch.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.toggle.variants",
+            "namespace": "translators",
+            "source_text": "Show variants",
+            "description": "Switch that shows Sova's and the AI's translations under each Russian line.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.toggle.variantsHint",
+            "namespace": "translators",
+            "source_text": "Sova and the AI under the Russian.",
+            "description": "Second line under the Show variants switch.",
+            "placeholders": []
+        },
+        {
+            "key": "translators.where.item",
+            "namespace": "translators",
+            "source_text": "Story › {group} › {story} › line {n}",
+            "description": "Where a proposal was made, in My edits.",
+            "placeholders": [
+                "group",
+                "n",
+                "story"
+            ]
+        },
+        {
+            "key": "translators.where.places",
+            "namespace": "translators",
+            "source_text": "in {count} places",
+            "description": "Under the place in My edits: how many story lines hold the same entry.",
+            "placeholders": [
+                "count"
+            ]
         },
         {
             "key": "user.leaderboard.breadcrumb.current",

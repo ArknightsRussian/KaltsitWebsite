@@ -79,6 +79,11 @@ dashmap = "6"
 # Table picker in `export-database`.
 dialoguer = { version = "0.12", default-features = false }
 dotenv = "0.15.0"
+# Fork (translators): reads the gzip catalog inside the RichTextFix DLL.
+flate2 = "1"
+# Fork (translators): the team glossary (xlsx export) and finding its terms in the story text.
+calamine = "0.38"
+aho-corasick = "1"
 futures-util = "0.3"
 hex = "0.4"
 hmac = "0.12.1"

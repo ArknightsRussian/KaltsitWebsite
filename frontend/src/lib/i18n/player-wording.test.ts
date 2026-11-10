@@ -56,6 +56,7 @@ const ALLOWED: ReadonlyArray<{ file: string; text?: string; why: string }> = [
     { file: "components/story/sprites/NameChip.tsx", text: "Doctor", why: "The protagonist's name on a story speaker chip." },
     { file: "lib/story/engine.ts", text: "Doctor", why: "The game's default protagonist name substituted into `{@nickname}`." },
     { file: "lib/story/settings.ts", text: "Doctor", why: "DEFAULT_NICKNAME, the game's default protagonist name." },
+    { file: "components/translators/translators.messages.ts", text: "Doctor", why: "The game's default protagonist name shown for `{@nickname}` in the translators' section." },
     // Renderer fixture shipped beside the book code (not a *.test file): quotes game dialogue.
     { file: "lib/story/book/sample.ts", why: "Test fixture quoting game dialogue." },
     // Command palette search synonyms are matched against what a person types

@@ -12,6 +12,8 @@ pub async fn init(database_url: &str) -> Result<PgPool, sqlx::Error> {
     let pool = create_pool(database_url).await?;
     crate::core::startup::step("migrations");
     run_migrations(&pool).await?;
+    // Fork: the translators' section keeps its own schema and ledger.
+    crate::translators::db::migrate(&pool).await?;
     crate::core::startup::step("seed");
     seed(&pool).await?;
     Ok(pool)

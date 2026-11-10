@@ -12778,6 +12778,1323 @@
         ]
       }
     },
+    "/api/translators/agreements": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Agree with a variant of the line's entry, or take it back: the game's\nRussian (\"keep as in the game\"), a proposal (not one's own), or Sova's or\nthe AI's text at this place. Members only.",
+        "operationId": "set_agreement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgreementInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/approvals": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Approve a variant of the line's entry, or withdraw the approval: the lead\nonly. The game's Russian approved means \"checked, as in the game\" (never\nexported); a proposal for one place is approved for that place only.",
+        "operationId": "set_approval",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/approvals/batch": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Approve many lines at once (a scene's recommended variants, or the game's\nRussian for a whole scene): the lead only. Lines with nothing to approve\nare skipped and counted.",
+        "operationId": "approve_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many were approved and skipped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalBatchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/characters": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Who each story sprite is, by who talks right after it comes on stage\n(rebuilt by the import), for the Service rows. Members only.",
+        "operationId": "characters",
+        "responses": {
+          "200": {
+            "description": "The named sprites.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharName"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/comments": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "A remark (a question or a problem) or a translator's note on the line's\nentry, a note possibly about one variant. Members only.",
+        "operationId": "create_comment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The comment's id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/comments/{id}": {
+      "delete": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Delete one's own comment. Members only.",
+        "operationId": "delete_comment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The comment.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/comments/{id}/resolved": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Mark a remark resolved or open again: its author or the lead. A\ntranslator's note is never resolved (400).",
+        "operationId": "resolve_comment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The comment.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/dev-login": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Development only: sign in as a local translator account without a game\naccount. Answers 404 unless `TRANSLATORS_DEV_LOGIN=1` is set for the\nbackend process.",
+        "operationId": "dev_login",
+        "responses": {
+          "200": {
+            "description": "A site token for the development translator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/translators/edits": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "\"My edits\": the caller's proposals, newest first; everyone's for the lead\nwith `all`. Members only.",
+        "operationId": "edits",
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "description": "Everyone's (the lead only); else the caller's.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The proposals with what the game shows now and where.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditRows"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/export": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Export to the XUnity dictionaries: `approved` (for the game; the lead\nor the pack's maintainer) or `review` (every proposal not approved, marked REVIEW; any member),\nas one `00_translators.txt` or as patched copies of 11_ui / 12_story /\n13_names, with plugin.csv, context.csv and the report. Members only.",
+        "operationId": "export",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`approved` (for the game) or `review` (proposals, for checking).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`patch` (corrected copies of 11_ui / 12_story / 13_names, the main export) or\n`file` (one 00_translators.txt, to check at home).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "only",
+            "in": "query",
+            "description": "Empty: the report and the file list without contents; a file name: that file only.\nLeft out: everything.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "The archive: the one prepared with the report (`archiveToken`); left\nout, it is built anew.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export's files and its report.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/export/archive": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The whole export as one ZIP: the changed dictionaries (or\n00_translators.txt), story_lines.tsv and plugin_strings.tsv when there\nare rows, report.txt. Same rights as the export.",
+        "operationId": "export_archive",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "description": "`approved` (for the game) or `review` (proposals, for checking).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`patch` (corrected copies of 11_ui / 12_story / 13_names, the main export) or\n`file` (one 00_translators.txt, to check at home).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "only",
+            "in": "query",
+            "description": "Empty: the report and the file list without contents; a file name: that file only.\nLeft out: everything.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "The archive: the one prepared with the report (`archiveToken`); left\nout, it is built anew.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive.",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/glossary": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The whole team glossary as last downloaded. Members only.",
+        "operationId": "glossary",
+        "responses": {
+          "200": {
+            "description": "Every stored term, with the copy's date and the last download error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Glossary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/glossary/refresh": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Download the glossary again from the team's sheet, in the background.\nMembers only. On failure the stored copy stays and `lastError` says why.",
+        "operationId": "refresh_glossary",
+        "responses": {
+          "200": {
+            "description": "The stored glossary, with `refreshing` set while the download runs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Glossary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/glossary/{id}/lines": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The story lines holding one glossary term, with whether the Russian\nholds its form. Members only.",
+        "operationId": "glossary_lines",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The term.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "missing",
+            "in": "query",
+            "description": "Only the lines whose Russian lacks the glossary's form.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 200 lines in story order, and how many there are.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlossaryLines"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/import": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Whether an import is running, the last error, and the last finished import's summary.",
+        "operationId": "import_status",
+        "responses": {
+          "200": {
+            "description": "The import's state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "service_key": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Start rebuilding the section's lines from the EN scripts, the ArknightsRU\ndictionaries and arktr, in the background (it outlasts the request\ntimeout). Internal service key only; re-runnable. Poll `GET` for the result.",
+        "operationId": "run_import",
+        "responses": {
+          "200": {
+            "description": "The import's state right after the request: running, with the previous result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "service_key": []
+          }
+        ]
+      }
+    },
+    "/api/translators/me": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Whether the caller is a signed-in translator, and whether the development sign-in is on.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "The caller's standing in the section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslatorsMe"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          },
+          {}
+        ]
+      }
+    },
+    "/api/translators/names": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "The story library's chapter and story names with the Russian the game\nshows (ArknightsRU dictionaries), for the pickers. Members only.",
+        "operationId": "names",
+        "responses": {
+          "200": {
+            "description": "English name -> Russian, where the dictionaries have one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NameRu"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/places": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Every story line holding the same dictionary entry as the line at a\nplace: an edit there changes them all. Members only.",
+        "operationId": "places",
+        "parameters": [
+          {
+            "name": "storyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "line",
+            "in": "query",
+            "description": "1-based line in the EN script.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "part",
+            "in": "query",
+            "description": "The option number of a decision, else 0.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entry's places, up to 500.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyPlaces"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/progress": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Every story's progress: lines that can be edited, approved, waiting for a\ndecision, outdated. Members only.",
+        "operationId": "story_progress",
+        "responses": {
+          "200": {
+            "description": "One row per story with lines.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StoryProgress"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/proposals": {
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Write the caller's proposal for the line's dictionary entry, or rewrite\nthe one they have (a new version). Members only.",
+        "operationId": "create_proposal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The proposal's id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/proposals/{id}": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Rewrite one's own proposal (a new version). Members only.",
+        "operationId": "rewrite_proposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The proposal.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalRewrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Rewritten."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Delete one's own proposal (kept in the database, gone from the site),\nwith the votes for it. Members only.",
+        "operationId": "delete_proposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The proposal.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/proposals/{id}/versions": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Every text a proposal has had, newest first. Members only.",
+        "operationId": "proposal_versions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The proposal.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The versions, the current one first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalVersion"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/releases": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Every pack version marked, newest first. Members only.",
+        "operationId": "list_releases",
+        "responses": {
+          "200": {
+            "description": "The releases with their counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Release"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Mark what went out in a pack version: every approved entry for the game\nnot yet out with the same text. The pack's maintainer only.",
+        "operationId": "mark_release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The release with what it marked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/stories/{story_id}/lines": {
+      "get": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "One story's lines: English, the Russian the game shows now, Chinese,\nSova's and the AI's texts, and the glossary terms in each line. Members only.",
+        "operationId": "story_lines",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "description": "The story id, as in `/story/{id}`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The story's lines in file order; empty when nothing was imported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslatorStoryLines"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/translators/stories/{story_id}/read": {
+      "put": {
+        "tags": [
+          "translators"
+        ],
+        "summary": "Mark a story read by the caller (\"I have read this scene\"), or not. Members only.",
+        "operationId": "set_story_read",
+        "parameters": [
+          {
+            "name": "story_id",
+            "in": "path",
+            "description": "The story id.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/upcoming": {
       "get": {
         "tags": [
@@ -16513,6 +17830,40 @@
           }
         }
       },
+      "AgreementInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          {
+            "type": "object",
+            "required": [
+              "agree"
+            ],
+            "properties": {
+              "agree": {
+                "type": "boolean"
+              },
+              "proposalId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64",
+                "description": "The proposal; null = the game's Russian (\"keep as in the game\")."
+              },
+              "variant": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "`game`, `sova`, `ai` or `proposal`; when left out, `proposal` with an id, else `game`."
+              }
+            }
+          }
+        ],
+        "description": "Agree with a variant of the entry at a place, or take it back."
+      },
       "AlignMethod": {
         "type": "string",
         "enum": [
@@ -16668,6 +18019,112 @@
             "description": "The board title, its line break turned into a space."
           }
         }
+      },
+      "Approval": {
+        "type": "object",
+        "description": "The lead's decision for an entry.",
+        "required": [
+          "variant",
+          "text",
+          "by",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "$ref": "#/components/schemas/EditPerson"
+          },
+          "proposalId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The approved proposal; null for the other variants."
+          },
+          "releasedIn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pack version this text went out in, if it has."
+          },
+          "text": {
+            "type": "string"
+          },
+          "variant": {
+            "type": "string",
+            "description": "`game` (checked and kept, never exported), `proposal`, `sova` or `ai`."
+          }
+        }
+      },
+      "ApprovalBatch": {
+        "type": "object",
+        "description": "Several approvals at once: a whole scene's recommended variants, or the\ngame's Russian for a whole scene.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalInput"
+            }
+          }
+        }
+      },
+      "ApprovalBatchResult": {
+        "type": "object",
+        "description": "How many approvals a batch made.",
+        "required": [
+          "approved",
+          "skipped"
+        ],
+        "properties": {
+          "approved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Items skipped (a line with nothing to translate, a variant it lacks)."
+          }
+        }
+      },
+      "ApprovalInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          {
+            "type": "object",
+            "required": [
+              "variant",
+              "approve"
+            ],
+            "properties": {
+              "approve": {
+                "type": "boolean"
+              },
+              "proposalId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "variant": {
+                "type": "string",
+                "description": "`game`, `sova`, `ai` or `proposal` (with `proposalId`)."
+              }
+            }
+          }
+        ],
+        "description": "Approve a variant of the line's entry (the lead), or withdraw the approval."
       },
       "ArchiveAppearance": {
         "type": "object",
@@ -19817,6 +21274,34 @@
           }
         }
       },
+      "CharName": {
+        "type": "object",
+        "description": "Who a story sprite is, for the Service rows (\"On stage: Amiya\").",
+        "required": [
+          "charId",
+          "nameEn",
+          "guessed"
+        ],
+        "properties": {
+          "charId": {
+            "type": "string",
+            "description": "The sprite's id without pose and face (`char_002_amiya`)."
+          },
+          "guessed": {
+            "type": "boolean",
+            "description": "Named by who talks right after it (not an operator): a guess."
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameRu": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CharacterSprite": {
         "type": "object",
         "required": [
@@ -20027,6 +21512,53 @@
             "format": "int64"
           }
         }
+      },
+      "CommentInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          {
+            "type": "object",
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "`remark` (default) or `note`."
+              },
+              "proposalId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "quote": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The selected fragment of the line, if any."
+              },
+              "text": {
+                "type": "string"
+              },
+              "variant": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "For a note about one variant: `game`, `sova`, `ai` or `proposal` (with `proposalId`)."
+              }
+            }
+          }
+        ],
+        "description": "A note on the entry at a place."
       },
       "CommunityEnemyAverageResponse": {
         "type": "object",
@@ -21593,6 +23125,202 @@
           }
         }
       },
+      "EditComment": {
+        "type": "object",
+        "description": "A note on an entry.",
+        "required": [
+          "id",
+          "text",
+          "author",
+          "createdAt",
+          "place",
+          "kind"
+        ],
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/EditPerson"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`remark` (a question or problem, can be resolved) or `note` (a\ntranslator's note: never resolved, always shown)."
+          },
+          "place": {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          "proposalId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "quote": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The fragment of the line it is about, as selected."
+          },
+          "resolvedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "resolvedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EditPerson"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "variant": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The variant a note is about: `game`, `sova`, `ai` or `proposal`; null for the line."
+          },
+          "variantText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The variant's text when the note was written."
+          }
+        }
+      },
+      "EditCreated": {
+        "type": "object",
+        "description": "The id of what was created.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EditPerson": {
+        "type": "object",
+        "description": "A section member as an author or a voter.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "EditPlace": {
+        "type": "object",
+        "description": "One displayed text of one story: where an edit was made.",
+        "required": [
+          "storyId",
+          "line",
+          "part"
+        ],
+        "properties": {
+          "line": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based line in the EN script."
+          },
+          "part": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The option number of a decision, else 0."
+          },
+          "storyId": {
+            "type": "string"
+          }
+        }
+      },
+      "EditRow": {
+        "type": "object",
+        "description": "One row of \"My edits\".",
+        "required": [
+          "proposal",
+          "en",
+          "state",
+          "places"
+        ],
+        "properties": {
+          "en": {
+            "type": "string",
+            "description": "The English of the entry."
+          },
+          "ord": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The proposal's place's 0-based order in its story, when the line is still there."
+          },
+          "places": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Places holding the entry."
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/Proposal"
+          },
+          "ruGame": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The game's Russian now (\"was\")."
+          },
+          "state": {
+            "type": "string",
+            "description": "`proposed`, `approved`, `otherApproved` or `outdated`."
+          }
+        }
+      },
+      "EditRows": {
+        "type": "object",
+        "description": "\"My edits\".",
+        "required": [
+          "all",
+          "rows"
+        ],
+        "properties": {
+          "all": {
+            "type": "boolean"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditRow"
+            },
+            "description": "Newest first, up to 2,000."
+          }
+        }
+      },
       "EncounteredEnemiesResponse": {
         "type": "object",
         "required": [
@@ -22044,6 +23772,229 @@
           "excellent",
           "outstanding"
         ]
+      },
+      "ExportChange": {
+        "type": "object",
+        "description": "One line changed in a corrected copy.",
+        "required": [
+          "file",
+          "line",
+          "key",
+          "before",
+          "after",
+          "by"
+        ],
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string",
+            "description": "The value before; empty for an added entry."
+          },
+          "by": {
+            "type": "string",
+            "description": "Who approved it (`approved`) or proposed it (`review`)."
+          },
+          "file": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based line in the file; for an entry added at the end, its new line."
+          }
+        }
+      },
+      "ExportFile": {
+        "type": "object",
+        "description": "One file of an export.",
+        "required": [
+          "name",
+          "size",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Size in bytes (UTF-8)."
+          }
+        }
+      },
+      "ExportFileKeys": {
+        "type": "object",
+        "description": "A dictionary file and how many of the exported keys it holds.",
+        "required": [
+          "file",
+          "keys"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "keys": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ExportReport": {
+        "type": "object",
+        "description": "What an export wrote and what to know before putting it in the game.",
+        "required": [
+          "mode",
+          "format",
+          "at",
+          "by",
+          "written",
+          "changes",
+          "skipped",
+          "pluginRows",
+          "storyRows",
+          "contextRows",
+          "loadedAfter",
+          "overriddenBy",
+          "replaced",
+          "appended",
+          "withAlternatives",
+          "archive"
+        ],
+        "properties": {
+          "appended": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`patch` format: entries none of the files had, added at the end of the 12_story copy."
+          },
+          "archive": {
+            "type": "string",
+            "description": "The archive's name."
+          },
+          "archiveToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The list (`only` empty): the archive of exactly this export is being\npacked; download it with this token (for 30 minutes)."
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds."
+          },
+          "by": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportChange"
+            },
+            "description": "Each changed line of the copies."
+          },
+          "contextRows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "format": {
+            "type": "string"
+          },
+          "loadedAfter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`file` format: the files the game loads after ours, which win on the same key."
+          },
+          "mode": {
+            "type": "string"
+          },
+          "overriddenBy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFileKeys"
+            },
+            "description": "Of those, the ones holding exported keys, and how many."
+          },
+          "pluginRows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Rows of `plugin_strings.tsv`."
+          },
+          "replaced": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFileKeys"
+            },
+            "description": "`patch` format: values replaced in each changed copy."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportSkipped"
+            },
+            "description": "Left out: keys XUnity cannot read back."
+          },
+          "storyRows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Rows of `story_lines.tsv`, and of them proposals for one place."
+          },
+          "withAlternatives": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`review` mode: entries with more than one proposal (the most agreed is exported)."
+          },
+          "written": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Lines changed or added in the dictionaries (the copies, or 00_translators.txt)."
+          }
+        }
+      },
+      "ExportResult": {
+        "type": "object",
+        "description": "The export's files and its report.",
+        "required": [
+          "files",
+          "report"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFile"
+            }
+          },
+          "report": {
+            "$ref": "#/components/schemas/ExportReport"
+          }
+        }
+      },
+      "ExportSkipped": {
+        "type": "object",
+        "description": "A translation left out of the dictionaries, and why.",
+        "required": [
+          "key",
+          "reason"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
       },
       "ExtraVoiceConfigData": {
         "type": "object",
@@ -22889,6 +24840,30 @@
           }
         }
       },
+      "GameVariant": {
+        "type": "object",
+        "description": "One way the game translates a term, from the Russian of its lines.",
+        "required": [
+          "ru",
+          "lines",
+          "glossary"
+        ],
+        "properties": {
+          "glossary": {
+            "type": "boolean",
+            "description": "The word is the glossary's form."
+          },
+          "lines": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Lines of the term that hold the word (any ending)."
+          },
+          "ru": {
+            "type": "string",
+            "description": "The word as the game writes it most often."
+          }
+        }
+      },
       "GamedataOverride": {
         "type": "object",
         "description": "`gamedata_overrides` row - a hand-entered replacement for one field of one\ngame-data entity in one locale.",
@@ -22965,6 +24940,224 @@
           "totalUsers": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "Glossary": {
+        "type": "object",
+        "description": "The whole stored glossary and its freshness.",
+        "required": [
+          "sheetUrl",
+          "refreshing",
+          "terms"
+        ],
+        "properties": {
+          "attemptedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last attempt, successful or not."
+          },
+          "fetchedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the stored copy's download, null when there is none."
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last attempt failed (the stored copy is older then)."
+          },
+          "refreshing": {
+            "type": "boolean",
+            "description": "A download is running now."
+          },
+          "sheetUrl": {
+            "type": "string",
+            "description": "The Google Sheet, to open and edit it."
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryTerm"
+            }
+          }
+        }
+      },
+      "GlossaryLine": {
+        "type": "object",
+        "description": "One story line holding a glossary term.",
+        "required": [
+          "storyId",
+          "ord",
+          "en"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "found": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The Russian holds the glossary's form; null when not checked."
+          },
+          "ord": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0-based order in its story (the table's № minus one)."
+          },
+          "ruGame": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "storyId": {
+            "type": "string"
+          }
+        }
+      },
+      "GlossaryLines": {
+        "type": "object",
+        "description": "A term's story lines.",
+        "required": [
+          "total",
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlossaryLine"
+            },
+            "description": "Up to 200, in story order."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Every line holding the term (with `missing`: those without the form)."
+          }
+        }
+      },
+      "GlossaryTerm": {
+        "type": "object",
+        "description": "One glossary entry for the Glossary tab.",
+        "required": [
+          "id",
+          "sheet",
+          "row",
+          "en",
+          "key",
+          "ru",
+          "caseSensitive",
+          "fromSova",
+          "storyLines",
+          "gameVariants",
+          "checkedLines",
+          "foundLines"
+        ],
+        "properties": {
+          "caseSensitive": {
+            "type": "boolean"
+          },
+          "checkedLines": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Its lines that have a Russian to check, and of those, the lines holding the glossary's form."
+          },
+          "cn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cnGame": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its Chinese from the game's speaker names, when it is a speaker."
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "en": {
+            "type": "string",
+            "description": "The English cell as written."
+          },
+          "foundLines": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fromSova": {
+            "type": "boolean"
+          },
+          "gameVariants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameVariant"
+            },
+            "description": "The Russian words the game uses for it, most lines first (up to 5)."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "key": {
+            "type": "string",
+            "description": "The English the site searches for."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "row": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based row in the sheet."
+          },
+          "ru": {
+            "type": "string"
+          },
+          "ruPlural": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "storyLines": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Story lines whose English holds the key."
+          },
+          "synonyms": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -23708,6 +25901,38 @@
           }
         }
       },
+      "ImportStatus": {
+        "type": "object",
+        "description": "The import's state (service key only; not used by the page).",
+        "required": [
+          "running",
+          "last"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last run failed, while this process remembers it."
+          },
+          "last": {
+            "type": "object",
+            "description": "The last finished import's summary (`ImportSummary`)."
+          },
+          "lastFinishedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last finished import."
+          },
+          "running": {
+            "type": "boolean"
+          }
+        }
+      },
       "InfectionState": {
         "type": "string",
         "description": "What the infection sentence says, read by keyword.",
@@ -23909,6 +26134,126 @@
             "type": "integer",
             "format": "int64",
             "description": "Rank among visible holders on the player's own server, and that\npopulation's size."
+          }
+        }
+      },
+      "KeyEdits": {
+        "type": "object",
+        "description": "Everything decided or proposed for one dictionary entry.",
+        "required": [
+          "editKey",
+          "gameAgreements",
+          "placeAgreements",
+          "proposals",
+          "comments"
+        ],
+        "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Approval"
+              }
+            ]
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditComment"
+            },
+            "description": "Oldest first."
+          },
+          "editKey": {
+            "type": "string"
+          },
+          "gameAgreements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditPerson"
+            },
+            "description": "Who keeps the game's Russian (\"agree\" with it)."
+          },
+          "placeAgreements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceAgreement"
+            },
+            "description": "Who agrees with Sova's or the AI's variant at a place."
+          },
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "description": "Most agreed first, then oldest first."
+          }
+        }
+      },
+      "KeyPlace": {
+        "type": "object",
+        "description": "One story line holding the entry.",
+        "required": [
+          "storyId",
+          "line",
+          "part",
+          "ord"
+        ],
+        "properties": {
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The line before and after it in the story: the game's Russian, else the English."
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ord": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The line's 0-based order in its story (the table's № minus one)."
+          },
+          "part": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "storyId": {
+            "type": "string"
+          }
+        }
+      },
+      "KeyPlaces": {
+        "type": "object",
+        "description": "Every place of the entry at a place.",
+        "required": [
+          "editKey",
+          "total",
+          "places"
+        ],
+        "properties": {
+          "editKey": {
+            "type": "string"
+          },
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyPlace"
+            },
+            "description": "Up to 500, in story order."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -24314,6 +26659,62 @@
           "non_production",
           "unmodeled"
         ]
+      },
+      "LineTerm": {
+        "type": "object",
+        "description": "A glossary term found in a line's English.",
+        "required": [
+          "termId",
+          "matched",
+          "sheet",
+          "ru",
+          "fromSova"
+        ],
+        "properties": {
+          "found": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the line's Russian holds the glossary form (by stem, ё = е); null when not checked."
+          },
+          "fromSova": {
+            "type": "boolean",
+            "description": "From the sheet copied from Sova's glossary: a variant, never marked as not found."
+          },
+          "matched": {
+            "type": "string",
+            "description": "The text as it stands in the English line."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ru": {
+            "type": "string"
+          },
+          "ruPlural": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "termId": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "LmdIncomeDto": {
         "type": "object",
@@ -24942,6 +27343,22 @@
           "target_level": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "MissingTerm": {
+        "type": "object",
+        "description": "A glossary term missing from a variant: as in the English line, and the glossary's Russian.",
+        "required": [
+          "en",
+          "ru"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
           }
         }
       },
@@ -25759,6 +28176,22 @@
           "listens": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "NameRu": {
+        "type": "object",
+        "description": "A chapter or story name of the library with the game's Russian.",
+        "required": [
+          "en",
+          "ru"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
           }
         }
       },
@@ -26974,6 +29407,47 @@
           }
         }
       },
+      "OutdatedEdit": {
+        "type": "object",
+        "description": "An approval or proposal left at a place whose English has changed.",
+        "required": [
+          "kind",
+          "line",
+          "part",
+          "editKey",
+          "text",
+          "author",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "author": {
+            "$ref": "#/components/schemas/EditPerson"
+          },
+          "editKey": {
+            "type": "string",
+            "description": "The English it was made for."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`proposal` or `approval`."
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "part": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
       "OwnedSkin": {
         "type": "object",
         "required": [
@@ -27009,6 +29483,30 @@
             "type": "integer",
             "format": "int64",
             "description": "00:00 UTC of the day, Unix seconds."
+          }
+        }
+      },
+      "PlaceAgreement": {
+        "type": "object",
+        "description": "Who agrees with Sova's or the AI's variant at one place.",
+        "required": [
+          "variant",
+          "place",
+          "people"
+        ],
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditPerson"
+            }
+          },
+          "place": {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          "variant": {
+            "type": "string",
+            "description": "`sova` or `ai`."
           }
         }
       },
@@ -27762,6 +30260,180 @@
           "lookback"
         ]
       },
+      "Proposal": {
+        "type": "object",
+        "description": "A translator's proposed Russian for one dictionary entry.",
+        "required": [
+          "id",
+          "editKey",
+          "text",
+          "source",
+          "author",
+          "createdAt",
+          "versions",
+          "agreements",
+          "place",
+          "context",
+          "outdated"
+        ],
+        "properties": {
+          "agreements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditPerson"
+            },
+            "description": "Who agrees with it."
+          },
+          "approvedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "approvedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EditPerson",
+                "description": "A proposal for one place approved by the lead (for that place only)."
+              }
+            ]
+          },
+          "author": {
+            "$ref": "#/components/schemas/EditPerson"
+          },
+          "context": {
+            "type": "boolean",
+            "description": "For this place only: never exported to the dictionaries."
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds."
+          },
+          "editKey": {
+            "type": "string"
+          },
+          "editedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last rewrite, null when never rewritten."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outdated": {
+            "type": "boolean",
+            "description": "Its English is gone from the story since an import."
+          },
+          "place": {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          "releasedIn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A one-place proposal: the pack version its text went out in, if it has."
+          },
+          "source": {
+            "type": "string",
+            "description": "`own`, `sova`, `ai` (or `kit`, unused for now)."
+          },
+          "text": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Texts it has had, the current one included."
+          }
+        }
+      },
+      "ProposalInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EditPlace"
+          },
+          {
+            "type": "object",
+            "required": [
+              "text",
+              "source"
+            ],
+            "properties": {
+              "confirmMany": {
+                "type": "boolean",
+                "description": "Required for a proposal for every place when the entry stands in more than one."
+              },
+              "context": {
+                "type": "boolean",
+                "description": "For this place only (a context translation), not for every place of the entry."
+              },
+              "source": {
+                "type": "string",
+                "description": "`own`, `sova` or `ai`."
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Write or rewrite the caller's proposal for the entry at a place."
+      },
+      "ProposalRewrite": {
+        "type": "object",
+        "description": "Rewrite one's own proposal.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "confirmMany": {
+            "type": "boolean"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "ProposalVersion": {
+        "type": "object",
+        "description": "One text a proposal has had.",
+        "required": [
+          "id",
+          "text",
+          "source",
+          "author",
+          "createdAt"
+        ],
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/EditPerson"
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
       "PublishRequest": {
         "type": "object",
         "properties": {
@@ -28315,6 +30987,18 @@
           }
         }
       },
+      "ReadInput": {
+        "type": "object",
+        "description": "Mark a story read by the caller, or not.",
+        "required": [
+          "read"
+        ],
+        "properties": {
+          "read": {
+            "type": "boolean"
+          }
+        }
+      },
       "Readiness": {
         "type": "object",
         "required": [
@@ -28558,6 +31242,56 @@
           }
         }
       },
+      "Release": {
+        "type": "object",
+        "description": "A pack version and what went out in it.",
+        "required": [
+          "id",
+          "version",
+          "at",
+          "dictionary",
+          "plugin",
+          "context"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dictionary": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Entries marked: dictionary lines, plugin lines, one-place lines."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plugin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "ReleaseBanner": {
         "type": "object",
         "required": [
@@ -28759,6 +31493,24 @@
                 "$ref": "#/components/schemas/EventShop"
               }
             ]
+          }
+        }
+      },
+      "ReleaseInput": {
+        "type": "object",
+        "description": "Mark a pack version: which version, and a note.",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
           }
         }
       },
@@ -29291,6 +32043,18 @@
             }
           }
         ]
+      },
+      "ResolveInput": {
+        "type": "object",
+        "description": "Mark a comment resolved, or not.",
+        "required": [
+          "resolved"
+        ],
+        "properties": {
+          "resolved": {
+            "type": "boolean"
+          }
+        }
       },
       "RetentionExclusion": {
         "type": "object",
@@ -32622,6 +35386,38 @@
           }
         }
       },
+      "StoryProgress": {
+        "type": "object",
+        "description": "A story's progress: its lines that can be edited, approved ones, ones\nwaiting for a decision (proposals, not approved) and outdated ones.",
+        "required": [
+          "storyId",
+          "total",
+          "approved",
+          "waiting",
+          "outdated"
+        ],
+        "properties": {
+          "approved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outdated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "storyId": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "StoryProgressDocument": {
         "type": "object",
         "description": "The reading-progress document, exactly as the browser holds it.\n\nOpaque on purpose: typing it here would put the format in two places and\nmake every reader-side field addition a backend migration. The TS type is\ndeclared inline so the generated binding still names the real shape."
@@ -32681,6 +35477,23 @@
             ],
             "format": "int64",
             "description": "Unix seconds of the last write, null alongside a null `progress`."
+          }
+        }
+      },
+      "StoryRead": {
+        "type": "object",
+        "description": "A member who has read a story, and when.",
+        "required": [
+          "by",
+          "at"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by": {
+            "$ref": "#/components/schemas/EditPerson"
           }
         }
       },
@@ -34930,6 +37743,253 @@
           }
         }
       },
+      "TranslatorLine": {
+        "type": "object",
+        "description": "One displayed text of a story with its Russian and the hints.",
+        "required": [
+          "line",
+          "part",
+          "kind",
+          "speakerEn",
+          "en",
+          "terms",
+          "editKey",
+          "editable",
+          "contextAllowed",
+          "places",
+          "status",
+          "variantGlossary"
+        ],
+        "properties": {
+          "ai": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The AI's translation: signed-in translators only."
+          },
+          "cn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contextAllowed": {
+            "type": "boolean",
+            "description": "A proposal for this place only is offered (story lines that are not short)."
+          },
+          "editKey": {
+            "type": "string",
+            "description": "The dictionary entry an edit of this line changes (its English)."
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "False for a line with nothing to translate (only punctuation)."
+          },
+          "en": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`dialog`, `narration`, `subtitle`, `sticker` or `option`."
+          },
+          "line": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based line in the EN script.",
+            "minimum": 0
+          },
+          "part": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The option number of a decision (1-based), else 0."
+          },
+          "places": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Story lines holding the same entry, this one included."
+          },
+          "pluginRole": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`story` when the text is in the plugin's catalog, `ambiguous:story` when the plugin leaves it in English."
+          },
+          "ruDict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The dictionary's value when the plugin's differs."
+          },
+          "ruGame": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Russian the game shows now."
+          },
+          "ruGameMatch": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`exact`, `normalized`, `lines` or `plugin`."
+          },
+          "ruGameSource": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`plugin:story` or the dictionary file it came from."
+          },
+          "sova": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sova's translation: signed-in translators only."
+          },
+          "speakerCn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "speakerEn": {
+            "type": "string"
+          },
+          "speakerRu": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`unchecked`, `proposed`, `approved` or `outdated`."
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineTerm"
+            },
+            "description": "Glossary terms found in the English, in order."
+          },
+          "variantGlossary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantGlossary"
+            },
+            "description": "The variants whose Russian lacks a glossary term's form (a variant not\nlisted holds them all): `game`, `sova`, `ai`, `approved`, `proposal:<id>`."
+          }
+        }
+      },
+      "TranslatorStoryLines": {
+        "type": "object",
+        "description": "One story's lines.",
+        "required": [
+          "storyId",
+          "hints",
+          "lines",
+          "edits",
+          "outdated",
+          "sovaNotes",
+          "reads"
+        ],
+        "properties": {
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyEdits"
+            },
+            "description": "What was proposed, approved and said for the lines' entries (by `editKey`)."
+          },
+          "hints": {
+            "type": "boolean",
+            "description": "The lines carry Sova's and the AI's texts."
+          },
+          "importedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Unix seconds of the last import, null when nothing was imported yet."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslatorLine"
+            }
+          },
+          "outdated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutdatedEdit"
+            },
+            "description": "Decisions left at this story's places for an English that has changed."
+          },
+          "reads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoryRead"
+            },
+            "description": "Who has read the story (\"I have read this scene\"), first readers first."
+          },
+          "sovaNotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sova's footnotes to the story's chapter (arktr), members only like her texts."
+          },
+          "storyId": {
+            "type": "string"
+          }
+        }
+      },
+      "TranslatorsMe": {
+        "type": "object",
+        "description": "What the page needs to know about the caller.",
+        "required": [
+          "member",
+          "roles",
+          "devLogin"
+        ],
+        "properties": {
+          "devLogin": {
+            "type": "boolean",
+            "description": "The development sign-in is switched on for this backend."
+          },
+          "member": {
+            "type": "boolean",
+            "description": "A signed-in translator: sees Sova's and the AI's texts."
+          },
+          "nickname": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member's game nickname, shown for `{@nickname}`; null when unknown."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`translator`, `editor` (the lead), `maintainer` (builds the pack), `admin`;\nseveral at once; empty for a non-member."
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member's user id, to tell their own proposals and votes."
+          }
+        }
+      },
       "UiMessageAuditActor": {
         "type": "object",
         "description": "The author of one translation revision. `nickname` is `None` once the\naccount is gone or never synced a name.",
@@ -35761,6 +38821,25 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "VariantGlossary": {
+        "type": "object",
+        "description": "One variant of a line and the glossary terms its Russian lacks.",
+        "required": [
+          "variant",
+          "missing"
+        ],
+        "properties": {
+          "missing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissingTerm"
+            }
+          },
+          "variant": {
+            "type": "string"
           }
         }
       },

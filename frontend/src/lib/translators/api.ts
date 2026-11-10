@@ -1,0 +1,307 @@
+/**
+ * The translators' section (`/translators`): its backend calls, under
+ * `/api/translators`. Every call goes through a server function so the
+ * http-only `site_token` reaches the backend: the section's data is only
+ * answered to a member (`translators.members`).
+ */
+import { queryOptions } from "@tanstack/react-query";
+import { createServerFn } from "@tanstack/react-start";
+import { setCookie } from "@tanstack/react-start/server";
+import { env } from "#/env";
+import { parseError } from "#/lib/api/_shared";
+import { optionalSiteToken } from "#/lib/api/_shared.server";
+import { backendFetch } from "#/lib/fetch";
+import type { ApprovalBatchResult } from "#/types/generated/ApprovalBatchResult";
+import type { CharName } from "#/types/generated/CharName";
+import type { EditCreated } from "#/types/generated/EditCreated";
+import type { EditPlace } from "#/types/generated/EditPlace";
+import type { EditRows } from "#/types/generated/EditRows";
+import type { ExportResult } from "#/types/generated/ExportResult";
+import type { Glossary } from "#/types/generated/Glossary";
+import type { GlossaryLines } from "#/types/generated/GlossaryLines";
+import type { KeyPlaces } from "#/types/generated/KeyPlaces";
+import type { LoginResponse } from "#/types/generated/LoginResponse";
+import type { NameRu } from "#/types/generated/NameRu";
+import type { ProposalVersion } from "#/types/generated/ProposalVersion";
+import type { Release } from "#/types/generated/Release";
+import type { StoryProgress } from "#/types/generated/StoryProgress";
+import type { TranslatorStoryLines } from "#/types/generated/TranslatorStoryLines";
+import type { TranslatorsMe } from "#/types/generated/TranslatorsMe";
+
+/** Every query of the section starts with this, so one invalidation refreshes them all (sign-in, sign-out). */
+export const TRANSLATORS_QUERY_ROOT = ["translators"] as const;
+
+export const getTranslatorsMeFn = createServerFn({ method: "GET" }).handler(async (): Promise<TranslatorsMe> => {
+    const res = await backendFetch("/translators/me", { bearerToken: optionalSiteToken() });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as TranslatorsMe;
+});
+
+export function translatorsMeQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "me"], queryFn: () => getTranslatorsMeFn(), staleTime: 60_000 });
+}
+
+export const getTranslatorLinesFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { storyId: string }) => d)
+    .handler(async ({ data }): Promise<TranslatorStoryLines> => {
+        const res = await backendFetch(`/translators/stories/${encodeURIComponent(data.storyId)}/lines`, { bearerToken: optionalSiteToken() });
+        if (!res.ok) throw await parseError(res);
+        return (await res.json()) as TranslatorStoryLines;
+    });
+
+export function translatorLinesQueryOptions(storyId: string) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "lines", storyId], queryFn: () => getTranslatorLinesFn({ data: { storyId } }), staleTime: 5 * 60_000 });
+}
+
+export const getGlossaryFn = createServerFn({ method: "GET" }).handler(async (): Promise<Glossary> => {
+    const res = await backendFetch("/translators/glossary", { bearerToken: optionalSiteToken() });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as Glossary;
+});
+
+/** The stored glossary; polled every 2 s while a download runs. */
+export function glossaryQueryOptions() {
+    return queryOptions({
+        queryKey: [...TRANSLATORS_QUERY_ROOT, "glossary"],
+        queryFn: () => getGlossaryFn(),
+        staleTime: 5 * 60_000,
+        refetchInterval: (query) => (query.state.data?.refreshing ? 2_000 : false),
+    });
+}
+
+/** Download the glossary again from the team's sheet (in the background); answers the stored copy with `refreshing` set. */
+export const refreshGlossaryFn = createServerFn({ method: "POST" }).handler(async (): Promise<Glossary> => {
+    const res = await backendFetch("/translators/glossary/refresh", { method: "POST", bearerToken: optionalSiteToken() });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as Glossary;
+});
+
+// ---- Line editing (translators/PLAN-edit.md). Every change refreshes the
+// story lines and My edits through `invalidateEdits`.
+
+/** The query keys an edit changes: every story's lines and My edits. */
+export const EDIT_QUERY_ROOTS = [
+    [...TRANSLATORS_QUERY_ROOT, "lines"],
+    [...TRANSLATORS_QUERY_ROOT, "edits"],
+] as const;
+
+async function send(path: string, method: string, body?: unknown): Promise<Response> {
+    const res = await backendFetch(path, { method, bearerToken: optionalSiteToken(), body: body === undefined ? undefined : JSON.stringify(body) });
+    if (!res.ok) throw await parseError(res);
+    return res;
+}
+
+export type ProposalSource = "own" | "sova" | "ai";
+
+/** Write my proposal for the line's entry (for every place, or for this place only with `context`), or rewrite the one I have; `confirmMany` once the list of places was confirmed. */
+export const createProposalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { place: EditPlace; text: string; source: ProposalSource; context: boolean; confirmMany: boolean }) => d)
+    .handler(async ({ data }): Promise<EditCreated> => {
+        const res = await send("/translators/proposals", "POST", { ...data.place, text: data.text, source: data.source, context: data.context, confirmMany: data.confirmMany });
+        return (await res.json()) as EditCreated;
+    });
+
+export const rewriteProposalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number; text: string; confirmMany: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/proposals/${data.id}`, "PUT", { text: data.text, confirmMany: data.confirmMany });
+        return null;
+    });
+
+export const deleteProposalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/proposals/${data.id}`, "DELETE");
+        return null;
+    });
+
+export const getProposalVersionsFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { id: number }) => d)
+    .handler(async ({ data }): Promise<ProposalVersion[]> => {
+        const res = await send(`/translators/proposals/${data.id}/versions`, "GET");
+        return (await res.json()) as ProposalVersion[];
+    });
+
+export function proposalVersionsQueryOptions(id: number) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", "versions", id], queryFn: () => getProposalVersionsFn({ data: { id } }) });
+}
+
+/** Agree with a variant of the line's entry or take it back; `proposalId` null = keep as in the game. */
+export type AgreeVariant = "game" | "sova" | "ai" | "proposal";
+
+export const setAgreementFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { place: EditPlace; variant: AgreeVariant; proposalId: number | null; agree: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send("/translators/agreements", "PUT", { ...data.place, variant: data.variant, proposalId: data.proposalId, agree: data.agree });
+        return null;
+    });
+
+export interface IApprovalInput {
+    place: EditPlace;
+    variant: AgreeVariant;
+    proposalId: number | null;
+    approve: boolean;
+}
+
+function approvalBody(a: IApprovalInput) {
+    return { ...a.place, variant: a.variant, proposalId: a.proposalId, approve: a.approve };
+}
+
+/** Approve a variant of the line's entry, or withdraw it (the lead). */
+export const setApprovalFn = createServerFn({ method: "POST" })
+    .inputValidator((d: IApprovalInput) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send("/translators/approvals", "PUT", approvalBody(data));
+        return null;
+    });
+
+/** Approve many lines at once (the lead). */
+export const approveBatchFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { items: IApprovalInput[] }) => d)
+    .handler(async ({ data }): Promise<ApprovalBatchResult> => {
+        const res = await send("/translators/approvals/batch", "POST", { items: data.items.map(approvalBody) });
+        return (await res.json()) as ApprovalBatchResult;
+    });
+
+export type ExportMode = "approved" | "review";
+export type ExportFormat = "file" | "patch";
+
+/** The export's report and file list (no contents: each file downloads from `/translators/export`). */
+export const exportFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { mode: ExportMode; format: ExportFormat }) => d)
+    .handler(async ({ data }): Promise<ExportResult> => {
+        const res = await send(`/translators/export?mode=${data.mode}&format=${data.format}&only=`, "GET");
+        return (await res.json()) as ExportResult;
+    });
+
+/** Mark what went out in a pack version (the pack's maintainer). */
+export const markReleaseFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { version: string; note: string }) => d)
+    .handler(async ({ data }): Promise<Release> => {
+        const res = await send("/translators/releases", "POST", { version: data.version, note: data.note || null });
+        return (await res.json()) as Release;
+    });
+
+export const getReleasesFn = createServerFn({ method: "GET" }).handler(async (): Promise<Release[]> => {
+    const res = await send("/translators/releases", "GET");
+    return (await res.json()) as Release[];
+});
+
+/** Every pack version marked, newest first (refreshed with the edits). */
+export function releasesQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", "releases"], queryFn: () => getReleasesFn() });
+}
+
+/** Mark a story read by me ("I have read this scene"), or not. */
+export const setStoryReadFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { storyId: string; read: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/stories/${encodeURIComponent(data.storyId)}/read`, "PUT", { read: data.read });
+        return null;
+    });
+
+export const getProgressFn = createServerFn({ method: "GET" }).handler(async (): Promise<StoryProgress[]> => {
+    const res = await send("/translators/progress", "GET");
+    return (await res.json()) as StoryProgress[];
+});
+
+/** Every story's progress (refreshed with the edits). */
+export function progressQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", "progress"], queryFn: () => getProgressFn(), staleTime: 60_000 });
+}
+
+/** A remark (`kind: "remark"`) or a translator's note (`"note"`, maybe about one variant), quoting a fragment of the line. */
+export const createCommentFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { place: EditPlace; text: string; quote: string | null; kind: "remark" | "note"; variant: string | null; proposalId: number | null }) => d)
+    .handler(async ({ data }): Promise<EditCreated> => {
+        const res = await send("/translators/comments", "POST", { ...data.place, text: data.text, quote: data.quote, kind: data.kind, variant: data.variant, proposalId: data.proposalId });
+        return (await res.json()) as EditCreated;
+    });
+
+export const deleteCommentFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/comments/${data.id}`, "DELETE");
+        return null;
+    });
+
+export const resolveCommentFn = createServerFn({ method: "POST" })
+    .inputValidator((d: { id: number; resolved: boolean }) => d)
+    .handler(async ({ data }): Promise<null> => {
+        await send(`/translators/comments/${data.id}/resolved`, "PUT", { resolved: data.resolved });
+        return null;
+    });
+
+export const getPlacesFn = createServerFn({ method: "GET" })
+    .inputValidator((d: EditPlace) => d)
+    .handler(async ({ data }): Promise<KeyPlaces> => {
+        const q = new URLSearchParams({ storyId: data.storyId, line: String(data.line), part: String(data.part) });
+        const res = await send(`/translators/places?${q}`, "GET");
+        return (await res.json()) as KeyPlaces;
+    });
+
+/** Every place of the entry at a place. */
+export function placesQueryOptions(place: EditPlace) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "places", place.storyId, place.line, place.part], queryFn: () => getPlacesFn({ data: place }), staleTime: 5 * 60_000 });
+}
+
+export const getEditsFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { all: boolean }) => d)
+    .handler(async ({ data }): Promise<EditRows> => {
+        const res = await send(`/translators/edits${data.all ? "?all=true" : ""}`, "GET");
+        return (await res.json()) as EditRows;
+    });
+
+/** My edits, or everyone's for the lead. */
+export function editsQueryOptions(all: boolean) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "edits", all ? "all" : "mine"], queryFn: () => getEditsFn({ data: { all } }) });
+}
+
+export const getCharactersFn = createServerFn({ method: "GET" }).handler(async (): Promise<CharName[]> => {
+    const res = await send("/translators/characters", "GET");
+    return (await res.json()) as CharName[];
+});
+
+/** Who each story sprite is, for the Service rows. */
+export function charactersQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "characters"], queryFn: () => getCharactersFn(), staleTime: 60 * 60_000 });
+}
+
+export const getGlossaryLinesFn = createServerFn({ method: "GET" })
+    .inputValidator((d: { id: number; missing: boolean }) => d)
+    .handler(async ({ data }): Promise<GlossaryLines> => {
+        const res = await send(`/translators/glossary/${data.id}/lines${data.missing ? "?missing=true" : ""}`, "GET");
+        return (await res.json()) as GlossaryLines;
+    });
+
+/** A glossary term's story lines (only those lacking its form with `missing`). */
+export function glossaryLinesQueryOptions(id: number, missing: boolean) {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "glossary", "lines", id, missing], queryFn: () => getGlossaryLinesFn({ data: { id, missing } }), staleTime: 5 * 60_000 });
+}
+
+export const getNamesFn = createServerFn({ method: "GET" }).handler(async (): Promise<NameRu[]> => {
+    const res = await send("/translators/names", "GET");
+    return (await res.json()) as NameRu[];
+});
+
+/** The library's chapter and story names with the game's Russian. */
+export function namesQueryOptions() {
+    return queryOptions({ queryKey: [...TRANSLATORS_QUERY_ROOT, "names"], queryFn: () => getNamesFn(), staleTime: 60 * 60_000 });
+}
+
+// The same cookies the site's own sign-in sets (`lib/auth/server.ts`), so the
+// rest of the site sees the development translator as signed in.
+const COOKIE_BASE = { secure: env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 24 * 7 };
+
+/**
+ * Development only: sign in as the local translator account. The backend
+ * answers 404 unless `TRANSLATORS_DEV_LOGIN=1` is set for it.
+ */
+export const translatorsDevLoginFn = createServerFn({ method: "POST" }).handler(async (): Promise<{ uid: string }> => {
+    const res = await backendFetch("/translators/dev-login", { method: "POST" });
+    if (!res.ok) throw await parseError(res);
+    const { token, uid } = (await res.json()) as LoginResponse;
+    setCookie("site_token", token, { ...COOKIE_BASE, httpOnly: true });
+    setCookie("auth_indicator", "1", { ...COOKIE_BASE, httpOnly: false });
+    return { uid };
+});
