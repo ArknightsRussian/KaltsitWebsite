@@ -1,1 +1,8 @@
 out/
+
+# заметки для ИИ — только локально
+PLAN-*.md
+PROGRESS.md
+REPORT-*.md
+SPEC-*.md
+*:Zone.Identifier
