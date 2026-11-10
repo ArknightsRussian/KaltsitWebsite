@@ -36,6 +36,9 @@ services:
 
     backend:
         image: ghcr.io/arknightsrussian/kaltsitwebsite-backend:latest
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
         restart: unless-stopped
         depends_on:
             postgres:
@@ -43,7 +46,6 @@ services:
             redis:
                 condition: service_healthy
         environment:
-            # Жестко прописываем настройки, игнорируя .env файлы
             DATABASE_URL: "postgres://myrtle:myrtle@postgres:5432/myrtle"
             REDIS_URL: "redis://redis:6379"
             ASSETS_DIR: "/data/output"
@@ -65,6 +67,9 @@ services:
 
     frontend:
         image: ghcr.io/arknightsrussian/kaltsitwebsite-frontend:latest
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
         restart: unless-stopped
         depends_on:
             - backend
@@ -77,9 +82,42 @@ services:
         networks:
             - myrtle
 
+    dps-tools:
+        image: ghcr.io/arknightsrussian/kaltsitwebsite-dps-tools:latest
+        build:
+            context: ./backend
+            dockerfile: Dockerfile.dev
+        profiles:
+            - tools
+        volumes:
+            - ./backend:/src
+            - ./assets/output:/data/output:ro
+            - cargo_cache:/usr/local/cargo/registry
+            - pip_cache:/root/.cache/pip
+        environment:
+            GAME_DATA_DIR: /data/output/en/gamedata/excel
+            ASSETS_DIR: /data/output/en
+            CARGO_TARGET_DIR: /tmp/cargo_target
+        command: sh ./scripts/run-dps-tools.sh
+
+    asset-tools:
+        image: ghcr.io/arknightsrussian/kaltsitwebsite-asset-tools:latest
+        build:
+            context: ./assets
+            dockerfile: Dockerfile
+        profiles:
+            - tools
+        volumes:
+            - ./assets:/src
+            - ./assets/ArkAssets:/data/ArkAssets
+            - ./assets/output:/data/output
+            - cargo_cache:/usr/local/cargo/registry
+
 volumes:
     myrtle_pgdata:
     myrtle_redisdata:
+    cargo_cache:
+    pip_cache:
 
 networks:
     myrtle:
