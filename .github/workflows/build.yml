@@ -21,16 +21,8 @@ jobs:
       - name: Setup Environment Variables
         run: cp .env.example .env
 
-      # Очистка дискового пространства (часто решает проблему с нехваткой места при сборке)
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /usr/share/dotnet
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker # <-- ВАЖНО: это заставляет образ сохраняться локально
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -39,20 +31,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build tools
-        run: docker compose --profile tools build
-
-      - name: Build main app (backend & frontend)
-        run: docker compose build
-
-      - name: Tag and Push to GHCR
+      - name: Build and Push Tools
         run: |
-          docker tag kaltsitwebsite-asset-tools ghcr.io/arknightsrussian/kaltsitwebsite-asset-tools:latest
-          docker tag kaltsitwebsite-dps-tools ghcr.io/arknightsrussian/kaltsitwebsite-dps-tools:latest
-          docker tag kaltsitwebsite-backend ghcr.io/arknightsrussian/kaltsitwebsite-backend:latest
-          docker tag kaltsitwebsite-frontend ghcr.io/arknightsrussian/kaltsitwebsite-frontend:latest
-          
-          docker push ghcr.io/arknightsrussian/kaltsitwebsite-asset-tools:latest
-          docker push ghcr.io/arknightsrussian/kaltsitwebsite-dps-tools:latest
-          docker push ghcr.io/arknightsrussian/kaltsitwebsite-backend:latest
-          docker push ghcr.io/arknightsrussian/kaltsitwebsite-frontend:latest
+          docker compose --profile tools build
+          docker compose --profile tools push
+
+      - name: Build and Push Main App
+        run: |
+          docker compose build
+          docker compose push
